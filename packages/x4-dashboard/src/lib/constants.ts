@@ -122,6 +122,26 @@ export function getWareGroupColor(groupId: string | null | undefined): string {
   return "bg-slate-500/10 text-slate-400 border-slate-500/20";
 }
 
+// Flat hex mirrors of the group/tier color families above, for callers that need an
+// inline color (e.g. SVG fill/stroke) rather than a Tailwind class string. Kept next to
+// getWareGroupColor/getTierColor so the two representations stay in sync.
+export const WARE_GROUP_HEX: Record<string, string> = {
+  energy: "#eab308",
+  water: "#0ea5e9",
+  ice: "#22d3ee",
+  minerals: "#f59e0b",
+  gases: "#d946ef",
+  agricultural: "#84cc16",
+  food: "#22c55e",
+  pharmaceutical: "#10b981",
+  refined: "#f97316",
+  hightech: "#3b82f6",
+  shiptech: "#6366f1",
+};
+
+// Per-tier accent (array index = tier - 1).
+export const TIER_HEX = ["#cbd5e1", "#4ade80", "#60a5fa", "#c084fc", "#fb923c", "#facc15"];
+
 export function getTierColor(tier: number | null | undefined): string {
   if (tier == null) return "bg-muted text-muted-foreground border-border";
   switch (tier) {

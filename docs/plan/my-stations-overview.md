@@ -93,7 +93,7 @@ Files: `packages/x4-extract/src/x4_extract/dynamic/extractors/stations.py`,
 
 ## Phase C — Selective API exposure
 
-File: `packages/x4-api/src/x4_api/api/v1/stations.py` (extend; `/stations` and
+File: `packages/x4-api/src/x4_api/routes/stations.py` (extend; `/stations` and
 `/stations/{id}/offers` already exist). Static module facts join via natural keys against
 `static.db`'s `modules` table (the established cross-DB join pattern).
 

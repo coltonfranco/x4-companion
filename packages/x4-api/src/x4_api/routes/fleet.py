@@ -1,0 +1,72 @@
+"""REST endpoints for live ships (the fleet) from the active save's dynamic DB.
+
+Distinct from `/ships` (static ship catalog/specs): these are live ship *instances* —
+the actual ships in the player's save, at their current sectors and states. The `macro`
+column joins `s.ships` for catalog specs. Empty until a save is ingested.
+"""
+
+import sqlite3
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends, Query
+
+from x4_api.deps import get_db
+from x4_api.routes._db import build_where_clause, localized_text_sql, paginate
+from x4_api.schemas import PublicModel
+
+router = APIRouter()
+
+
+class LiveShip(PublicModel):
+    ship_id: str
+    code: str | None
+    name: str | None  # in-save name (player-renamed); often null for NPC ships
+    macro: str | None
+    owner_faction: str | None
+    class_id: str | None  # size: ship_xs..ship_xl
+    sector_id: str | None
+    state: str | None
+    is_player_owned: bool
+    catalog_name: str | None  # from the static ship catalog (e.g. "Rapier")
+    role: str | None  # fight | trade | mine | build | auxiliary | ...
+    ship_type: str | None  # scout | fighter | miner | freighter | ...
+    cargo_volume: int | None
+    level: float | None  # pilot skill 0-5
+    thruster: str | None  # equipped thruster macro
+
+
+@router.get("/fleet", response_model=list[LiveShip])
+def list_fleet(
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    owner: str | None = Query(None, description="Filter by owning faction id"),
+    sector: str | None = Query(None, description="Filter by sector macro id"),
+    player_only: bool = Query(False, description="Only player-owned ships"),
+    limit: int = Query(500, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
+) -> list[LiveShip]:
+    """Live ship instances. Returns [] until a save is ingested."""
+    conditions: list[tuple[str, Any]] = []
+    if owner is not None:
+        conditions.append(("sh.owner_faction = ?", owner))
+    if sector is not None:
+        conditions.append(("sh.sector_id = ?", sector))
+    if player_only:
+        conditions.append(("sh.is_player_owned = 1", ()))
+    where_clause, where_params = build_where_clause(conditions)
+
+    # LEFT JOIN the static ship catalog (by macro) for role/type/name/cargo.
+    sql = (
+        "SELECT sh.ship_id, sh.code, "
+        f"CASE WHEN sh.name LIKE '{{%,%}}' THEN "
+        f"  COALESCE({localized_text_sql('sh.name')}, sh.name) "
+        "ELSE sh.name END AS name, "
+        "sh.macro, sh.owner_faction, sh.class_id, "
+        "sh.sector_id, sh.state, sh.level, sh.thruster, sh.is_player_owned, "
+        "c.name AS catalog_name, c.role, c.ship_type, c.cargo_volume "
+        "FROM ships sh LEFT JOIN s.ships c ON c.ship_id = sh.macro "
+        f"{where_clause} ORDER BY sh.ship_id"
+    )
+    sql, params = paginate(sql, where_params, limit, offset)
+
+    rows = conn.execute(sql, params).fetchall()
+    return [LiveShip(**dict(r)) for r in rows]

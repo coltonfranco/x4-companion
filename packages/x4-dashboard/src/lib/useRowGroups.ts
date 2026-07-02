@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import type { RowGroup } from "../components/DataTable";
+import type { RowGroup } from "../components/data-display/DataTable";
 
 /**
  * Bucket `rows` by `keyFn`, sort the bucket keys (default: `localeCompare`,

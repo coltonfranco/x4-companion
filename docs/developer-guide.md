@@ -254,7 +254,7 @@ machine. It ships three things in the Tauri installer:
 2. A **standalone Python server** — `x4c-server`, a PyInstaller *onedir* bundle of the
    FastAPI/uvicorn API plus all `x4_api`/`x4_extract` code and native deps (lxml, Pillow,
    texture2ddecoder). Spec: `packages/x4-api/x4c-server.spec`; entry point
-   `x4_api/server_entry.py` (serves on `127.0.0.1:8765` with no args).
+   `x4_api/__main__.py` (serves on `127.0.0.1:8765` with no args).
 3. The **dashboard SPA** (`x4-dashboard/dist`).
 
 The sidecar and dashboard are staged into `packages/x4-desktop/src-tauri/resources/`

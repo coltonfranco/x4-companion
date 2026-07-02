@@ -22,9 +22,9 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from x4_api.api.app import app as app_factory
-from x4_api.api.deps import get_settings
 from x4_api.config import Settings
+from x4_api.deps import get_settings
+from x4_api.server import app as app_factory
 from x4_extract.db import migrate_all
 
 FIXTURES = Path(__file__).parent / "fixtures"

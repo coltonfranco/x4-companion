@@ -105,7 +105,7 @@ source/stat rows.
 
 ### 4a. Background refresher thread (one per API process)
 
-`packages/x4-api/src/x4_api/api/refresher.py` → `poller.watch_realtime`
+`packages/x4-api/src/x4_api/services/refresher.py` → `poller.watch_realtime`
 
 | Trigger | Frequency | Ladder reached |
 |---------|-----------|----------------|

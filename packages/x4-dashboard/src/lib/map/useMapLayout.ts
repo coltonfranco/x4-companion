@@ -12,8 +12,9 @@ import {
   computeZoneScaleMap,
   computeZoneScreenPos,
 } from "./positions";
-import type { Cluster, FactionSummary, Zone } from "./types";
+import type { Cluster, Zone } from "./types";
 import type { MapData } from "./useMapData";
+import type { FactionSummary } from "../types";
 
 export function useMapLayout(data: MapData, activeDlcs: Set<string> | null, fogOfWar: boolean = true) {
   const { clusters, sectors, zones, gates, highways, connections, resources, factions, stations } = data;

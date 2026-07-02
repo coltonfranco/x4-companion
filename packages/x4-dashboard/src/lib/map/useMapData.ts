@@ -6,7 +6,6 @@ import { apiGet } from "../api";
 import type {
   Cluster,
   ClusterResourceEntry,
-  FactionSummary,
   Gate,
   Highway,
   MapStation,
@@ -14,6 +13,7 @@ import type {
   SectorConnection,
   Zone,
 } from "./types";
+import type { FactionSummary } from "../types";
 
 export function useMapData() {
   const clustersQuery = useQuery<Cluster[]>({

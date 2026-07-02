@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { formatTimeAgo } from "./formatters";
-import type { SaveSummary } from "../components/SaveSelector";
+import type { SaveSummary } from "../components/app-shell/SaveSelector";
 
 /** The active save's in-game time in seconds — the canonical "now" for all
  *  relative-time formatting across the app. React Query deduplicates the

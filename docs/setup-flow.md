@@ -11,11 +11,11 @@ Before the browser even loads, the API server is running on `127.0.0.1:8765`.
 
 ### 0.1 — Uvicorn starts the FastAPI app
 
-`x4_api.server_entry.main()` (or `cli.py serve`) calls `uvicorn.run` with the
-`x4_api.api.app:app` factory. All routes are registered, middleware is wired up.
+`x4_api.__main__.main()` (or `cli.py serve`) calls `uvicorn.run` with the
+`x4_api.server:app` factory. All routes are registered, middleware is wired up.
 
-→ [server_entry.py](../packages/x4-api/src/x4_api/server_entry.py)
-→ [app.py](../packages/x4-api/src/x4_api/api/app.py:68)
+→ [__main__.py](../packages/x4-api/src/x4_api/__main__.py)
+→ [server.py](../packages/x4-api/src/x4_api/server.py)
 
 ### 0.2 — Settings singleton is created
 
@@ -46,8 +46,8 @@ The FastAPI lifespan context manager fires:
 - **0.3c** If `dashboard_dist/` exists: mounts `/assets` and an SPA catch-all at `/`
   that serves `index.html` for client-side routing.
 
-→ [app.py](../packages/x4-api/src/x4_api/api/app.py:53-64)
-→ [refresher.py](../packages/x4-api/src/x4_api/api/refresher.py:109-126)
+→ [app.py](../packages/x4-api/src/x4_api/server.py:53-64)
+→ [refresher.py](../packages/x4-api/src/x4_api/services/refresher.py:109-126)
 
 ### 0.4 — Dashboard loads in browser
 
@@ -99,7 +99,7 @@ Polling interval depends on state:
 `needs_setup` logic: `true` until `static_ready AND paths_valid AND NOT init.running
 AND NOT init.error`.
 
-→ [setup.py](../packages/x4-api/src/x4_api/api/v1/setup.py:93-104)
+→ [setup.py](../packages/x4-api/src/x4_api/routes/setup.py:93-104)
 
 ### 1.3 — Gate renders the wizard
 
@@ -135,7 +135,7 @@ after a 500ms debounce. Server checks:
 
 Both inputs must show green checkmarks before the Initialize button enables.
 
-→ [setup.py](../packages/x4-api/src/x4_api/api/v1/setup.py:120-140)
+→ [setup.py](../packages/x4-api/src/x4_api/routes/setup.py:120-140)
 → [SetupWizard.tsx](../packages/x4-dashboard/src/components/setup/SetupWizard.tsx:152-158)
 
 ### 2.3 — User clicks Initialize
@@ -152,7 +152,7 @@ Persists `install_path` and `save_path`:
    `settings.save_path = ...`. All existing references (deps, refresher) see the
    new paths immediately — no restart needed.
 
-→ [setup.py](../packages/x4-api/src/x4_api/api/v1/setup.py:143-151)
+→ [setup.py](../packages/x4-api/src/x4_api/routes/setup.py:143-151)
 → [appdata.py](../packages/x4-api/src/x4_api/appdata.py:57-67)
 
 #### 2.3b — `POST /api/v1/setup/initialize`
@@ -165,7 +165,7 @@ Kicks off the background init job:
    `init.stage = "datalake"`).
 3. If a job is already running, `start()` is a no-op and returns `false`.
 
-→ [setup.py](../packages/x4-api/src/x4_api/api/v1/setup.py:157-160)
+→ [setup.py](../packages/x4-api/src/x4_api/routes/setup.py:157-160)
 → [init_job.py](../packages/x4-api/src/x4_api/init_job.py:73-83)
 
 ### 2.4 — Wizard flips to progress view
@@ -395,7 +395,7 @@ Each API request goes through `get_db`:
    specs) with live save data.
 3. Connection is closed after the request (yield/finally).
 
-→ [deps.py](../packages/x4-api/src/x4_api/api/deps.py:22-36)
+→ [deps.py](../packages/x4-api/src/x4_api/deps.py:22-36)
 
 ### 5.3 — Icon resolution
 
@@ -407,8 +407,8 @@ When a module/ware/ship/faction endpoint builds its response, it calls one of:
 All three call `_load_manifest()` which reads `data/icons/manifest.json` with
 mtime-based caching (re-reads automatically when the file changes).
 
-→ [icons.py](../packages/x4-api/src/x4_api/api/icons.py:17-41)
-→ [modules.py](../packages/x4-api/src/x4_api/api/v1/modules.py:183-195)
+→ [icons.py](../packages/x4-api/src/x4_api/routes/_icons.py:17-41)
+→ [modules.py](../packages/x4-api/src/x4_api/routes/modules.py:183-195)
 
 ### 5.4 — Browser loads icon PNGs
 
@@ -442,7 +442,7 @@ After Phase 3 completes:
 - `static_db_ready()` → `true` (since 3.2)
 - `job.state().running` → `false` (since 3.5)
 
-→ [refresher.py](../packages/x4-api/src/x4_api/api/refresher.py:122-128)
+→ [refresher.py](../packages/x4-api/src/x4_api/services/refresher.py:122-128)
 
 ### 6.2 — Watch loop starts
 
@@ -454,7 +454,7 @@ After Phase 3 completes:
 - On each save change: re-reads the save's source fingerprint. If unchanged →
   no-op. If changed → re-ingests via `run_dynamic()`.
 
-→ [refresher.py](../packages/x4-api/src/x4_api/api/refresher.py:133-139)
+→ [refresher.py](../packages/x4-api/src/x4_api/services/refresher.py:133-139)
 
 ### 6.3 — Frontend selective refresh
 

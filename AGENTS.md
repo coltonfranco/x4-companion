@@ -15,31 +15,36 @@ The architectural **why** lives in `C:\Users\colto\.claude\plans\binary-seeking-
 
 1. Read this whole file.
 2. Read [`docs/data-tiers.md`](docs/data-tiers.md) for the V1 scope.
-3. Look at the four EXEMPLAR files — they define the patterns:
-   - `packages/x4-api/src/x4_api/config.py` — env + path resolution
-   - `packages/x4-api/src/x4_api/extract/catdat.py` — reading game archives
-   - `packages/x4-api/src/x4_api/extract/wares.py` — static XML extractor
-   - `packages/x4-api/src/x4_api/savefile/dispatch.py` — streaming save dispatch
-   - `packages/x4-api/src/x4_api/savefile/extractors/meta.py` — save visitor
-   - `packages/x4-api/src/x4_api/api/v1/wares.py` — REST endpoint
-   - `packages/x4-api/tests/test_extract_wares.py` — test layout
+3. Look at the EXEMPLAR files — they define the patterns:
+   - `packages/x4-extract/src/x4_extract/config.py` — env + path resolution
+   - `packages/x4-extract/src/x4_extract/static/catdat.py` — reading game archives
+   - `packages/x4-extract/src/x4_extract/static/factions.py` — static XML extractor
+   - `packages/x4-extract/src/x4_extract/savefile/dispatch.py` — streaming save dispatch
+   - `packages/x4-extract/src/x4_extract/dynamic/extractors/stations.py` — save-state collector
+   - `packages/x4-api/src/x4_api/routes/wares.py` — REST endpoint
+   - `packages/x4-extract/tests/test_extract_wares.py` — extraction test layout
+   - `packages/x4-dashboard/src/pages/factions/FactionsPage.tsx` — dashboard page layout
 4. Pick a task. Match the shape of the exemplar for that layer.
-5. Run `pytest`, `ruff check`, `mypy` before declaring done.
+5. Run `pytest`, `ruff check`, `mypy` (Python) and `tsc -b` (dashboard) before declaring done.
 
 ---
 
 ## 1. What this project is
 
-X4: Foundations companion dashboard. Two packages, one repo:
+X4: Foundations companion dashboard. Three Python/TS packages plus a desktop shell, one repo:
 
 | Package | Purpose | Audience |
 |---|---|---|
-| `packages/x4-api/` | Extraction + REST API. **Public contract.** | Any modder; ships to PyPI when stable. |
+| `packages/x4-extract/` | Extraction: static game-archive XML + streaming save-file parsing into SQLite. | Internal dependency of x4-api; no HTTP surface. |
+| `packages/x4-api/` | REST API + CLI built on top of x4-extract. **Public contract.** | Any modder; ships to PyPI when stable. |
 | `packages/x4-dashboard/` | React client. One opinionated consumer. | The repo owner. Never published. |
+| `packages/x4-desktop/` | Tauri shell that bundles the API server + dashboard into a desktop app. | The repo owner. |
 
 The API is treated as a versioned public contract under `/api/v1/`. The dashboard
 calls the **same** endpoints any third-party tool would call. There is no private
-channel.
+channel. x4-api depends on x4-extract; **x4-extract must never import from x4-api**
+(extraction has to stay usable standalone — that's the whole reason it's a separate
+package).
 
 ## 2. Repo navigation
 
@@ -54,12 +59,38 @@ x4-companion/
 │   ├── save-refresh-lifecycle.md          ← when save data is stat'd / diffed / rebuilt
 │   └── openapi.yaml                       ← generated public contract
 ├── packages/
+│   ├── x4-extract/
+│   │   ├── src/x4_extract/
+│   │   │   ├── config.py, db.py, constants.py, parsing.py, i18n.py
+│   │   │   ├── sql/              ← schema_{static,raw,dynamic,appdata}.sql, applied by db.py
+│   │   │   ├── static/          ← game-archive XML → static.db (extract()/write() pairs)
+│   │   │   ├── dynamic/         ← live-save streaming → per-save dynamic.db
+│   │   │   │   ├── pipeline.py, poller.py, collector.py, delta.py, catalog.py
+│   │   │   │   └── extractors/  ← one module per save-state entity (stations, ships, ...)
+│   │   │   └── savefile/        ← low-level streaming dispatch (dispatch.py)
+│   │   └── tests/                ← tests extraction only; never imports x4_api
 │   ├── x4-api/
-│   │   ├── src/x4_api/{config,cli,api,db,extract,savefile,ingest,domain}/
-│   │   └── tests/
-│   └── x4-dashboard/
-│       └── src/{routes,components,lib}/
-└── scripts/                               ← PowerShell utilities
+│   │   ├── src/x4_api/
+│   │   │   ├── config.py, cli.py, appdata.py, deps.py, schemas.py, server.py
+│   │   │   ├── __main__.py       ← standalone server entrypoint (python -m x4_api)
+│   │   │   ├── routes/           ← one router module per resource (REST endpoints)
+│   │   │   │   ├── _db.py, _catalog.py, _factions.py, _icons.py  ← route infrastructure
+│   │   │   │   └── wares.py, ships.py, stations.py, ...          ← domain route handlers
+│   │   │   ├── domain/           ← pure business logic; never imports HTTP concepts
+│   │   │   └── services/         ← stateful orchestration (refresher, init_job)
+│   │   └── tests/                ← tests the API + domain layer; may import x4_extract
+│   │                                 to build fixtures (migrate_all, ExtractSettings),
+│   │                                 never to test x4_extract's own logic (that belongs
+│   │                                 in x4-extract/tests)
+│   ├── x4-dashboard/
+│   │   └── src/
+│   │       ├── app/              ← bootstrap: router.tsx (hand-wired TanStack Router), providers.tsx
+│   │       ├── pages/<domain>/   ← one folder per nav domain; see §4.3
+│   │       ├── components/<taxonomy>/  ← components used by 2+ pages; see §4.3
+│   │       └── lib/               ← cross-page hooks/utils/types; see §4.3
+│   └── x4-desktop/
+│       └── src-tauri/             ← Rust shell wrapping the server + dashboard build
+└── scripts/                               ← one-off maintenance scripts
 ```
 
 ## 3. Dev environment
@@ -99,9 +130,10 @@ inside `packages/`. Before committing, clean up anything outside `tmp/`.
 - **Pydantic for boundaries.** Settings, HTTP request/response models, and other
   serialization boundaries use Pydantic v2. Pure internal data is dataclasses.
 - **Pure functions where possible.** Extractors (`extract()`) take bytes and return data.
-  Writes (`write()`) take a connection and data. Glue lives in `ingest/`.
+  Writes (`write()`) take a connection and data. Orchestration lives in the package's
+  `pipeline.py` (`x4_extract/static/pipeline.py`, `x4_extract/dynamic/pipeline.py`).
 - **Imports sorted** by `ruff` (isort rules). Local imports go through fully-qualified paths:
-  `from x4_api.db.connection import open_db`, not relative imports.
+  `from x4_extract.db import migrate_all`, not relative imports.
 - **No print statements.** Use `typer.echo` in CLI handlers, structured logging elsewhere
   (when we add a logger module — not yet).
 - **Line length 100.** ruff handles it.
@@ -127,9 +159,79 @@ inside `packages/`. Before committing, clean up anything outside `tmp/`.
   `<FactionBadge>`. Never use plain text in a filter dropdown when the table
   column renders a styled component.
 
-### 4.3 SQL
+### 4.3 Dashboard folder structure
 
-- Schema lives in `.sql` files under `packages/x4-api/src/x4_api/db/`. The Python
+The rule that decides where a dashboard file lives: **used on exactly one page →
+colocate it under that page. Used on 2+ pages → promote it to a shared folder.**
+Don't pre-promote "just in case" — start colocated, move it when a second consumer
+shows up.
+
+```
+src/
+├── app/                      ← bootstrap only: router.tsx (hand-wired TanStack Router
+│                                route tree, not file-based routing), providers.tsx
+├── pages/
+│   ├── <domain>/              ← one folder per nav domain (empire, factions, trade, ...)
+│   │   ├── <Domain>Layout.tsx ← only if the domain has 2+ subpages (nav shell + outlet)
+│   │   ├── <Feature>Page.tsx  ← one file per route, default export, matches the name
+│   │   │                        app/router.tsx imports it under
+│   │   ├── types.ts           ← types shared across this domain's own files only
+│   │   ├── components/        ← components used only within this domain
+│   │   ├── hooks/              ← use* hooks used only within this domain
+│   │   └── lib/                 ← everything else page-local: formatters, column defs,
+│   │                              context providers, persistence helpers
+│   └── __dev__/                ← internal/debug pages (styleguide, scratch test pages) —
+│                                  never linked from real navigation
+├── components/
+│   ├── app-shell/              ← global chrome: AppLayout, SettingsModal, SaveSelector, ...
+│   ├── data-display/            ← generic display primitives (DataTable, StatBar, ...)
+│   ├── detail-panels/           ← the shared "entity detail panel" pattern (ships, wares,
+│   │                               equipment, modules) reused across 2+ pages
+│   ├── game/                     ← game-concept widgets used everywhere (Currency,
+│   │                               FactionBadge, ShipImage, ...)
+│   ├── commerce/                 ← ware/production widgets shared between trade + inventory
+│   ├── map/                       ← map primitives reused by BOTH the full map page and
+│   │                               embedded mini-maps elsewhere (e.g. missions). Anything
+│   │                               only the full map page needs lives in
+│   │                               pages/map/components/ instead.
+│   ├── setup/                     ← first-run setup wizard (not a page under pages/ because
+│   │                               it gates the whole app before routing starts)
+│   └── ui/                        ← shadcn/ui design-system primitives. **Exception**: these
+│                                    are kebab-case (`detail-dialog.tsx`), matching shadcn's
+│                                    own convention, unlike every other component folder
+│                                    which is PascalCase. Don't "fix" this.
+└── lib/
+    ├── types.ts                  ← cross-page domain types (e.g. FactionSummary). If a type
+    │                                is only shaped by one feature (map geometry, a page's
+    │                                own view model), it belongs next to that feature instead.
+    ├── map/                       ← map data layer shared by 2+ consumers (map page +
+    │                                embedded mini-maps). Map-page-only hooks live in
+    │                                pages/map/hooks/ instead.
+    └── use*.ts                    ← cross-page hooks (useSort, useColumnVisibility, ...)
+```
+
+Naming inside a page folder: PascalCase for components (`.tsx`), camelCase `use*.ts` for
+hooks, camelCase for everything under `lib/` (`stationFormat.ts`, `builderHelpers.tsx`).
+Page route files themselves are `<Feature>Page.tsx` — always end in `Page`, always a
+default export, so `app/router.tsx` imports read as `import FleetPage from
+"../pages/ships/FleetPage"` without needing an alias to disambiguate.
+
+Before adding a new shared component or type, check whether it's really needed by 2+
+pages (grep for its current usages) — misplaced-shared is as much of a smell as
+misplaced-local. Before adding a new top-level `components/` taxonomy folder, check if
+an existing one already fits; don't create a new one for a single component.
+
+### 4.4 Shared Components
+
+- **Currency/Credits**: Whenever displaying credit amounts, base prices, or any monetary
+  value in the dashboard, ALWAYS use the standard `<Currency>` component
+  (`src/components/game/Currency.tsx`). Do not manually format numbers with
+  `.toLocaleString()` and suffix with `Cr`, and do not use plain text colors. The
+  `<Currency>` component handles standard formatting and coloring.
+
+### 4.5 SQL
+
+- Schema lives in `.sql` files under `packages/x4-extract/src/x4_extract/sql/`. The Python
   code applies them via `apply_schema()`.
 - Use `IF NOT EXISTS` for idempotency.
 - Indexes are explicit. The route-ranking covering index is the most important:
@@ -141,10 +243,10 @@ inside `packages/`. Before committing, clean up anything outside `tmp/`.
 
 ### 5.1 New static extractor (e.g. `factions.xml` → `factions` table)
 
-Copy the shape of `packages/x4-api/src/x4_api/extract/wares.py`:
+Copy the shape of `packages/x4-extract/src/x4_extract/static/factions.py`:
 
 ```python
-# packages/x4-api/src/x4_api/extract/factions.py
+# packages/x4-extract/src/x4_extract/static/factions.py
 from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
@@ -181,23 +283,28 @@ def _color(f) -> str | None:
     return el.get("hex") if el is not None else None
 ```
 
-Then a test that mirrors `tests/test_extract_wares.py`: hand-crafted XML, assert on
-`extract()`, separately verify `write()` round-trips through SQLite.
+Then a test that mirrors `x4-extract/tests/test_extract_wares.py`: hand-crafted XML,
+assert on `extract()`, separately verify `write()` round-trips through SQLite. This
+test belongs in `packages/x4-extract/tests/` — never `x4-api/tests/`, even though it
+runs from the repo-root `pytest` invocation either way. See §12 for why that
+boundary matters.
 
-The orchestrator in `ingest/static_pipeline.py` calls them — every static extractor
-follows the same pattern, so the orchestrator stays mechanical.
+The orchestrator in `x4_extract/static/pipeline.py` calls them — every static
+extractor follows the same pattern, so the orchestrator stays mechanical.
 
-### 5.2 New save-state visitor (e.g. station offers)
+### 5.2 New save-state collector (e.g. station offers)
 
-Copy `packages/x4-api/src/x4_api/savefile/extractors/meta.py`:
+Copy the shape of `packages/x4-extract/src/x4_extract/dynamic/extractors/stations.py`
+(simplified below — the real file also uses the shared helpers in
+`dynamic/extractors/common.py`; reuse those instead of reimplementing them):
 
 ```python
-# packages/x4-api/src/x4_api/savefile/extractors/stations.py
+# packages/x4-extract/src/x4_extract/dynamic/extractors/stations.py
 from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 from lxml import etree
-from x4_api.savefile.dispatch import Registration, Target
+from x4_extract.savefile.dispatch import Registration, Target
 
 @dataclass(slots=True)
 class StationRow:
@@ -236,24 +343,25 @@ class StationCollector:
 
 **Critical: the depth+class match must be exact.** Don't filter `<component>` alone —
 X4 nests components recursively and you'll over-fire. Verify your `Target` against a
-small fixture save in `tests/`.
+small fixture save in `x4-extract/tests/`.
 
-The orchestrator in `ingest/dynamic_pipeline.py` builds a list of all collectors,
+The orchestrator in `x4_extract/dynamic/pipeline.py` builds a list of all collectors,
 calls `stream_save(path, [r for c in collectors for r in c.register()])`, then
-calls `c.flush(conn)` for each. One streaming pass, many visitors.
+calls `c.flush(conn)` for each. One streaming pass, many visitors. This test also
+belongs in `packages/x4-extract/tests/` (see §12).
 
 ### 5.3 New REST endpoint (e.g. `/api/v1/factions`)
 
-Copy `packages/x4-api/src/x4_api/api/v1/wares.py`:
+Copy `packages/x4-api/src/x4_api/routes/wares.py`:
 
 ```python
-# packages/x4-api/src/x4_api/api/v1/factions.py
+# packages/x4-api/src/x4_api/routes/factions.py
 from __future__ import annotations
 import sqlite3
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
-from x4_api.api.deps import get_db
-from x4_api.api.schemas import PublicModel
+from x4_api.deps import get_db
+from x4_api.schemas import PublicModel
 
 router = APIRouter()
 
@@ -286,10 +394,10 @@ def get_faction(
     return FactionDetail(**dict(row))
 ```
 
-Then **register it** in `packages/x4-api/src/x4_api/api/app.py`:
+Then **register it** in `packages/x4-api/src/x4_api/server.py`:
 
 ```python
-from x4_api.api.v1 import factions  # add
+from x4_api.routes import factions  # add
 fast.include_router(factions.router, prefix="/api/v1", tags=["factions"])
 ```
 
@@ -306,20 +414,20 @@ without regenerating the schema will be rejected.
 
 ### 5.4 New dashboard page
 
-```tsx
-// packages/x4-dashboard/src/routes/factions.tsx
-import { useQuery } from "@tanstack/react-query";
+Copy the shape of `packages/x4-dashboard/src/pages/factions/FactionsPage.tsx`. A new
+top-level nav domain gets its own folder under `pages/`; see §4.3 for what goes
+where inside it.
 
-type FactionSummary = {
-  faction_id: string;
-  name: string;
-  color_hex: string | null;
-};
+```tsx
+// packages/x4-dashboard/src/pages/factions/FactionsPage.tsx
+import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "../../lib/api";
+import type { FactionSummary } from "../../lib/types";
 
 export default function FactionsPage() {
   const { data } = useQuery<FactionSummary[]>({
     queryKey: ["factions"],
-    queryFn: () => fetch("/api/v1/factions").then((r) => r.json()),
+    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
   });
   return (
     <ul>
@@ -333,21 +441,36 @@ export default function FactionsPage() {
 }
 ```
 
+Then wire it into `packages/x4-dashboard/src/app/router.tsx` — routes are hand-built
+(not file-based), so a new page is inert until it's imported and added to the route
+tree there:
+
+```tsx
+import FactionsListPage from "../pages/factions/FactionsPage";
+// ...added as a createRoute({ path: "/factions", component: FactionsListPage, ... })
+```
+
 Pages are always pure presentation + query hooks; computed economy logic stays in
-the API.
+the API. If the page grows page-only components, hooks, or a `types.ts`, colocate
+them under `pages/factions/` per §4.3 — don't reach for the shared `components/`
+folders until something else also needs them.
 
 ## 6. Testing
 
 - **Framework**: pytest with `asyncio_mode = "auto"` (configured in root `pyproject.toml`).
 - **All tests run from repo root**: `uv run pytest`.
-- **Layout**: tests mirror source (`tests/test_extract_wares.py` covers `extract/wares.py`).
-- **Fixtures** in `packages/x4-api/tests/fixtures/` — tiny hand-crafted XML.
-  No real game files, no real saves committed.
+- **Layout**: tests mirror source *and package* — a test for `x4_extract/static/wares.py`
+  lives in `x4-extract/tests/test_extract_wares.py`, never under `x4-api/tests/`. See
+  §12 for the boundary rule and §2 for which package owns what.
+- **Fixtures**: each package has its own `tests/fixtures/` — tiny hand-crafted XML/DBs.
+  No real game files, no real saves committed. A fixture used by both packages'
+  tests is duplicated in both `fixtures/` dirs rather than one package reaching into
+  the other's test directory.
 - **Coverage targets** (informal):
-  - 100% on `extract/*.py` pure functions
+  - 100% on `x4_extract/static/*.py` and `x4_extract/dynamic/extractors/*.py` pure functions
   - Smoke test per endpoint (happy path + 404)
-  - Performance test for routes query: `tests/test_routes_query_perf.py` asserts <2 s
-    on a synthetic 500-station fixture
+  - Performance test for the route-ranking query: asserts sub-2s on a synthetic
+    500-station fixture (target — not yet built)
 - **Golden-file regression**: snapshot extractor output against real game data; gate
   behind `@pytest.mark.golden` so CI doesn't require the game files. Regenerate after
   each X4 patch.
@@ -394,15 +517,16 @@ These are real traps. Read before working on the relevant area.
 subtree before firing the outer `end` event — RSS spikes to 1–2 GB on a real save.
 
 **Fix**: use `savefile.dispatch.Target` with `depth=` and `parent_tag=` matching.
-The exemplar `meta.py` shows the pattern. Never call `iterparse` directly in a
-visitor.
+The exemplar `stations.py` collector shows the pattern. Never call `iterparse`
+directly in a visitor.
 
 ### 31M-row self-join on `station_offers`
 
 A naive `station_offers JOIN station_offers ON ware_id` query produces ~31M pairs
 across all wares before SQLite can prune. The route-ranking query is split between
-**save-load materialization** (`ingest/materialize.py`) and **per-request scoring**
-in Python (`domain/routes.py`). Don't try to compute everything in one big query.
+**save-load materialization** (`x4_extract/dynamic/materialize.py`) and **per-request
+scoring** in Python (`x4_api/domain/routes.py`). Don't try to compute everything in
+one big query.
 
 ### gzip streams aren't seekable
 
@@ -415,8 +539,8 @@ bgzip first (out of scope for v1).
 `wares.xml` (and many other library XMLs) ship in DLC and workshop packages as
 **diffs** against the base, using Egosoft's `<diff>` element with `add`/`remove`/
 `replace` operations targeted by XPath. Extractors operate on **merged** XML;
-the merging lives in `extract/diff_merge.py` (to be vendored from
-`bno1/X4FProjector`). Don't reimplement diff logic in your extractor.
+the merging will live in `x4_extract/static/diff_merge.py` (to be vendored from
+`bno1/X4FProjector` — not yet built). Don't reimplement diff logic in your extractor.
 
 ### Save folder defaults are wrong
 
@@ -426,9 +550,9 @@ hard-code a Documents path.
 
 ### DDS textures aren't browser-renderable
 
-Icons are DirectX texture format. Browsers can't render them. The `extract/icons.py`
-pipeline converts DDS → PNG once per content_hash. Don't try to serve DDS bytes
-directly.
+Icons are DirectX texture format. Browsers can't render them. The
+`x4_extract/static/icons.py` pipeline converts DDS → PNG once per content_hash.
+Don't try to serve DDS bytes directly.
 
 ## 9. Definition of done (per milestone)
 
@@ -487,7 +611,24 @@ When implementing a new module:
 5. Stop. Ask the human if anything is unclear; do not silently make architectural
    decisions.
 
+## 12. Known naming debt (don't imitate these, don't fix them without asking)
 
-### 4.4 Shared Components
+These are pre-existing inconsistencies that survived a structure audit. They're not
+bugs — don't "fix" them as a drive-by while doing something else — but new code
+should not copy the pattern:
 
-- **Currency/Credits**: Whenever displaying credit amounts, base prices, or any monetary value in the dashboard, ALWAYS use the standard <Currency> component (src/components/Currency.tsx). Do not manually format numbers with .toLocaleString() and suffix with Cr, and do not use plain text colors. The <Currency> component handles standard formatting and coloring.
+- **`routes` is overloaded three ways**: `x4_api/routes/trade_routes.py` (trade-route
+  API handler), `x4_api/domain/trade_routes.py` (the scoring algorithm), and the
+  dashboard's `pages/trade/RoutesPage.tsx` (a UI page). All three share the concept
+  "routes" (noun) but the API file is now disambiguated as `trade_routes.py`.
+- **`x4_extract/dynamic/extractors/common.py`** is a vague grab-bag name for shared
+  collector helpers (`element_attrs`, `enclosing_sector_zone`, ...). New shared
+  helpers should go there for now, but the name is a known smell.
+- **`x4_extract/db.py` vs `x4_api/routes/_db.py`** — same conceptual role (DB
+  access/migration helpers), different naming convention per package.
+- **Three "economy" test files** (`x4-api/tests/test_economy.py`,
+  `x4-extract/tests/test_extract_economy.py`, `x4-api/tests/test_api_economy_pnl.py`)
+  test different layers (domain supply/market logic, the raw extractor, and the P&L
+  API endpoints respectively) but the names alone don't make that obvious. Match an
+  existing one's layer by what it imports, not by its filename, before adding a
+  fourth.

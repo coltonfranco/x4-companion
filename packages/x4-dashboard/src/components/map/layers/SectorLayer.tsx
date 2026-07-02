@@ -6,10 +6,10 @@ import { MAP_THEME } from "../../../lib/map/constants";
 import { sectorDisplayName } from "../../../lib/map/names";
 import type {
   Cluster,
-  FactionSummary,
   Sector,
   Transform,
 } from "../../../lib/map/types";
+import type { FactionSummary } from "../../../lib/types";
 import type { SectorTint } from "../../../lib/map/overlays/useAnalysisOverlay";
 
 import { GRID_MIN_SCREEN_RADIUS } from "./HexBuildGridLayer";

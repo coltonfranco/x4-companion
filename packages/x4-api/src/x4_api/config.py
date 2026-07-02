@@ -11,7 +11,7 @@ packaged desktop build needs that the bare extraction settings don't:
    a source checkout (a packaged exe has no repo ``data/`` folder).
 
 `install_path` is optional (inherited from ExtractSettings) so the server can boot
-with nothing configured and serve the setup API; see ``x4_api.api.v1.setup``.
+with nothing configured and serve the setup API; see ``x4_api.routes.setup``.
 """
 
 from __future__ import annotations

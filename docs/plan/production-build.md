@@ -25,7 +25,7 @@ The server has heavy native deps — `lxml`, `Pillow`, `texture2ddecoder`, `netw
 
 - Add `pyinstaller` as a dev dependency in `packages/x4-api`.
 - Write a `.spec` (none exists yet) with a small entry script that calls
-  `uvicorn.run("x4_api.api.app:app", ..., factory=True)` — mirroring
+  `uvicorn.run("x4_api.server:app", ..., factory=True)` — mirroring
   `packages/x4-api/src/x4_api/cli.py:160-172`.
 - Handle `--hidden-import` / `--collect-all` for `uvicorn`, `lxml`, `PIL`,
   `texture2ddecoder`, and `x4_extract` / `x4_api` — their submodules are imported lazily / by
@@ -47,7 +47,7 @@ Every dashboard call is a **relative** `fetch("/api/v1/...")` (e.g.
 Vite proxy. In a packaged build Tauri serves the UI from `tauri://localhost` (`frontendDist`
 in `tauri.conf.json`), so `/api/...` hits the wrong origin and **every request 404s**.
 
-The server *can* serve the SPA itself (`packages/x4-api/src/x4_api/api/app.py:113-115` mounts
+The server *can* serve the SPA itself (`packages/x4-api/src/x4_api/server.py:113-115` mounts
 `dist/` at `/`), but `_dashboard_dist()` (`app.py:120-121`) uses a `parents[4]` repo-relative
 path that won't exist inside a frozen exe. Pick one:
 
@@ -93,6 +93,6 @@ Test on a **clean VM with no Python / Node / uv / Rust** (only Windows + WebView
 - `packages/x4-desktop/src-tauri/src/main.rs` — sidecar spawn + `uv` fallback (§1, §2)
 - `packages/x4-desktop/src-tauri/tauri.conf.json` — `externalBin`, `frontendDist`, version (§2, §3, §4)
 - `packages/x4-api/src/x4_api/cli.py:160-172` — `serve` entry point to mirror in the spec (§1)
-- `packages/x4-api/src/x4_api/api/app.py:113-121` — SPA mount + `_dashboard_dist()` (§3)
+- `packages/x4-api/src/x4_api/server.py:113-121` — SPA mount + `_dashboard_dist()` (§3)
 - `packages/x4-api/pyproject.toml` — add `pyinstaller` dev dep (§1)
 - `packages/x4-dashboard/src/lib/*.ts` — relative `/api` fetches (§3)

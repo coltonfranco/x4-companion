@@ -5,7 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 
 import { apiGetOrNull } from "../../lib/api";
-import type { FactionSummary, MapStation } from "../../lib/map/types";
+import type { MapStation } from "../../lib/map/types";
+import type { FactionSummary } from "../../lib/types";
 import { stationCategoryLabel, stationDisplayName } from "../../lib/map/stations";
 import { prettyId } from "../../lib/wareFormat";
 import { formatCompactNumber } from "../../lib/formatters";

@@ -6,8 +6,9 @@
 import { hexPoints } from "../../../lib/map/geometry";
 import { MAP_THEME } from "../../../lib/map/constants";
 import { SQRT3 } from "../../../lib/map/constants";
-import type { Cluster, FactionSummary, Sector, Transform } from "../../../lib/map/types";
+import type { Cluster, Sector, Transform } from "../../../lib/map/types";
 import type { SectorTint } from "../../../lib/map/overlays/useAnalysisOverlay";
+import type { FactionSummary } from "../../../lib/types";
 
 // Build-grid cell size, corner-to-corner ("about 10km across" per the game UI).
 const GRID_KM = 10;

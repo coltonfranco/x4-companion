@@ -165,7 +165,7 @@ def serve(reload: bool = False) -> None:
 
     settings = _load_settings()
     uvicorn.run(
-        "x4_api.api.app:app",
+        "x4_api.server:app",
         host=settings.host,
         port=settings.port,
         reload=reload,
