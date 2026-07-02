@@ -16,7 +16,7 @@ from lxml import etree
 from x4_extract.parsing import opt_attr
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
-from x4_extract.static.map import _dedup
+from x4_extract.static.extractors.universe_map import dedup_by_id
 from x4_extract.static.relations import parse_relation_rows
 
 
@@ -94,7 +94,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
         )
 
     # Deduplicate (just in case DLC merges produce duplicates)
-    _dedup(out.race_relations, ("race_id", "other_race_id"))
+    dedup_by_id(out.race_relations, ("race_id", "other_race_id"))
 
     return out
 

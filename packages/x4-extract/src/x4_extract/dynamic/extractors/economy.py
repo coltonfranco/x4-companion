@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, hash_rows
-from x4_extract.dynamic.extractors.common import element_attrs, extra_json_from_attrs
+from x4_extract.dynamic.extractors.component_helpers import element_attrs, extra_json_from_attrs
 from x4_extract.parsing import opt_attr, str_int
 from x4_extract.savefile.dispatch import Registration, Target
 

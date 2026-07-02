@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from x4_extract.static import ships
+from x4_extract.static.extractors import ships
 
 TINY_MACROS_XML = b"""<?xml version="1.0" encoding="utf-8"?>
 <index>

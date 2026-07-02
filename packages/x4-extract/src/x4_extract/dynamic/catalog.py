@@ -24,9 +24,9 @@ from pathlib import Path
 from lxml import etree
 
 from x4_extract.config import ExtractSettings, resolve_save_path, save_key
-from x4_extract.db import SCHEMA_LOCK, apply_schema, is_dynamic_initialized
-from x4_extract.dynamic.extractors.common import element_attrs
-from x4_extract.dynamic.pipeline import dynamic_db_path, source_fingerprint
+from x4_extract.db import SCHEMA_LOCK, apply_schema, is_dynamic_initialized, open_readonly
+from x4_extract.dynamic.extractors.component_helpers import element_attrs
+from x4_extract.dynamic.pipeline import dynamic_db_path, source_fingerprint, stat_token
 from x4_extract.parsing import str_int
 
 _FALLBACK_DB = "_empty.db"  # ATTACH target when no save exists yet
@@ -216,7 +216,7 @@ def _is_current(db_path: Path, save_path: Path) -> bool:
     if not db_path.exists():
         return False
     st = save_path.stat()
-    if _db_stat(db_path) == (str(st.st_mtime_ns), str(st.st_size)):
+    if _db_stat(db_path) == stat_token(st):
         return True
     return _db_source(db_path) == source_fingerprint(save_path)
 
@@ -233,20 +233,17 @@ def _db_source(db_path: Path) -> str | None:
 
 
 def _read_ingest_tiers(db_path: Path, tiers: tuple[str, ...]) -> dict[str, str]:
-    try:
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    except sqlite3.OperationalError:
-        return {}
-    try:
-        placeholders = ",".join("?" * len(tiers))
-        rows = conn.execute(
-            f"SELECT tier, fingerprint FROM ingest_state WHERE tier IN ({placeholders})", tiers
-        ).fetchall()
-        return {tier: fp for tier, fp in rows}
-    except sqlite3.OperationalError:
-        return {}
-    finally:
-        conn.close()
+    with open_readonly(db_path) as conn:
+        if conn is None:
+            return {}
+        try:
+            placeholders = ",".join("?" * len(tiers))
+            rows = conn.execute(
+                f"SELECT tier, fingerprint FROM ingest_state WHERE tier IN ({placeholders})", tiers
+            ).fetchall()
+            return {tier: fp for tier, fp in rows}
+        except sqlite3.OperationalError:
+            return {}
 
 
 # --- active-save selection -------------------------------------------------------
@@ -352,18 +349,13 @@ def resolve_serving_save(settings: ExtractSettings, folder: Path | None = None) 
 def _db_has_data(db_path: Path) -> bool:
     """True when a per-save dynamic DB has been ingested (has a save_meta row), not just a
     bare schema. Reads the DB, never the source save file."""
-    if not db_path.exists():
-        return False
-    try:
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    except sqlite3.OperationalError:
-        return False
-    try:
-        return conn.execute("SELECT 1 FROM save_meta LIMIT 1").fetchone() is not None
-    except sqlite3.OperationalError:
-        return False
-    finally:
-        conn.close()
+    with open_readonly(db_path) as conn:
+        if conn is None:
+            return False
+        try:
+            return conn.execute("SELECT 1 FROM save_meta LIMIT 1").fetchone() is not None
+        except sqlite3.OperationalError:
+            return False
 
 
 def _db_matches_stat(db_path: Path, save_path: Path) -> bool:
@@ -375,7 +367,7 @@ def _db_matches_stat(db_path: Path, save_path: Path) -> bool:
     if not db_path.exists():
         return False
     st = save_path.stat()
-    return _db_stat(db_path) == (str(st.st_mtime_ns), str(st.st_size))
+    return _db_stat(db_path) == stat_token(st)
 
 
 def ensure_active_dynamic_db(settings: ExtractSettings) -> Path:

@@ -14,8 +14,8 @@ from x4_extract.parsing import opt_attr, size_from_tags
 from x4_extract.parsing import xml_attr_bool as _bool_attr
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
-from x4_extract.static.constants import MODULE_CLASSES, dlc_from_path
 from x4_extract.static.macro_index import iter_index_macros
+from x4_extract.static.xml_helpers import MODULE_CLASSES, dlc_from_path
 
 _RE_SIZE_FROM_NAME = re.compile(r"_([smlx]{1,2})_", re.IGNORECASE)
 _NAME_TO_SIZE = {"s": "small", "m": "medium", "l": "large", "xl": "extralarge", "xs": "extralarge"}

@@ -30,7 +30,7 @@ from typing import Any, cast
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, fingerprint_for_tier, tables_for_tier
-from x4_extract.dynamic.extractors.common import element_attrs, extra_json_from_attrs
+from x4_extract.dynamic.extractors.component_helpers import element_attrs, extra_json_from_attrs
 from x4_extract.savefile.dispatch import Registration, Target
 
 _ENTRY_DEPTH = 3  # savegame(1) → log(2) → entry(3)

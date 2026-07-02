@@ -1,6 +1,6 @@
 import sqlite3
 
-from x4_extract.static.map import extract, write
+from x4_extract.static.extractors.universe_map import extract, write
 
 # Real game format: <macros><macro class="cluster|sector|zone" name="...">
 CLUSTERS_XML = b"""<?xml version="1.0" encoding="utf-8"?>

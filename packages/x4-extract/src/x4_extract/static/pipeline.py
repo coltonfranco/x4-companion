@@ -13,7 +13,7 @@ from typing import Any
 from x4_extract.config import ExtractSettings
 from x4_extract.constants import DEFAULT_LANGUAGE_CODE
 from x4_extract.db import apply_schema
-from x4_extract.static import (
+from x4_extract.static.extractors import (
     assignments,
     behaviours,
     diplomacy,
@@ -23,7 +23,6 @@ from x4_extract.static import (
     factions,
     gamestarts,
     loadouts,
-    map,
     missiongroups,
     modules,
     orders,
@@ -34,6 +33,7 @@ from x4_extract.static import (
     station_types,
     terraforming,
     texts,
+    universe_map,
     waregroups,
     wares,
 )
@@ -318,8 +318,8 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
                 mapdefaults_xml = get_raw_file("libraries/mapdefaults.xml")
                 if mapdefaults_xml:
                     map_xmls["mapdefaults.xml"] = mapdefaults_xml
-                map_result = map.extract(map_xmls)
-                map.write(conn, _localize_result(map_result))
+                map_result = universe_map.extract(map_xmls)
+                universe_map.write(conn, _localize_result(map_result))
                 _progress_log(
                     f"  -> {len(map_result.clusters)} clusters, {len(map_result.sectors)} sectors ({_elapsed(t0)})"
                 )

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from contextlib import closing, suppress
+from collections.abc import Iterator
+from contextlib import closing, contextmanager, suppress
 from pathlib import Path
 from typing import Literal
 
@@ -106,23 +107,45 @@ def migrate_all(data_dir: Path) -> None:
     apply_schema(data_dir, "appdata")
 
 
-def is_dynamic_initialized(db_path: Path) -> bool:
-    """Check if the dynamic schema has actually been applied (tables exist).
+@contextmanager
+def open_readonly(
+    db_path: Path, *, row_factory: type | None = None
+) -> Iterator[sqlite3.Connection | None]:
+    """Yield a read-only connection to `db_path`, or None if it can't be opened.
 
-    A bare `Path.exists()` check is vulnerable to race conditions because
-    sqlite3 creates an empty file before `conn.executescript()` completes.
+    Callers that probe a dynamic DB from outside its normal write path (catalog
+    freshness checks, predecessor-seeding, initialization checks) all hit the same
+    failure mode: the file doesn't exist yet, or a torn write leaves it unreadable.
+    sqlite3 raises `OperationalError` at connect() time for a missing `mode=ro` target
+    (verified — it doesn't lazily fail on first query), so a bare try/except here covers
+    both "never built" and "built but currently unreadable".
     """
-    if not db_path.exists():
-        return False
     try:
-        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    except sqlite3.OperationalError:
+        yield None
+        return
+    if row_factory is not None:
+        conn.row_factory = row_factory
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def is_dynamic_initialized(db_path: Path) -> bool:
+    """Check if the dynamic schema has actually been applied (tables exist)."""
+    with open_readonly(db_path) as conn:
+        if conn is None:
+            return False
+        try:
             # Pick a table at the bottom of schema_dynamic.sql
             row = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='player'"
             ).fetchone()
             return row is not None
-    except sqlite3.OperationalError:
-        return False
+        except sqlite3.OperationalError:
+            return False
 
 
 def open_db(

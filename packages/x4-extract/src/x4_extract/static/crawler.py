@@ -26,8 +26,8 @@ from x4_extract.config import ExtractSettings
 from x4_extract.db import apply_schema
 from x4_extract.parsing import xpath_elements as _xpath_elements
 from x4_extract.static import catdat
-from x4_extract.static.constants import iter_elements
 from x4_extract.static.progress import log_progress as _log
+from x4_extract.static.xml_helpers import iter_elements
 
 log = logging.getLogger(__name__)
 

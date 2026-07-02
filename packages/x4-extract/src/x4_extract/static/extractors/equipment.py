@@ -13,8 +13,8 @@ from x4_extract.parsing import opt_attr, size_from_tags
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
 from x4_extract.parsing import xpath_elements as _xpath_elements
-from x4_extract.static.constants import EQUIPMENT_CLASSES, dlc_from_path
 from x4_extract.static.macro_index import iter_index_macros
+from x4_extract.static.xml_helpers import EQUIPMENT_CLASSES, dlc_from_path
 
 # Tags that appear on every component connection and don't restrict compatibility
 # Tags that appear on every component connection and don't restrict compatibility.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from x4_extract.static import modules
+from x4_extract.static.extractors import modules
 
 # macros.xml index pointing at two module entries
 INDEX_XML = b"""<?xml version="1.0" encoding="utf-8"?>

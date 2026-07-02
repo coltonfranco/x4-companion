@@ -17,7 +17,7 @@ from typing import Any
 from lxml import etree
 
 from x4_extract.parsing import opt_attr
-from x4_extract.static.map import _dedup
+from x4_extract.static.extractors.universe_map import dedup_by_id
 from x4_extract.static.relations import parse_relation_rows
 
 
@@ -111,10 +111,10 @@ def extract(factions_bytes: bytes, colors_bytes: bytes | None = None) -> Extract
     # Deduplicate relations: merged DLC sub-elements may produce duplicate
     # (faction_id, other_faction_id) pairs.  Last-wins so DLC updates to
     # existing relation values are preserved.
-    _dedup(out.relations, ("faction_id", "other_faction_id"))
+    dedup_by_id(out.relations, ("faction_id", "other_faction_id"))
 
     # Same for licences — merged sub-elements can duplicate (licence_type, faction_id).
-    _dedup(out.licences, ("licence_type", "faction_id"))
+    dedup_by_id(out.licences, ("licence_type", "faction_id"))
 
     return out
 

@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, hash_rows
-from x4_extract.dynamic.extractors.common import (
+from x4_extract.dynamic.extractors.component_helpers import (
     element_attrs,
     enclosing_sector_zone,
     extra_json_from_attrs,

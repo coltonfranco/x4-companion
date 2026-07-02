@@ -1,4 +1,6 @@
-"""Global constants defining exact XML `class` matches for datalake extraction."""
+"""Shared XML helpers for static extractors: DLC-path parsing, element iteration, and
+the exact XML `class` sets extractors filter on.
+"""
 
 from __future__ import annotations
 

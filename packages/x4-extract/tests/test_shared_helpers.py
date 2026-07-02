@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 from lxml import etree
-from x4_extract.dynamic.extractors.common import (
+from x4_extract.dynamic.extractors.component_helpers import (
     component_class_registrations,
     enclosing_sector_zone,
     extra_json_from_attrs,

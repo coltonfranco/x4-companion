@@ -43,7 +43,10 @@ from typing import cast
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, hash_rows
-from x4_extract.dynamic.extractors.common import ANCESTOR_WALK_LIMIT, extra_json_from_attrs
+from x4_extract.dynamic.extractors.component_helpers import (
+    ANCESTOR_WALK_LIMIT,
+    extra_json_from_attrs,
+)
 from x4_extract.savefile.dispatch import Registration, Target
 
 NpcData = dict[str, object]

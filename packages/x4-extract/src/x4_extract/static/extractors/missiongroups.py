@@ -14,7 +14,7 @@ from typing import Any
 
 from lxml import etree
 
-from x4_extract.static.constants import iter_elements
+from x4_extract.static.xml_helpers import iter_elements
 
 
 @dataclass(slots=True)

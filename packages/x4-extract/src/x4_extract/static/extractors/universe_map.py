@@ -112,9 +112,9 @@ def write(conn: sqlite3.Connection, result: ExtractResult) -> None:
     )
     # Deduplicate composite-key tables: DLC map files may re-declare the same
     # gate/highway/region entries.  Last-wins so DLC overrides are preserved.
-    _dedup(result.gates, ("from_zone_id", "to_zone_id"))
-    _dedup(result.superhighways, ("from_zone_id", "to_zone_id"))
-    _dedup(result.regions, ("region_id",))
+    dedup_by_id(result.gates, ("from_zone_id", "to_zone_id"))
+    dedup_by_id(result.superhighways, ("from_zone_id", "to_zone_id"))
+    dedup_by_id(result.regions, ("region_id",))
 
     conn.executemany(
         "INSERT INTO gates (from_zone_id, to_zone_id, kind) "
@@ -500,7 +500,7 @@ def _float(el: etree._Element, attr: str) -> float | None:
         return None
 
 
-def _dedup(rows: list[dict[str, Any]], keys: tuple[str, ...]) -> None:
+def dedup_by_id(rows: list[dict[str, Any]], keys: tuple[str, ...]) -> None:
     """Deduplicate *rows* in-place by composite key, keeping the last occurrence."""
     seen: dict[tuple[Any, ...], dict[str, Any]] = {}
     for r in rows:

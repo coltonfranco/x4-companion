@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, fingerprint_for_tier, tables_for_tier
-from x4_extract.dynamic.extractors.common import element_attrs, extra_json_from_attrs
+from x4_extract.dynamic.extractors.component_helpers import element_attrs, extra_json_from_attrs
 from x4_extract.parsing import opt_attr
 from x4_extract.savefile.dispatch import Registration, Target
 

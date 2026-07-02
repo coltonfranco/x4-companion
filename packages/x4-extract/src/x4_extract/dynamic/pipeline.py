@@ -23,7 +23,7 @@ from pathlib import Path
 
 from x4_extract.config import ExtractSettings, save_key
 from x4_extract.constants import DEFAULT_LANGUAGE_CODE
-from x4_extract.db import apply_schema, open_db
+from x4_extract.db import apply_schema, open_db, open_readonly
 from x4_extract.dynamic import delta
 from x4_extract.dynamic.collector import TIERS, Collector, Tier, combined_fingerprint
 from x4_extract.dynamic.distance import build_sector_distance
@@ -234,22 +234,18 @@ def _seed_row_state_from_predecessor(
         reverse=True,
     )
     for cand in candidates[:5]:  # newest few only; older lineage adds nothing
-        try:
-            pred = sqlite3.connect(f"file:{cand}?mode=ro", uri=True)
-            pred.row_factory = sqlite3.Row
-        except sqlite3.Error:
-            continue
-        try:
-            who = pred.execute("SELECT player_name FROM save_meta LIMIT 1").fetchone()
-            if who is None or who["player_name"] != player_name:
+        with open_readonly(cand, row_factory=sqlite3.Row) as pred:
+            if pred is None:
                 continue
-            rows = pred.execute(
-                "SELECT entity_type, entity_key, row_hash, updated_at FROM row_state"
-            ).fetchall()
-        except sqlite3.Error:
-            continue  # predecessor predates these tables — skip it
-        finally:
-            pred.close()
+            try:
+                who = pred.execute("SELECT player_name FROM save_meta LIMIT 1").fetchone()
+                if who is None or who["player_name"] != player_name:
+                    continue
+                rows = pred.execute(
+                    "SELECT entity_type, entity_key, row_hash, updated_at FROM row_state"
+                ).fetchall()
+            except sqlite3.OperationalError:
+                continue  # predecessor predates these tables — skip it
         if not rows:
             continue
         conn.executemany(
@@ -295,18 +291,18 @@ def source_fingerprint(save_path: Path) -> str:
     return h.hexdigest()
 
 
-def _stat_token(st: os.stat_result) -> tuple[str, str]:
+def stat_token(st: os.stat_result) -> tuple[str, str]:
     """A cheap (mtime, size) identity for a save file — exact, no file open required."""
     return (str(st.st_mtime_ns), str(st.st_size))
 
 
 def _stat_matches(state: dict[str, str], st: os.stat_result) -> bool:
-    mtime, size = _stat_token(st)
+    mtime, size = stat_token(st)
     return state.get("source_mtime") == mtime and state.get("source_size") == size
 
 
 def _write_stat(conn: sqlite3.Connection, st: os.stat_result) -> None:
-    mtime, size = _stat_token(st)
+    mtime, size = stat_token(st)
     _write_ingest_state(conn, "source_mtime", mtime)
     _write_ingest_state(conn, "source_size", size)
 

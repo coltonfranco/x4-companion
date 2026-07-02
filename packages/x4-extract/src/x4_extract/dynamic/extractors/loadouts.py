@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, fingerprint_for_tier, tables_for_tier
-from x4_extract.dynamic.extractors.common import (
+from x4_extract.dynamic.extractors.component_helpers import (
     ANCESTOR_WALK_LIMIT,
     component_class_registrations,
     element_attrs,

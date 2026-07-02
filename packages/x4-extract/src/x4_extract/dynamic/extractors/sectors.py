@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, fingerprint_for_tier, tables_for_tier
-from x4_extract.dynamic.extractors.common import known_to_player
+from x4_extract.dynamic.extractors.component_helpers import known_to_player
 from x4_extract.savefile.dispatch import Registration, Target
 
 _SECTOR_DEPTH = 9

@@ -20,8 +20,8 @@ from x4_extract.parsing import attr_flag, opt_attr, size_from_tags
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
 from x4_extract.parsing import xpath_elements as _xpath_elements
-from x4_extract.static.constants import SHIP_CLASSES, dlc_from_path
 from x4_extract.static.macro_index import iter_index_macros
+from x4_extract.static.xml_helpers import SHIP_CLASSES, dlc_from_path
 
 CountCache = dict[tuple[str, bool], dict[str, int]]
 
