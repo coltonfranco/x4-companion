@@ -9,6 +9,7 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import opt_attr, size_from_tags
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
 from x4_extract.parsing import xpath_elements as _xpath_elements
@@ -102,8 +103,8 @@ def _parse_equipment_macro(
     if ident_el is None and class_id not in ["bullet", "missile", "radar"]:
         pass
 
-    name = (ident_el.get("name") if ident_el is not None else None) or macro_name
-    faction_id = ident_el.get("makerrace") if ident_el is not None else None
+    name = (opt_attr(ident_el, "name")) or macro_name
+    faction_id = opt_attr(ident_el, "makerrace")
     mk = _int(ident_el, "mk") if ident_el is not None else None
 
     # Determine size and restrictive tags from component connections
@@ -123,14 +124,7 @@ def _parse_equipment_macro(
                         comp_node, ".//connection[contains(@tags, 'component')]"
                     ):
                         tags = conn.get("tags", "").split()
-                        if "extralarge" in tags:
-                            size = "xl"
-                        elif "large" in tags:
-                            size = "l"
-                        elif "medium" in tags:
-                            size = "m"
-                        elif "small" in tags:
-                            size = "s"
+                        size = size_from_tags(tags) or size
 
                         # Capture restrictive tags (non-generic) for compatibility matching
                         restrictive = [t for t in tags if t not in _GENERIC_TAGS]
@@ -216,7 +210,7 @@ def _parse_equipment_macro(
         ammo_el = macro_el.find("properties/ammunition")
         storage_el = macro_el.find("properties/storage")
 
-        default_bullet_id = bullet_el.get("class") if bullet_el is not None else None
+        default_bullet_id = opt_attr(bullet_el, "class")
 
         out.weapons.append(
             {

@@ -10,6 +10,7 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import opt_attr, size_from_tags
 from x4_extract.parsing import xml_attr_bool as _bool_attr
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
@@ -48,14 +49,14 @@ def _parse_module(
     kind = "dock" if kind in ["dockarea", "pier"] else kind
 
     ident_el = macro_el.find("properties/identification")
-    display_name = (ident_el.get("name") if ident_el is not None else None) or macro_name
-    size = ident_el.get("size") if ident_el is not None else None
+    display_name = (opt_attr(ident_el, "name")) or macro_name
+    size = opt_attr(ident_el, "size")
     if size is None:
         m = _RE_SIZE_FROM_NAME.search(macro_name)
         if m:
             size = _NAME_TO_SIZE.get(m.group(1).lower())
 
-    makerrace = ident_el.get("makerrace") if ident_el is not None else None
+    makerrace = opt_attr(ident_el, "makerrace")
 
     # Deep stats
     hull_el = macro_el.find("properties/hull")
@@ -82,7 +83,7 @@ def _parse_module(
     longrangescan_el = macro_el.find("properties/longrangescan")
     autoaim_el = macro_el.find("properties/autoaim")
 
-    produces_ware_id = prod_el.get("ware") if prod_el is not None else None
+    produces_ware_id = opt_attr(prod_el, "ware")
     if produces_ware_id is None:
         if macro_name == "proc_gen_scrapworks_macro":
             produces_ware_id = "scrapmetal"
@@ -128,7 +129,7 @@ def _parse_module(
 
     # Production method from queue
     queue_el = macro_el.find("properties/production/queue")
-    production_method = queue_el.get("method") if queue_el is not None else None
+    production_method = opt_attr(queue_el, "method")
 
     out.modules.append(
         {
@@ -140,15 +141,15 @@ def _parse_module(
             "kind": kind,
             "size": size,
             "makerrace": makerrace,
-            "description": ident_el.get("description") if ident_el is not None else None,
-            "shortname": ident_el.get("shortname") if ident_el is not None else None,
+            "description": opt_attr(ident_el, "description"),
+            "shortname": opt_attr(ident_el, "shortname"),
             "is_datavault": _bool_attr(ident_el, "datavault") if ident_el is not None else None,
             "is_landmark": _bool_attr(ident_el, "landmark") if ident_el is not None else None,
             "is_unique": _bool_attr(ident_el, "unique") if ident_el is not None else None,
-            "icon": ident_el.get("icon") if ident_el is not None else None,
-            "hudicon": ident_el.get("hudicon") if ident_el is not None else None,
-            "factionhqicon": ident_el.get("factionhqicon") if ident_el is not None else None,
-            "subtype": ident_el.get("type") if ident_el is not None else None,
+            "icon": opt_attr(ident_el, "icon"),
+            "hudicon": opt_attr(ident_el, "hudicon"),
+            "factionhqicon": opt_attr(ident_el, "factionhqicon"),
+            "subtype": opt_attr(ident_el, "type"),
             "produces_ware_id": produces_ware_id,
             "storage_capacity": storage_capacity,
             "storage_type": storage_type,
@@ -156,7 +157,7 @@ def _parse_module(
             "workforce_capacity": _int(workforce_el, "capacity")
             if _int(workforce_el, "capacity") is not None
             else _int(workforce_el, "max"),
-            "workforce_race": workforce_el.get("race") if workforce_el is not None else None,
+            "workforce_race": opt_attr(workforce_el, "race"),
             "workforce_growthrate": _float(workforce_el, "growthrate"),
             "hull": _int(hull_el, "max"),
             "hull_min": _int(hull_el, "min"),
@@ -175,10 +176,10 @@ def _parse_module(
             "dock_playeronly": _bool_attr(dock_el, "playeronly") if dock_el is not None else None,
             "dock_priority": _int(dock_el, "priority") if dock_el is not None else None,
             "dock_showroom": _bool_attr(dock_el, "showroom") if dock_el is not None else None,
-            "dock_size_tags": docksize_el.get("tags") if docksize_el is not None else None,
+            "dock_size_tags": opt_attr(docksize_el, "tags"),
             # Equipment / supply
-            "equip_classes": equip_el.get("classes") if equip_el is not None else None,
-            "supply_classes": supply_el.get("classes") if supply_el is not None else None,
+            "equip_classes": opt_attr(equip_el, "classes"),
+            "supply_classes": opt_attr(supply_el, "classes"),
             # Production
             "production_research": _bool_attr(prod_parent, "research")
             if prod_parent is not None
@@ -317,15 +318,8 @@ def _count_connections(root: etree._Element, hardpoints: dict[str, int]) -> None
         if not (is_turret or is_shield):
             continue
 
-        if "small" in tags:
-            size = "s"
-        elif "medium" in tags:
-            size = "m"
-        elif "large" in tags:
-            size = "l"
-        elif "extralarge" in tags:
-            size = "xl"
-        else:
+        size = size_from_tags(tags)
+        if size is None:
             continue
 
         if is_turret:

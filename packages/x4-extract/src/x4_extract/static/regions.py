@@ -17,6 +17,8 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import opt_attr
+
 
 @dataclass(slots=True)
 class ExtractResult:
@@ -40,7 +42,7 @@ def build_region_sector_map(map_xmls: dict[str, bytes]) -> dict[str, set[str]]:
             if inner_macro is None:
                 continue
             region_prop = inner_macro.find(".//properties/region")
-            region_def = region_prop.get("ref") if region_prop is not None else None
+            region_def = opt_attr(region_prop, "ref")
             if not region_def:
                 continue
             # Walk up to the enclosing sector macro to get the canonical sector ID.

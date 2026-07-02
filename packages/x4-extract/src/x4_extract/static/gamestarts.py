@@ -13,7 +13,7 @@ from typing import Any
 
 from lxml import etree
 
-from x4_extract.parsing import attr_flag
+from x4_extract.parsing import attr_flag, opt_attr
 from x4_extract.parsing import xml_attr_int_or_none as _int
 from x4_extract.static.relations import parse_relation_rows
 
@@ -75,17 +75,17 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "tags": gs_el.get("tags"),
                 "debug": attr_flag(gs_el, "debug"),
                 # Location
-                "location_galaxy": loc_el.get("galaxy") if loc_el is not None else None,
-                "location_sector": loc_el.get("sector") if loc_el is not None else None,
-                "location_zone": loc_el.get("zone") if loc_el is not None else None,
-                "location_station": loc_el.get("station") if loc_el is not None else None,
+                "location_galaxy": opt_attr(loc_el, "galaxy"),
+                "location_sector": opt_attr(loc_el, "sector"),
+                "location_zone": opt_attr(loc_el, "zone"),
+                "location_station": opt_attr(loc_el, "station"),
                 "location_docked": 1
                 if loc_el is not None and loc_el.get("docked") == "true"
                 else 0,
                 # Player
-                "player_macro": pl_el.get("macro") if pl_el is not None else None,
+                "player_macro": opt_attr(pl_el, "macro"),
                 "player_money": _int(pl_el, "money") if pl_el is not None else None,
-                "player_name": pl_el.get("name") if pl_el is not None else None,
+                "player_name": opt_attr(pl_el, "name"),
                 "player_female": attr_flag(pl_el, "female"),
                 # Universe
                 "universe_ventures": 0
@@ -120,7 +120,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                         "gamestart_id": gs_id,
                         "macro": macro,
                         "name": ship_el.get("name"),
-                        "loadout_ref": lo_ref.get("ref") if lo_ref is not None else None,
+                        "loadout_ref": opt_attr(lo_ref, "ref"),
                     }
                 )
 

@@ -16,7 +16,7 @@ from typing import Any
 
 from lxml import etree
 
-from x4_extract.parsing import attr_flag
+from x4_extract.parsing import attr_flag, opt_attr
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int_or_none as _int
 
@@ -47,9 +47,9 @@ def extract(xml_bytes: bytes) -> ExtractResult:
         reward_el = action_el.find("reward")
         icon_el = action_el.find("icon")
 
-        chance_raw = success_el.get("chance") if success_el is not None else None
-        duration_raw = time_el.get("duration") if time_el is not None else None
-        cooldown_raw = time_el.get("cooldown") if time_el is not None else None
+        chance_raw = opt_attr(success_el, "chance")
+        duration_raw = opt_attr(time_el, "duration")
+        cooldown_raw = opt_attr(time_el, "cooldown")
 
         out.actions.append(
             {
@@ -71,7 +71,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "success_selectionbonus": success_el.get("selectionweightbonus")
                 if success_el is not None
                 else None,
-                "success_text": success_el.get("text") if success_el is not None else None,
+                "success_text": opt_attr(success_el, "text"),
                 "duration_sec": int(duration_raw)
                 if duration_raw and duration_raw.isdigit()
                 else None,
@@ -81,13 +81,13 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "time_maxinfluencefactor": _int(time_el, "maxinfluencefactor")
                 if time_el is not None
                 else None,
-                "agent_type": agent_el.get("type") if agent_el is not None else None,
+                "agent_type": opt_attr(agent_el, "type"),
                 "agent_experience": _int(agent_el, "experience") if agent_el is not None else None,
-                "risk": agent_el.get("risk") if agent_el is not None else None,
+                "risk": opt_attr(agent_el, "risk"),
                 "reward_influence": _int(reward_el, "influence") if reward_el is not None else None,
-                "reward_text": reward_el.get("text") if reward_el is not None else None,
-                "icon_active": icon_el.get("active") if icon_el is not None else None,
-                "icon_image": icon_el.get("image") if icon_el is not None else None,
+                "reward_text": opt_attr(reward_el, "text"),
+                "icon_active": opt_attr(icon_el, "active"),
+                "icon_image": opt_attr(icon_el, "image"),
                 "triggers_event": attr_flag(action_el, "triggersevent"),
             }
         )
@@ -154,7 +154,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "description": event_el.get("description"),
                 "shortdescription": event_el.get("shortdescription"),
                 "duration_sec": _int(event_el, "duration"),
-                "icon_image": icon_el.get("image") if icon_el is not None else None,
+                "icon_image": opt_attr(icon_el, "image"),
             }
         )
         for opt_el in event_el.findall("options/option"):
@@ -174,7 +174,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                     "name": opt_el.get("name"),
                     "description": opt_el.get("description"),
                     "menuposition": _int(opt_el, "menuposition"),
-                    "agent_risk": opt_agent.get("risk") if opt_agent is not None else None,
+                    "agent_risk": opt_attr(opt_agent, "risk"),
                     "cost_influence": _int(opt_cost, "influence") if opt_cost is not None else None,
                     "cost_money": _int(opt_cost, "money") if opt_cost is not None else None,
                     "success_weight": _int(opt_success, "weight")
@@ -189,7 +189,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                     "conclusion_text": opt_conclusion.get("text")
                     if opt_conclusion is not None
                     else None,
-                    "result_text": opt_result.get("text") if opt_result is not None else None,
+                    "result_text": opt_attr(opt_result, "text"),
                 }
             )
 

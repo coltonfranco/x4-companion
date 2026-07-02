@@ -32,7 +32,7 @@ from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, hash_rows
 from x4_extract.dynamic.extractors.common import element_attrs, extra_json_from_attrs
-from x4_extract.parsing import str_int
+from x4_extract.parsing import opt_attr, str_int
 from x4_extract.savefile.dispatch import Registration, Target
 
 _LOG_DEPTH = 4  # savegame(1) → economylog(2) → entries(3) → log(4)
@@ -86,7 +86,7 @@ class EconomyLogCollector:
         # The parent <entries type=...> is still live at the child's end event; one attr read
         # routes the row and rejects the cargo/tradeoffer firehose.
         parent = elem.getparent()
-        group = parent.get("type") if parent is not None else None
+        group = opt_attr(parent, "type")
         if group == "trade":
             self._on_trade(elem)
         elif group == "money":

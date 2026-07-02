@@ -27,6 +27,7 @@ from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, fingerprint_for_tier, tables_for_tier
 from x4_extract.dynamic.extractors.common import element_attrs, extra_json_from_attrs
+from x4_extract.parsing import opt_attr
 from x4_extract.savefile.dispatch import Registration, Target
 
 _RELATION_DEPTH = 6
@@ -68,7 +69,7 @@ class FactionsCollector:
         # relation/booster(6) → relations(5) → faction(4)
         relations = elem.getparent()
         faction = relations.getparent() if relations is not None else None
-        owner = faction.get("id") if faction is not None else None
+        owner = opt_attr(faction, "id")
         if owner is None:
             return
 

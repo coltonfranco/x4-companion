@@ -16,7 +16,7 @@ from typing import Any
 
 from lxml import etree
 
-from x4_extract.parsing import attr_flag
+from x4_extract.parsing import attr_flag, opt_attr, size_from_tags
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
 from x4_extract.parsing import xpath_elements as _xpath_elements
@@ -220,17 +220,17 @@ def _parse_ship_macro(
     out.ships.append(
         {
             "ship_id": macro_name,
-            "name": (ident_el.get("name") if ident_el is not None else None) or macro_name,
-            "description": ident_el.get("description") if ident_el is not None else None,
-            "basename": ident_el.get("basename") if ident_el is not None else None,
+            "name": (opt_attr(ident_el, "name")) or macro_name,
+            "description": opt_attr(ident_el, "description"),
+            "basename": opt_attr(ident_el, "basename"),
             "file_path": file_path,
             "is_legacy": "legacy" in file_path.lower(),
             "dlc": dlc_from_path(file_path),
-            "variation": ident_el.get("variation") if ident_el is not None else None,
+            "variation": opt_attr(ident_el, "variation"),
             "class_id": class_id,
-            "ship_type": ship_el.get("type") if ship_el is not None else None,
-            "role": purpose_el.get("primary") if purpose_el is not None else None,
-            "faction_id": ident_el.get("makerrace") if ident_el is not None else None,
+            "ship_type": opt_attr(ship_el, "type"),
+            "role": opt_attr(purpose_el, "primary"),
+            "faction_id": opt_attr(ident_el, "makerrace"),
             "hull": _int(hull_el, "max") if hull_el is not None else None,
             "cargo_volume": counts.get("cargo_volume", 0),
             "dps_max": None,
@@ -253,7 +253,7 @@ def _parse_ship_macro(
             "shield_delay_min": None,
             "shield_delay_max": None,
             "radar_range": None,
-            "icon_path": ident_el.get("icon") if ident_el is not None else None,
+            "icon_path": opt_attr(ident_el, "icon"),
             "mass": mass,
             "drag_forward": drag_fwd,
             "drag_reverse": drag_rev,
@@ -444,16 +444,18 @@ def _add_component_counts(
             docksize_el = node.find("properties/docksize")
             if cap and docksize_el is not None:
                 tags = docksize_el.get("tags", "")
-                if "dock_xl" in tags or "extralarge" in tags:
-                    size = "xl"
-                elif "dock_l" in tags or "large" in tags:
-                    size = "l"
-                elif "dock_m" in tags or "medium" in tags:
-                    size = "m"
-                elif "dock_xs" in tags or "extrasmall" in tags:
+                size = size_from_tags(
+                    tags,
+                    order=(
+                        ("xl", ("dock_xl", "extralarge")),
+                        ("l", ("dock_l", "large")),
+                        ("m", ("dock_m", "medium")),
+                        ("xs", ("dock_xs", "extrasmall")),
+                    ),
+                    default="s",
+                )
+                if size == "xs":
                     size = None  # XS = drones/spacesuits, not ship docks
-                else:
-                    size = "s"
 
                 if size is not None:
                     if dock_el.get("storage") == "1":
@@ -504,13 +506,7 @@ def _count_connections(comp_node: etree._Element, counts: dict[str, int]) -> Non
             continue
 
         # Determine size
-        size = "s"
-        if "extralarge" in tags:
-            size = "xl"
-        elif "large" in tags:
-            size = "l"
-        elif "medium" in tags:
-            size = "m"
+        size = size_from_tags(tags, default="s")
 
         counts[f"{kind}_{size}"] += 1
 

@@ -13,6 +13,7 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import opt_attr
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
 from x4_extract.static.map import _dedup
@@ -61,15 +62,15 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "char_run_speed": _float(speed_el, "run"),
                 "char_slow_walk": _float(speed_el, "slowwalk"),
                 "char_acceleration": _float(speed_el, "acceleration"),
-                "char_spacesuit_ref": suit_el.get("ref") if suit_el is not None else None,
+                "char_spacesuit_ref": opt_attr(suit_el, "ref"),
                 "event_adjust_y": _float(event_el, "adjusty"),
                 "event_adjust_z": _float(event_el, "adjustz"),
-                "event_face_key": event_el.get("facecutscenekey") if event_el is not None else None,
+                "event_face_key": opt_attr(event_el, "facecutscenekey"),
                 # Icons
-                "icon_active": icon_el.get("active") if icon_el is not None else None,
-                "icon_inactive": icon_el.get("inactive") if icon_el is not None else None,
+                "icon_active": opt_attr(icon_el, "active"),
+                "icon_inactive": opt_attr(icon_el, "inactive"),
                 # Agent
-                "agent_icon_male": agent_icon_el.get("id") if agent_icon_el is not None else None,
+                "agent_icon_male": opt_attr(agent_icon_el, "id"),
                 "agent_icon_female": agent_icon_el.get("female")
                 if agent_icon_el is not None
                 else None,
@@ -81,7 +82,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 # Engine effect
                 "engine_color_index": _int(engine_el, "colorindex"),
                 # Chair
-                "chair_ref": chair_el.get("ref") if chair_el is not None else None,
+                "chair_ref": opt_attr(chair_el, "ref"),
             }
         )
 

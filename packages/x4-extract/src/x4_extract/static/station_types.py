@@ -18,6 +18,7 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import opt_attr
 from x4_extract.parsing import xml_attr_bool as _bool_attr
 from x4_extract.parsing import xml_attr_int as _int
 from x4_extract.static.macro_index import iter_index_macros
@@ -68,28 +69,28 @@ def _parse_station(
     out.stations.append(
         {
             "station_id": macro_name,
-            "name": ident_el.get("name") if ident_el is not None else None,
+            "name": opt_attr(ident_el, "name"),
             "file_path": file_path,
-            "makerrace": ident_el.get("makerrace") if ident_el is not None else None,
-            "description": ident_el.get("description") if ident_el is not None else None,
-            "icon": ident_el.get("icon") if ident_el is not None else None,
+            "makerrace": opt_attr(ident_el, "makerrace"),
+            "description": opt_attr(ident_el, "description"),
+            "icon": opt_attr(ident_el, "icon"),
             "hull": _int(hull_el, "max"),
             "hull_integrated": _bool_attr(hull_el, "integrated"),
             "workforce_max": _int(workforce_el, "max")
             if _int(workforce_el, "max") is not None
             else _int(workforce_el, "capacity"),
-            "workforce_race": workforce_el.get("race") if workforce_el is not None else None,
+            "workforce_race": opt_attr(workforce_el, "race"),
             "drone_capacity": _int(storage_el, "unit"),
             "storage_capacity": _int(cargo_el, "max") if cargo_el is not None else None,
-            "storage_type": cargo_el.get("tags") if cargo_el is not None else None,
+            "storage_type": opt_attr(cargo_el, "tags"),
             "dock_allow": _bool_attr(dock_el, "allow") if dock_el is not None else None,
             "dock_allowtrade": _bool_attr(dock_el, "allowtrade") if dock_el is not None else None,
             "dock_allowbuild": _bool_attr(dock_el, "allowbuild") if dock_el is not None else None,
             "dock_external": _bool_attr(dock_el, "external") if dock_el is not None else None,
             "dock_playeronly": _bool_attr(dock_el, "playeronly") if dock_el is not None else None,
-            "dock_size_tags": docksize_el.get("tags") if docksize_el is not None else None,
-            "equip_classes": equip_el.get("classes") if equip_el is not None else None,
-            "supply_classes": supply_el.get("classes") if supply_el is not None else None,
+            "dock_size_tags": opt_attr(docksize_el, "tags"),
+            "equip_classes": opt_attr(equip_el, "classes"),
+            "supply_classes": opt_attr(supply_el, "classes"),
             "production_research": _bool_attr(prod_el, "research") if prod_el is not None else None,
             "secrecy_level": _int(secrecy_el, "level") if secrecy_el is not None else None,
             "ownership_claim": _bool_attr(ownership_el, "claim")

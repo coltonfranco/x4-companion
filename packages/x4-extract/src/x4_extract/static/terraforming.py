@@ -9,7 +9,7 @@ from typing import Any
 
 from lxml import etree
 
-from x4_extract.parsing import attr_flag
+from x4_extract.parsing import attr_flag, opt_attr
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int_or_none as _int
 
@@ -67,10 +67,10 @@ def extract(xml_bytes: bytes) -> ExtractResult:
         chance_raw = proj_el.get("chance")
 
         resources_el = proj_el.find("resources")
-        price_raw = resources_el.get("price") if resources_el is not None else None
-        maxprice_raw = resources_el.get("maxprice") if resources_el is not None else None
-        payout_raw = resources_el.get("payout") if resources_el is not None else None
-        pricescale_raw = resources_el.get("pricescale") if resources_el is not None else None
+        price_raw = opt_attr(resources_el, "price")
+        maxprice_raw = opt_attr(resources_el, "maxprice")
+        payout_raw = opt_attr(resources_el, "payout")
+        pricescale_raw = opt_attr(resources_el, "pricescale")
 
         out.projects.append(
             {

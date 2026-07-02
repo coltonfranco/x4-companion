@@ -21,6 +21,7 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import opt_attr
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
 
@@ -70,7 +71,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "restriction_licence": restriction_el.get("licence")
                 if restriction_el is not None
                 else None,
-                "component_ref": component_el.get("ref") if component_el is not None else None,
+                "component_ref": opt_attr(component_el, "ref"),
                 "use_threshold": _float(use_el, "threshold") if use_el is not None else None,
                 "icon_path": _icon_path(ware_el),
                 "sortorder": _int(ware_el, "sortorder"),
@@ -228,4 +229,4 @@ def write(conn: sqlite3.Connection, result: ExtractResult) -> None:
 
 def _icon_path(ware_el: etree._Element) -> str | None:
     icon = ware_el.find("icon")
-    return icon.get("active") if icon is not None else None
+    return opt_attr(icon, "active")

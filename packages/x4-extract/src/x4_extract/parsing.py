@@ -7,6 +7,8 @@ extractors.
 
 from __future__ import annotations
 
+from collections.abc import Collection
+
 from lxml import etree
 
 
@@ -87,3 +89,37 @@ def attr_flag(el: etree._Element | None, attr: str, true_value: str = "true") ->
     if el is None:
         return 0
     return 1 if el.get(attr) == true_value else 0
+
+
+def opt_attr(el: etree._Element | None, attr: str) -> str | None:
+    """Return a string XML attribute, or None when *el* is None or the attribute is missing."""
+    return el.get(attr) if el is not None else None
+
+
+_SIZE_ORDER: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("xl", ("extralarge",)),
+    ("l", ("large",)),
+    ("m", ("medium",)),
+    ("s", ("small",)),
+)
+
+
+def size_from_tags(
+    tags: str | Collection[str],
+    *,
+    order: tuple[tuple[str, tuple[str, ...]], ...] = _SIZE_ORDER,
+    default: str | None = None,
+) -> str | None:
+    """Return the size code (s/m/l/xl/...) for the first tag-group in *order* with a
+    match in *tags* (a raw tags string or an already-split collection), else *default*.
+
+    Each `order` entry is `(size_code, needle_tags)`; a size code matches when any of
+    its needle tags is found in *tags* (substring test for a string, membership test
+    for a collection). Checked largest-to-smallest by default — pass a custom `order`
+    for call sites with extra/alternate needles per size (e.g. "dock_xl") or a
+    different code set.
+    """
+    for code, needles in order:
+        if any(needle in tags for needle in needles):
+            return code
+    return default

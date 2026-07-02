@@ -4,6 +4,7 @@ Active missions, mission offers, and mission group reference enrichment.
 """
 
 import sqlite3
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from typing import Annotated, Any, TypedDict
 
@@ -237,16 +238,55 @@ def _resolve_group_names(
     return {r[0]: {"name": r[1], "is_story": bool(r[2])} for r in rows}
 
 
-# Column name → extra_json key for fields that have both a dedicated column (new DBs)
-# and an extra_json fallback (existing DBs ingested before the column existed).
-_ENRICHMENT_KEYS = (
-    ("rewardtext", "rewardtext"),
-    ("reward_credits", "reward_credits"),
-    ("opposing_faction", "opposing_faction"),
-    ("caption", "caption"),
-    ("icon", "icon"),
-    ("time", "time"),
+# Column name → extra_json key (+ optional value coercion) for fields that have both a
+# dedicated column (new DBs) and an extra_json fallback (existing DBs ingested before
+# the column existed).
+_FallbackField = tuple[str, str, "Callable[[Any], Any] | None"]
+
+_ENRICHMENT_KEYS: tuple[_FallbackField, ...] = (
+    ("rewardtext", "rewardtext", None),
+    ("reward_credits", "reward_credits", None),
+    ("opposing_faction", "opposing_faction", None),
+    ("caption", "caption", None),
+    ("icon", "icon", None),
+    ("time", "time", None),
 )
+
+
+def _apply_extra_fallbacks(
+    d: dict[str, Any],
+    extra: dict[str, Any],
+    fields: Iterable[_FallbackField],
+    *,
+    target: dict[str, Any] | None = None,
+    require_truthy: bool = False,
+) -> None:
+    """Resolve each `(col, extra_key, coerce)` field from `d`'s dedicated column,
+    falling back to `extra[extra_key]` (through `coerce`, if given) when missing, and
+    write the resolved value into `target` (defaults to `d` itself).
+
+    `require_truthy=True` treats an empty/zero `d[col]` as "missing" too (the
+    mission-offer fallback's shape); the default only treats `None` as missing (the
+    `_merge_enrichment` shape, where a dedicated column of `0`/`""` should still win).
+    A `coerce` that raises `ValueError`/`TypeError` on the extra_json value skips that
+    field entirely rather than writing a bad value.
+    """
+    dest = d if target is None else target
+    for col, ej_key, coerce in fields:
+        current = d.get(col)
+        has_value = bool(current) if require_truthy else current is not None
+        if has_value:
+            dest[col] = current
+            continue
+        val = extra.get(ej_key)
+        if val is None:
+            continue
+        if coerce is not None:
+            try:
+                val = coerce(val)
+            except (ValueError, TypeError):
+                continue
+        dest[col] = val
 
 
 def _merge_enrichment(d: dict[str, Any], enrichment: dict[str, Any]) -> None:
@@ -258,16 +298,12 @@ def _merge_enrichment(d: dict[str, Any], enrichment: dict[str, Any]) -> None:
     duplicate-kwarg errors. `group_id`/`is_story` are folded directly into `d`
     instead, since they pass through `**d` rather than as explicit kwargs.
     """
-    for key, ej_key in _ENRICHMENT_KEYS:
-        if d.get(key) is not None:
-            enrichment[key] = d[key]
-        elif enrichment.get(ej_key) is not None:
-            enrichment[key] = enrichment[ej_key]
+    _apply_extra_fallbacks(d, enrichment, _ENRICHMENT_KEYS, target=enrichment)
     if not d.get("group_id") and enrichment.get("group_id"):
         d["group_id"] = enrichment["group_id"]
     if not d.get("is_story") and enrichment.get("is_story"):
         d["is_story"] = int(enrichment["is_story"])
-    for key, _ in _ENRICHMENT_KEYS:
+    for key, _ej_key, _coerce in _ENRICHMENT_KEYS:
         d.pop(key, None)
 
 
@@ -500,6 +536,17 @@ def list_missions(
 # ── Mission offers (MUST be before /{mission_id} to avoid route collision) ───
 
 
+_OFFER_FALLBACK_FIELDS: tuple[_FallbackField, ...] = (
+    ("opposing_faction", "opposingfaction", None),
+    ("group_id", "group", None),
+    ("reward_credits", "reward", int),
+    ("component_id", "component", None),
+    ("distance", "distance", int),
+    ("thread_type", "threadtype", None),
+    ("duration", "duration", float),
+)
+
+
 @router.get("/missions/offers", response_model=list[MissionOffer])
 def list_mission_offers(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
@@ -554,28 +601,7 @@ def list_mission_offers(
         # Promote extra_json fields (fallback when dedicated columns are null / missing)
         ej = safe_json_loads(d.get("extra_json"))
         if ej:
-            for col, ej_key in [
-                ("opposing_faction", "opposingfaction"),
-                ("group_id", "group"),
-                ("reward_credits", "reward"),
-                ("component_id", "component"),
-                ("distance", "distance"),
-                ("thread_type", "threadtype"),
-                ("duration", "duration"),
-            ]:
-                if not d.get(col) and ej.get(ej_key) is not None:
-                    val = ej[ej_key]
-                    if col in ("reward_credits", "distance"):
-                        try:
-                            val = int(val)
-                        except (ValueError, TypeError):
-                            continue
-                    elif col == "duration":
-                        try:
-                            val = float(val)
-                        except (ValueError, TypeError):
-                            continue
-                    d[col] = val
+            _apply_extra_fallbacks(d, ej, _OFFER_FALLBACK_FIELDS, require_truthy=True)
 
         # Remove DB columns not defined on the Pydantic model
         d.pop("extra_json", None)

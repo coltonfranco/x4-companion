@@ -16,6 +16,30 @@ from x4_api.api.schemas import PublicModel
 
 router = APIRouter()
 
+# A station counts toward live ownership only if it (or one of its modules) carries an
+# ownership claim — excludes e.g. mining drones/satellites that report an owner_faction
+# but shouldn't flip sector/cluster control.
+_OWNERSHIP_CLAIM_SQL = (
+    "( "
+    "    stype.ownership_claim = 1 "
+    "    OR EXISTS ( "
+    "        SELECT 1 FROM station_modules sm "
+    "        JOIN s.modules m ON m.module_id = sm.module_id "
+    "        WHERE sm.station_id = st.station_id AND m.ownership_claim = 1 "
+    "    ) "
+    ")"
+)
+
+
+def _first_wins_by(rows: list[sqlite3.Row], key_col: str) -> dict[str, sqlite3.Row]:
+    """Reduce cnt-DESC-ordered *rows* to the first (highest-count) row per key_col."""
+    result: dict[str, sqlite3.Row] = {}
+    for r in rows:
+        key = r[key_col]
+        if key not in result:
+            result[key] = r
+    return result
+
 
 def _faction_name_map(conn: sqlite3.Connection) -> dict[str, str]:
     """Return {faction_id: disambiguated_name} for every non-legacy faction."""
@@ -120,30 +144,17 @@ def list_clusters(
     offset: int = Query(0, ge=0),
 ) -> list[ClusterSummary]:
     # Build cluster ownership map from live stations (most-stations-wins per cluster).
-    live_owner: dict[str, str] = {}
     owner_rows = conn.execute(
         "SELECT sec.cluster_id, st.owner_faction, COUNT(*) AS cnt "
         "FROM stations st "
         "JOIN s.sectors sec ON LOWER(sec.sector_id) = LOWER(st.sector_id) "
         "LEFT JOIN s.station_types stype ON stype.station_id = st.macro "
-        "WHERE st.owner_faction IS NOT NULL "
-        "  AND ( "
-        "      stype.ownership_claim = 1 "
-        "      OR EXISTS ( "
-        "          SELECT 1 FROM station_modules sm "
-        "          JOIN s.modules m ON m.module_id = sm.module_id "
-        "          WHERE sm.station_id = st.station_id AND m.ownership_claim = 1 "
-        "      ) "
-        "  ) "
+        f"WHERE st.owner_faction IS NOT NULL AND {_OWNERSHIP_CLAIM_SQL} "
         "GROUP BY sec.cluster_id, st.owner_faction "
         "ORDER BY cnt DESC"
     ).fetchall()
-    seen: set[str] = set()
-    for r in owner_rows:
-        cid = r["cluster_id"]
-        if cid not in seen:
-            seen.add(cid)
-            live_owner[cid] = r["owner_faction"]
+    winners = _first_wins_by(owner_rows, "cluster_id")
+    live_owner = {cid: r["owner_faction"] for cid, r in winners.items()}
 
     rows = conn.execute(
         "SELECT c.cluster_id, c.name AS macro_id, c.dlc, c.name_id AS name, c.description_id AS description, "
@@ -197,29 +208,17 @@ def list_sectors(
     offset: int = Query(0, ge=0),
 ) -> list[SectorSummary]:
     # Build sector ownership map from live stations (most-stations-wins per sector).
-    live_owner: dict[str, str] = {}
     owner_rows = conn.execute(
         "SELECT LOWER(st.sector_id) AS sector_id, st.owner_faction, COUNT(*) AS cnt "
         "FROM stations st "
         "LEFT JOIN s.station_types stype ON stype.station_id = st.macro "
         "WHERE st.owner_faction IS NOT NULL AND st.sector_id IS NOT NULL "
-        "  AND ( "
-        "      stype.ownership_claim = 1 "
-        "      OR EXISTS ( "
-        "          SELECT 1 FROM station_modules sm "
-        "          JOIN s.modules m ON m.module_id = sm.module_id "
-        "          WHERE sm.station_id = st.station_id AND m.ownership_claim = 1 "
-        "      ) "
-        "  ) "
+        f"  AND {_OWNERSHIP_CLAIM_SQL} "
         "GROUP BY LOWER(st.sector_id), st.owner_faction "
         "ORDER BY cnt DESC"
     ).fetchall()
-    seen: set[str] = set()
-    for r in owner_rows:
-        sid = r["sector_id"]
-        if sid not in seen:
-            seen.add(sid)
-            live_owner[sid] = r["owner_faction"]
+    winners = _first_wins_by(owner_rows, "sector_id")
+    live_owner = {sid: r["owner_faction"] for sid, r in winners.items()}
 
     columns, join_live = _sector_summary_sql(conn)
 
@@ -260,14 +259,7 @@ def get_sector(
         "SELECT st.owner_faction, COUNT(*) AS cnt FROM stations st "
         "LEFT JOIN s.station_types stype ON stype.station_id = st.macro "
         "WHERE LOWER(st.sector_id) = LOWER(:sid) AND st.owner_faction IS NOT NULL "
-        "  AND ( "
-        "      stype.ownership_claim = 1 "
-        "      OR EXISTS ( "
-        "          SELECT 1 FROM station_modules sm "
-        "          JOIN s.modules m ON m.module_id = sm.module_id "
-        "          WHERE sm.station_id = st.station_id AND m.ownership_claim = 1 "
-        "      ) "
-        "  ) "
+        f"  AND {_OWNERSHIP_CLAIM_SQL} "
         "GROUP BY st.owner_faction ORDER BY cnt DESC LIMIT 1",
         {"sid": sector_id},
     ).fetchone()
@@ -675,25 +667,12 @@ def _live_sector_owners(conn: sqlite3.Connection) -> dict[str, tuple[str | None,
         "LEFT JOIN s.factions f ON f.faction_id = st.owner_faction "
         "LEFT JOIN s.station_types stype ON stype.station_id = st.macro "
         "WHERE st.owner_faction IS NOT NULL AND st.sector_id IS NOT NULL "
-        "  AND ( "
-        "      stype.ownership_claim = 1 "
-        "      OR EXISTS ( "
-        "          SELECT 1 FROM station_modules sm "
-        "          JOIN s.modules m ON m.module_id = sm.module_id "
-        "          WHERE sm.station_id = st.station_id AND m.ownership_claim = 1 "
-        "      ) "
-        "  ) "
+        f"  AND {_OWNERSHIP_CLAIM_SQL} "
         "GROUP BY LOWER(st.sector_id), st.owner_faction "
         "ORDER BY cnt DESC"
     ).fetchall()
-    owners: dict[str, tuple[str | None, str | None]] = {}
-    seen: set[str] = set()
-    for r in rows:
-        sid = r["sid"]
-        if sid not in seen:
-            seen.add(sid)
-            owners[sid] = (r["owner_faction"], r["owner_name"])
-    return owners
+    winners = _first_wins_by(rows, "sid")
+    return {sid: (r["owner_faction"], r["owner_name"]) for sid, r in winners.items()}
 
 
 class ClusterResourceEntry(PublicModel):

@@ -16,6 +16,7 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import opt_attr
 from x4_extract.static.map import _dedup
 from x4_extract.static.relations import parse_relation_rows
 
@@ -40,13 +41,13 @@ def extract(factions_bytes: bytes, colors_bytes: bytes | None = None) -> Extract
             continue
 
         color_el = f_el.find("color")
-        color_ref = color_el.get("ref") if color_el is not None else None
+        color_ref = opt_attr(color_el, "ref")
         color_hex = color_map.get(color_ref) if color_ref else None
 
         icon_el = f_el.find("icon")
-        icon_active = icon_el.get("active") if icon_el is not None else None
-        icon_inactive = icon_el.get("inactive") if icon_el is not None else None
-        icon_banner = icon_el.get("banner") if icon_el is not None else None
+        icon_active = opt_attr(icon_el, "active")
+        icon_inactive = opt_attr(icon_el, "inactive")
+        icon_banner = opt_attr(icon_el, "banner")
 
         out.factions.append(
             {
