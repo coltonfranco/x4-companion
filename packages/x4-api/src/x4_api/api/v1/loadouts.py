@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from x4_api.api.db_utils import table_exists
 from x4_api.api.deps import get_db
 from x4_api.api.schemas import PublicModel
 
@@ -26,12 +27,7 @@ def get_ship_loadout(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
 ) -> list[LoadoutSlot]:
     """All installed equipment slots for a ship. Empty list when the table doesn't exist yet."""
-    has_table = bool(
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ship_loadouts'"
-        ).fetchone()
-    )
-    if not has_table:
+    if not table_exists(conn, "ship_loadouts"):
         return []
 
     rows = conn.execute(

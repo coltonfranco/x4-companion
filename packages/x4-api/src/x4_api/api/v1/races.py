@@ -1,16 +1,16 @@
 """Race definitions endpoint."""
 
+from __future__ import annotations
+
 import sqlite3
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import Depends
 
-from x4_api.api.db_utils import fetch_one_or_404
+from x4_api.api.catalog_router import simple_catalog_router
 from x4_api.api.deps import get_db
 from x4_api.api.icons import get_icon_url
 from x4_api.api.schemas import PublicModel
-
-router = APIRouter()
 
 
 class RaceSummary(PublicModel):
@@ -63,33 +63,24 @@ _DETAIL_COLS = (
 )
 
 
-@router.get("/races", response_model=list[RaceSummary])
-def list_races(
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-) -> list[RaceSummary]:
-    rows = conn.execute(f"SELECT {_LIST_COLS} FROM s.races ORDER BY race_id").fetchall()
-    result = []
-    for r in rows:
-        d = dict(r)
-        d["icon_url"] = get_icon_url(d.pop("icon_active"))
-        result.append(RaceSummary(**d))
-    return result
-
-
-@router.get("/races/{race_id}", response_model=RaceDetail)
-def get_race(
-    race_id: str,
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-) -> RaceDetail:
-    row = fetch_one_or_404(
-        conn,
-        f"SELECT {_DETAIL_COLS} FROM s.races WHERE race_id = :id",
-        {"id": race_id},
-        f"Unknown race_id: {race_id}",
-    )
-    d = dict(row)
+def _inject_icon_url(d: dict[str, Any]) -> dict[str, Any]:
+    """Both list and detail queries select `icon_active`; resolve it to a URL."""
     d["icon_url"] = get_icon_url(d.pop("icon_active"))
-    return RaceDetail(**d)
+    return d
+
+
+router = simple_catalog_router(
+    path_prefix="/races",
+    table="s.races",
+    list_columns=_LIST_COLS,
+    list_model=RaceSummary,
+    detail_columns=_DETAIL_COLS,
+    detail_model=RaceDetail,
+    list_order_by="race_id",
+    id_col="race_id",
+    id_param_name="race_id",
+    row_hook=_inject_icon_url,
+)
 
 
 @router.get("/race-relations", response_model=list[RaceRelation])

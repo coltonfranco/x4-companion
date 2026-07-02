@@ -477,6 +477,28 @@ export function useBuilderStationMutations() {
 
 import type { Node, Edge } from "@xyflow/react";
 
+/** Build the module snap-point cap map from live node data (module_id → snap_points). */
+function buildSnapPointsByModule(nodes: Node<any>[]): Map<string, number> {
+  const snapPointsByModule = new Map<string, number>();
+  for (const n of nodes) {
+    if (n.data?.summary?.module_id) {
+      snapPointsByModule.set(n.data.summary.module_id, Number(n.data.summary.snap_points || 1));
+    }
+  }
+  return snapPointsByModule;
+}
+
+/** Apply per-edge source/target handle assignments computed by `assignHandles`. */
+function applyEdgeHandles(
+  edges: Edge<any>[],
+  edgeHandles: { source: string | null; target: string | null }[]
+): Edge<any>[] {
+  return edges.map((e, i) => {
+    const eh = edgeHandles[i];
+    return { ...e, sourceHandle: eh.source, targetHandle: eh.target };
+  });
+}
+
 /**
  * Re-run the Dagre layout on the current graph and update positions & handles.
  * Leaves the graph visually neat and fully routed based on the chosen alignment.
@@ -507,12 +529,7 @@ export function autoLayoutGraph(
     return n ? { x: n.x, y: n.y } : { x: 0, y: 0 };
   };
 
-  const snapPointsByModule = new Map<string, number>();
-  for (const n of nodes) {
-    if (n.data?.summary?.module_id) {
-      snapPointsByModule.set(n.data.summary.module_id, Number(n.data.summary.snap_points || 1));
-    }
-  }
+  const snapPointsByModule = buildSnapPointsByModule(nodes);
 
   const { edgeHandles, handlesByNode } = assignHandles(rawEdges, centre, snapPointsByModule, placed as unknown as StationLayoutEntry[], nodeAlignment);
 
@@ -527,10 +544,7 @@ export function autoLayoutGraph(
     };
   });
 
-  const nextEdges = edges.map((e, i) => {
-    const eh = edgeHandles[i];
-    return { ...e, sourceHandle: eh.source, targetHandle: eh.target };
-  });
+  const nextEdges = applyEdgeHandles(edges, edgeHandles);
 
   return { nodes: nextNodes, edges: nextEdges };
 }
@@ -553,12 +567,7 @@ export function autoRouteHandles(
     return n ? { x: n.position.x + IMPORT_NODE_PX / 2, y: n.position.y + IMPORT_NODE_PX / 2 } : { x: 0, y: 0 };
   };
 
-  const snapPointsByModule = new Map<string, number>();
-  for (const n of nodes) {
-    if (n.data?.summary?.module_id) {
-      snapPointsByModule.set(n.data.summary.module_id, Number(n.data.summary.snap_points || 1));
-    }
-  }
+  const snapPointsByModule = buildSnapPointsByModule(nodes);
 
   const { edgeHandles, handlesByNode } = assignHandles(rawEdges, centre, snapPointsByModule, placed as unknown as StationLayoutEntry[], nodeAlignment);
 
@@ -570,10 +579,7 @@ export function autoRouteHandles(
     };
   });
 
-  const nextEdges = edges.map((e, i) => {
-    const eh = edgeHandles[i];
-    return { ...e, sourceHandle: eh.source, targetHandle: eh.target };
-  });
+  const nextEdges = applyEdgeHandles(edges, edgeHandles);
 
   return { nodes: nextNodes, edges: nextEdges };
 }

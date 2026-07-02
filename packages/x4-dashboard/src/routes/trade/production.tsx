@@ -14,7 +14,7 @@ import { MapPin, Info, Recycle } from "lucide-react";
 import { ModuleDetailPanel, type ModuleSummary } from "../stations/modules";
 import { WareDetailPanel } from "../../components/trade/WareDetailPanel";
 import { DetailDialog } from "../../components/ui/detail-dialog";
-import { apiGet } from "../../lib/api";
+import { apiGet, apiGetArray } from "../../lib/api";
 
 // ── Types mirror /api/v1/economy/production-chain ──────────────────────────────
 type ChainInput = { ware_id: string; amount: number };
@@ -807,12 +807,8 @@ function ProductionDetailSidebar({
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const { data: offers = [] } = useQuery<WareOfferRow[]>({
     queryKey: ["economy", "wares", node.ware_id, "stations"],
-    // Raw fetch: normalizes a non-array payload to [] (defensive against a bad/error
-    // response shape), which doesn't fit apiGet/apiGetOrNull's ok-vs-throw/null contract.
     queryFn: () =>
-      fetch(`/api/v1/economy/wares/${encodeURIComponent(node.ware_id)}/stations`)
-        .then((r) => r.json())
-        .then((d) => (Array.isArray(d) ? d : [])),
+      apiGetArray<WareOfferRow>(`/api/v1/economy/wares/${encodeURIComponent(node.ware_id)}/stations`),
     enabled: hasMarket,
     staleTime: 60_000,
   });
@@ -824,11 +820,7 @@ function ProductionDetailSidebar({
   });
   const { data: sectors = [] } = useQuery<SectorRow[]>({
     queryKey: ["map-sectors"],
-    // Raw fetch: same defensive array-normalization as `offers` above.
-    queryFn: () =>
-      fetch("/api/v1/map/sectors?limit=2000")
-        .then((r) => r.json())
-        .then((d) => (Array.isArray(d) ? d : [])),
+    queryFn: () => apiGetArray<SectorRow>("/api/v1/map/sectors?limit=2000"),
     staleTime: 10 * 60_000,
     enabled: hasMarket,
   });

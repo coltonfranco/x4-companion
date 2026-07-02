@@ -5,7 +5,7 @@ import { PageLoaderPreset } from "../../components/PageLoader";
 import { PageSubtitle } from "../../components/ui/page-subtitle";
 import { cn } from "../../lib/utils";
 import { useSaveTime } from "../../lib/useSaveTime";
-import { formatTimeAgo } from "../../lib/formatters";
+import { formatTimeAgo, cleanText } from "../../lib/formatters";
 import { apiGet } from "../../lib/api";
 
 type PlayerMessage = {
@@ -22,21 +22,6 @@ type PlayerMessage = {
   read: number | null;
   extra_json: string | null;
 };
-
-function formatBody(text: string | null): string {
-  if (!text) return "";
-  // X4 encodes formatting: [\033]#RRGGBB#text[\033]X for colors, [\012] for newlines.
-  // Strip color markup, convert newline codes.
-  return text
-    .replace(/\[\\?\d+\]#[A-Fa-f0-9]{6,8}#/g, "")
-    .replace(/\[\\?\d+\]X?/g, (m) => {
-      if (m.includes("033")) return "";
-      return "\n";
-    })
-    .replace(/#[A-Fa-f0-9]{6,8}#/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
 
 export default function MessagesPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -128,7 +113,7 @@ export default function MessagesPage() {
                       </p>
                       {msg.text && (
                         <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5 leading-relaxed">
-                          {formatBody(msg.text).replace(/\n/g, " ").substring(0, 80)}
+                          {cleanText(msg.text).replace(/\n/g, " ").substring(0, 80)}
                         </p>
                       )}
                     </div>
@@ -189,7 +174,7 @@ export default function MessagesPage() {
                   {/* Message body */}
                   <div className="flex-1 overflow-auto px-6 py-5">
                     <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/85 max-w-2xl">
-                      {formatBody(selected.text)}
+                      {selected.text ? cleanText(selected.text) : ""}
                     </div>
                   </div>
                 </div>

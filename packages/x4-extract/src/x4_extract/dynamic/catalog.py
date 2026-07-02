@@ -25,7 +25,9 @@ from lxml import etree
 
 from x4_extract.config import ExtractSettings, resolve_save_path, save_key
 from x4_extract.db import SCHEMA_LOCK, apply_schema, is_dynamic_initialized
+from x4_extract.dynamic.extractors.common import element_attrs
 from x4_extract.dynamic.pipeline import dynamic_db_path, source_fingerprint
+from x4_extract.parsing import str_int
 
 _FALLBACK_DB = "_empty.db"  # ATTACH target when no save exists yet
 
@@ -59,20 +61,11 @@ def read_info_header(save_path: Path) -> dict[str, dict[str, str]]:
                 depth += 1
                 continue
             if depth == 3 and elem.tag in ("save", "game", "player"):
-                out[elem.tag] = {
-                    (k if isinstance(k, str) else k.decode()): (
-                        v if isinstance(v, str) else v.decode()
-                    )
-                    for k, v in elem.attrib.items()
-                }
+                out[elem.tag] = element_attrs(elem)
             depth -= 1
             if depth == 1 and elem.tag == "info":
                 break
     return out
-
-
-def _int(v: str | None) -> int | None:
-    return int(float(v)) if v is not None else None
 
 
 def _file_is_quiescent(mtime: float, settle_sec: float) -> bool:
@@ -158,11 +151,11 @@ def _refresh_cache(cat: sqlite3.Connection, path: Path, mtime: float, size: int)
             mtime,
             size,
             save.get("name"),
-            _int(game.get("time")),
+            str_int(game.get("time")),
             _real_time(save.get("date")),
             game.get("version"),
             player.get("name"),
-            _int(player.get("money")),
+            str_int(player.get("money")),
         ),
     )
     fetched: sqlite3.Row | None = cat.execute(

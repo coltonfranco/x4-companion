@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { RefreshCw, X } from "lucide-react";
 import type { Mission, MissionOffer } from "./types";
-import { typeColor, typeLabel, fmtCredits } from "./helpers";
+import { typeColor, typeLabel, fmtCredits, SectionLabel, StatTile } from "./helpers";
 import { EmbeddedMap } from "./EmbeddedMap";
 
 type RunStop = {
@@ -133,100 +133,69 @@ export function RunPlanner({
       {hasStops && (
         <>
           <div className="flex gap-3.5 mt-5">
-            <div
-              className="flex-1 p-3.5 rounded-xl border"
-              style={{
-                background: "rgba(240,217,138,0.06)",
-                borderColor: "rgba(240,217,138,0.18)",
+            <StatTile
+              label="TOTAL REWARD"
+              value={fmtCredits(totalCredits)}
+              tint={{
+                bg: "rgba(240,217,138,0.06)",
+                border: "rgba(240,217,138,0.18)",
+                labelColor: "#a9966a",
+                valueColor: "#f0d98a",
               }}
-            >
-              <div
-                className="text-[9.5px] tracking-[1.5px] font-mono uppercase"
-                style={{ color: "#a9966a" }}
-              >
-                TOTAL REWARD
-              </div>
-              <div
-                className="font-mono text-xl font-semibold mt-1.5"
-                style={{ color: "#f0d98a" }}
-              >
-                {fmtCredits(totalCredits)}
-              </div>
-            </div>
-            <div
-              className="flex-1 p-3.5 rounded-xl border"
-              style={{
-                background: "rgba(92,200,236,0.06)",
-                borderColor: "rgba(92,200,236,0.18)",
+            />
+            <StatTile
+              label="TOTAL JUMPS"
+              value={totalJumps}
+              tint={{
+                bg: "rgba(92,200,236,0.06)",
+                border: "rgba(92,200,236,0.18)",
+                labelColor: "#6f93a6",
+                valueColor: "#5cc8ec",
               }}
-            >
-              <div
-                className="text-[9.5px] tracking-[1.5px] font-mono uppercase"
-                style={{ color: "#6f93a6" }}
-              >
-                TOTAL JUMPS
-              </div>
-              <div
-                className="font-mono text-xl font-semibold mt-1.5"
-                style={{ color: "#5cc8ec" }}
-              >
-                {totalJumps}
-              </div>
-            </div>
-            <div
-              className="flex-1 p-3.5 rounded-xl border"
-              style={{
-                background: "rgba(255,255,255,0.02)",
-                borderColor: "rgba(255,255,255,0.07)",
+            />
+            <StatTile
+              label="STOPS"
+              value={stops.length}
+              tint={{
+                bg: "rgba(255,255,255,0.02)",
+                border: "rgba(255,255,255,0.07)",
+                labelColor: "#7a8499",
               }}
-            >
-              <div
-                className="text-[9.5px] tracking-[1.5px] font-mono uppercase"
-                style={{ color: "#7a8499" }}
-              >
-                STOPS
-              </div>
-              <div
-                className="font-mono text-xl font-semibold mt-1.5 text-foreground"
-              >
-                {stops.length}
-              </div>
-            </div>
+            />
           </div>
 
           {/* Route */}
-          <div className="flex items-center gap-2.5 mt-6 mb-3">
-            <span
-              className="text-[11px] tracking-[1.5px] font-mono uppercase"
-              style={{ color: "#7a8499" }}
-            >
-              ▸ OPTIMIZED ROUTE
-            </span>
-            <div className="flex-1 h-px bg-border/40" />
-            <button
-              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors hover:brightness-125 opacity-50 cursor-not-allowed"
-              style={{
-                color: "#7ec9a0",
-                borderColor: "rgba(52,211,153,0.25)",
-                background: "rgba(52,211,153,0.07)",
-              }}
-              title="Re-optimize (coming soon)"
-            >
-              <RefreshCw className="w-3 h-3" />
-              Re-optimize
-            </button>
-            <button
-              onClick={() => setMapExpanded(true)}
-              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors hover:brightness-125"
-              style={{
-                color: "#7fb9d6",
-                borderColor: "rgba(92,200,236,0.22)",
-                background: "rgba(92,200,236,0.06)",
-              }}
-            >
-              ⤢ Expand
-            </button>
-          </div>
+          <SectionLabel
+            after={
+              <>
+                <button
+                  className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors hover:brightness-125 opacity-50 cursor-not-allowed"
+                  style={{
+                    color: "#7ec9a0",
+                    borderColor: "rgba(52,211,153,0.25)",
+                    background: "rgba(52,211,153,0.07)",
+                  }}
+                  title="Re-optimize (coming soon)"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Re-optimize
+                </button>
+                <button
+                  onClick={() => setMapExpanded(true)}
+                  className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors hover:brightness-125"
+                  style={{
+                    color: "#7fb9d6",
+                    borderColor: "rgba(92,200,236,0.22)",
+                    background: "rgba(92,200,236,0.06)",
+                  }}
+                >
+                  ⤢ Expand
+                </button>
+              </>
+            }
+          >
+            OPTIMIZED ROUTE
+          </SectionLabel>
 
           <EmbeddedMap
             targetSectorId={null}
@@ -235,15 +204,7 @@ export function RunPlanner({
           />
 
           {/* Flight order */}
-          <div className="flex items-center gap-2.5 mt-6 mb-3">
-            <span
-              className="text-[11px] tracking-[1.5px] font-mono uppercase"
-              style={{ color: "#7a8499" }}
-            >
-              ▸ FLIGHT ORDER
-            </span>
-            <div className="flex-1 h-px bg-border/40" />
-          </div>
+          <SectionLabel>FLIGHT ORDER</SectionLabel>
 
           <div className="flex flex-col">
             {/* Player start */}

@@ -20,6 +20,11 @@ def element_attrs(elem: etree._Element) -> dict[str, str]:
     }
 
 
+def known_to_player(elem: etree._Element) -> int:
+    """Return 1 if the element's `knownto` attribute marks it known to the player."""
+    return 1 if elem.get("knownto") == "player" else 0
+
+
 def component_class_registrations(
     classes: Iterable[str],
     visitor: Callable[[etree._Element], None],

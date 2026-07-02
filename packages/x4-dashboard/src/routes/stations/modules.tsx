@@ -31,6 +31,7 @@ import { DetailDialog } from "../../components/ui/detail-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import type { FactionSummary } from "../../lib/map/types";
 import { ProductionChain } from "../../components/trade/ProductionChain";
+import { formatDlc, formatLicence } from "../../lib/formatters";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -148,17 +149,6 @@ const SIZE_ORDER: Record<string, number> = {
   large: 3,
   extralarge: 4,
 };
-
-function formatDlc(dlc: string | null) {
-  if (!dlc) return "Base Game";
-  return dlc.charAt(0).toUpperCase() + dlc.slice(1) + " DLC";
-}
-
-function formatLicence(lic: string | null) {
-  if (!lic) return "";
-  const cleaned = lic.replace(/_/g, " ");
-  return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 /** Check whether a module's licence is locked. When makerrace is null, the licence
  *  may be obtainable from any faction (or via research) — check the factionless set. */

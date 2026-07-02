@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FactionBadge } from "../../components/FactionBadge";
 import type { FactionSummary } from "../../lib/map/types";
 import type { Mission } from "./types";
-import { typeColor, typeLabel, LevelBadge, StoryTag } from "./helpers";
+import { typeColor, typeLabel, LevelBadge, StoryTag, SectionLabel } from "./helpers";
 import { EmbeddedMap } from "./EmbeddedMap";
 
 export type PathOption = {
@@ -91,15 +91,7 @@ export function ChoiceGroupDetail({
       </div>
 
       {/* Choose one path */}
-      <div className="flex items-center gap-2.5 mt-6 mb-3">
-        <span
-          className="text-[11px] tracking-[1.5px] font-mono uppercase"
-          style={{ color: "#7a8499" }}
-        >
-          ▸ CHOOSE ONE PATH
-        </span>
-        <div className="flex-1 h-px bg-border/40" />
-      </div>
+      <SectionLabel>CHOOSE ONE PATH</SectionLabel>
 
       <div className="flex flex-col gap-2.5">
         {paths.map((p, i) => {
@@ -215,29 +207,28 @@ export function ChoiceGroupDetail({
       </div>
 
       {/* Route map */}
-      <div className="flex items-center gap-2.5 mt-6 mb-3">
-        <span
-          className="text-[11px] tracking-[1.5px] font-mono uppercase"
-          style={{ color: "#7a8499" }}
-        >
-          ▸ ROUTE
-        </span>
-        <span className="text-[10.5px] text-muted-foreground">
-          {selected?.mission.name ?? "No path selected"}
-        </span>
-        <div className="flex-1 h-px bg-border/40" />
-        <button
-          onClick={() => setMapExpanded(true)}
-          className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors hover:brightness-125"
-          style={{
-            color: "#7fb9d6",
-            borderColor: "rgba(92,200,236,0.22)",
-            background: "rgba(92,200,236,0.06)",
-          }}
-        >
-          ⤢ Expand
-        </button>
-      </div>
+      <SectionLabel
+        extra={
+          <span className="text-[10.5px] text-muted-foreground">
+            {selected?.mission.name ?? "No path selected"}
+          </span>
+        }
+        after={
+          <button
+            onClick={() => setMapExpanded(true)}
+            className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors hover:brightness-125"
+            style={{
+              color: "#7fb9d6",
+              borderColor: "rgba(92,200,236,0.22)",
+              background: "rgba(92,200,236,0.06)",
+            }}
+          >
+            ⤢ Expand
+          </button>
+        }
+      >
+        ROUTE
+      </SectionLabel>
 
       <EmbeddedMap
         targetSectorId={mapTargetSector}

@@ -8,6 +8,8 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.static.constants import iter_elements
+
 
 @dataclass(slots=True)
 class ExtractResult:
@@ -18,9 +20,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
     root = etree.fromstring(xml_bytes)
     out = ExtractResult()
 
-    for el in root:
-        if callable(el.tag):
-            continue
+    for el in iter_elements(root):
         group_id = el.get("id")
         if not group_id:
             continue

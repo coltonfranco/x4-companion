@@ -14,6 +14,7 @@ import { DropListContent, buildDropGroups, DropEntry } from "../../components/Dr
 import { PageLoaderPreset } from "../../components/PageLoader";
 import { PageSubtitle } from "../../components/ui/page-subtitle";
 import { HUDCard } from "../../components/HUDCard";
+import { FilterBar } from "../../components/FilterBar";
 import { apiGet } from "../../lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -190,7 +191,7 @@ export default function DropsPage() {
       <div className="flex-1 overflow-hidden px-6 pb-6 pt-0 flex flex-col">
         <HUDCard className="h-full">
 
-          <div className="flex flex-wrap items-center gap-4 px-6 py-3 border-b border-border/50 bg-muted/5 relative z-10">
+          <FilterBar className="gap-4">
         <div className="flex items-center gap-3">
           <Input
             placeholder="Search tables…"
@@ -240,7 +241,7 @@ export default function DropsPage() {
             </button>
           )}
         </div>
-      </div>
+      </FilterBar>
 
       <div className="flex-1 overflow-auto px-6 py-4">
         {isLoading ? (

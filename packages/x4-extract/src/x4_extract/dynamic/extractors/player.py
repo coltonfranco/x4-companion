@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, hash_rows
-from x4_extract.dynamic.extractors.common import extra_json_from_attrs
+from x4_extract.dynamic.extractors.common import element_attrs, extra_json_from_attrs
 from x4_extract.savefile.dispatch import Registration, Target
 
 _LICENCE_DEPTH = 6
@@ -61,10 +61,7 @@ class PlayerCollector:
         # The character entity is the one carrying a name + a character macro.
         macro = elem.get("macro") or ""
         if elem.get("name") and macro.startswith("character"):
-            self._char = {
-                (k if isinstance(k, str) else k.decode()): (v if isinstance(v, str) else v.decode())
-                for k, v in elem.attrib.items()
-            }
+            self._char = element_attrs(elem)
         ref = elem.get("lastcontrolled") or elem.get("refobject")
         if ref:
             self._current_ship = ref

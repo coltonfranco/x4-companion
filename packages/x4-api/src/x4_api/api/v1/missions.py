@@ -3,13 +3,14 @@
 Active missions, mission offers, and mission group reference enrichment.
 """
 
-import json
 import sqlite3
+from contextlib import suppress
 from typing import Annotated, Any, TypedDict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import Field
 
+from x4_api.api.db_utils import safe_json_loads
 from x4_api.api.deps import get_db
 from x4_api.api.schemas import PublicModel
 
@@ -112,27 +113,25 @@ def _parse_extra(extra_json: str | None) -> dict[str, Any]:
     The handler prefers the dedicated column; this function fills gaps.
     """
     result: dict[str, Any] = {}
-    if extra_json:
-        try:
-            extra = json.loads(extra_json)
-            # All fields — handler uses column value if present, else falls back to these
-            result["rewardtext"] = extra.get("rewardtext")
-            reward_raw = extra.get("reward")
-            if reward_raw is not None:
+    extra = safe_json_loads(extra_json)
+    if extra:
+        # All fields — handler uses column value if present, else falls back to these
+        result["rewardtext"] = extra.get("rewardtext")
+        reward_raw = extra.get("reward")
+        if reward_raw is not None:
+            with suppress(ValueError, TypeError):
                 result["reward_credits"] = int(reward_raw)
-            result["opposing_faction"] = extra.get("opposingfaction")
-            result["caption"] = extra.get("caption")
-            result["icon"] = extra.get("icon")
-            result["time"] = extra.get("time")
-            result["group_id"] = extra.get("group")
-            result["is_story"] = bool(extra.get("group", "").startswith("story_"))
-            result["activation"] = extra.get("activation")
-            result["alert"] = extra.get("alert")
-            # For old data where group was in extra_json, provide it for group_name lookup
-            if extra.get("group"):
-                result["extra_group_id"] = extra["group"]
-        except (json.JSONDecodeError, ValueError):
-            pass
+        result["opposing_faction"] = extra.get("opposingfaction")
+        result["caption"] = extra.get("caption")
+        result["icon"] = extra.get("icon")
+        result["time"] = extra.get("time")
+        result["group_id"] = extra.get("group")
+        result["is_story"] = bool(extra.get("group", "").startswith("story_"))
+        result["activation"] = extra.get("activation")
+        result["alert"] = extra.get("alert")
+        # For old data where group was in extra_json, provide it for group_name lookup
+        if extra.get("group"):
+            result["extra_group_id"] = extra["group"]
     return result
 
 
@@ -391,6 +390,40 @@ def _resolve_entity_positions(
     return positions
 
 
+def _build_mission(
+    d: dict[str, Any],
+    ae_info: dict[str, Any] | None,
+    ae_pos: dict[str, Any] | None,
+    group_names: dict[str, _GroupInfo],
+    enrichment: dict[str, Any],
+    objectives: list[MissionObjective],
+) -> Mission:
+    """Construct a `Mission` from a raw DB row dict plus batch-resolved enrichment data.
+
+    `d` must already have `extra_json` popped and `_merge_enrichment` applied.
+    """
+    gid = d.get("group_id")
+    group_info = group_names.get(gid) if gid else None
+    return Mission(
+        **d,
+        associated_entity_name=ae_info["name"] if ae_info else None,
+        associated_entity_kind=ae_info["kind"] if ae_info else None,
+        associated_entity_sector_id=ae_pos["sector_id"] if ae_pos else None,
+        associated_entity_zone_id=ae_pos["zone_id"] if ae_pos else None,
+        associated_entity_x=ae_pos["x"] if ae_pos else None,
+        associated_entity_y=ae_pos["y"] if ae_pos else None,
+        associated_entity_z=ae_pos["z"] if ae_pos else None,
+        group_name=group_info["name"] if group_info else None,
+        rewardtext=enrichment.get("rewardtext"),
+        reward_credits=enrichment.get("reward_credits"),
+        opposing_faction=enrichment.get("opposing_faction"),
+        caption=enrichment.get("caption"),
+        icon=enrichment.get("icon"),
+        time=enrichment.get("time"),
+        objectives=objectives,
+    )
+
+
 # ── List missions ────────────────────────────────────────────────────────────
 
 
@@ -459,26 +492,7 @@ def list_missions(
         mission_objectives = _hydrate_objectives(raw_objectives, resolved, positions)
 
         result.append(
-            Mission(
-                **d,
-                associated_entity_name=ae_info["name"] if ae_info else None,
-                associated_entity_kind=ae_info["kind"] if ae_info else None,
-                associated_entity_sector_id=ae_pos["sector_id"] if ae_pos else None,
-                associated_entity_zone_id=ae_pos["zone_id"] if ae_pos else None,
-                associated_entity_x=ae_pos["x"] if ae_pos else None,
-                associated_entity_y=ae_pos["y"] if ae_pos else None,
-                associated_entity_z=ae_pos["z"] if ae_pos else None,
-                group_name=group_info["name"]
-                if (gid := d.get("group_id")) and (group_info := group_names.get(gid))
-                else None,
-                rewardtext=enrichment.get("rewardtext"),
-                reward_credits=enrichment.get("reward_credits"),
-                opposing_faction=enrichment.get("opposing_faction"),
-                caption=enrichment.get("caption"),
-                icon=enrichment.get("icon"),
-                time=enrichment.get("time"),
-                objectives=mission_objectives,
-            )
+            _build_mission(d, ae_info, ae_pos, group_names, enrichment, mission_objectives)
         )
     return result
 
@@ -538,12 +552,8 @@ def list_mission_offers(
                     d[name_col] = rhs["name"]
 
         # Promote extra_json fields (fallback when dedicated columns are null / missing)
-        ej_raw = d.get("extra_json")
-        if ej_raw:
-            try:
-                ej = json.loads(ej_raw)
-            except (json.JSONDecodeError, TypeError):
-                ej = {}
+        ej = safe_json_loads(d.get("extra_json"))
+        if ej:
             for col, ej_key in [
                 ("opposing_faction", "opposingfaction"),
                 ("group_id", "group"),
@@ -625,21 +635,4 @@ def get_mission(
     final_objectives = _hydrate_objectives(objectives.get(mission_id, []), resolved, positions)
     ae_info, ae_pos = _resolve_associated_entity(d, resolved, positions)
 
-    return Mission(
-        **d,
-        associated_entity_name=ae_info["name"] if ae_info else None,
-        associated_entity_kind=ae_info["kind"] if ae_info else None,
-        associated_entity_sector_id=ae_pos["sector_id"] if ae_pos else None,
-        associated_entity_zone_id=ae_pos["zone_id"] if ae_pos else None,
-        associated_entity_x=ae_pos["x"] if ae_pos else None,
-        associated_entity_y=ae_pos["y"] if ae_pos else None,
-        associated_entity_z=ae_pos["z"] if ae_pos else None,
-        group_name=group_info["name"] if gid and (group_info := group_names.get(gid)) else None,
-        rewardtext=enrichment.get("rewardtext"),
-        reward_credits=enrichment.get("reward_credits"),
-        opposing_faction=enrichment.get("opposing_faction"),
-        caption=enrichment.get("caption"),
-        icon=enrichment.get("icon"),
-        time=enrichment.get("time"),
-        objectives=final_objectives,
-    )
+    return _build_mission(d, ae_info, ae_pos, group_names, enrichment, final_objectives)

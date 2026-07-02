@@ -29,6 +29,8 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import attr_flag
+
 _MACRO_SLOTS = {"engine", "shield", "weapon", "turret", "missilelauncher", "bomblauncher"}
 
 
@@ -71,7 +73,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                     "slot_path": slot_el.get("path"),
                     "macro": macro,
                     "kind": kind,
-                    "optional": 1 if slot_el.get("optional") == "1" else 0,
+                    "optional": attr_flag(slot_el, "optional", "1"),
                     "quantity": None,
                     "weaponmode": slot_el.get("weaponmode"),
                     "ammunition": slot_el.get("ammunition"),
@@ -121,7 +123,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                     "slot_path": None,
                     "macro": macro,
                     "kind": "ammunition",
-                    "optional": 1 if ammo_el.get("optional") == "1" else 0,
+                    "optional": attr_flag(ammo_el, "optional", "1"),
                     "quantity": int(qty) if qty is not None else None,
                     "weaponmode": None,
                     "ammunition": None,

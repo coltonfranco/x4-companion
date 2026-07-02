@@ -1,11 +1,11 @@
 """REST endpoints for NPCs (crew, marines, station personnel)."""
 
 import sqlite3
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
 
-from x4_api.api.db_utils import localized_text_sql, table_exists
+from x4_api.api.db_utils import build_where_clause, localized_text_sql, paginate, table_exists
 from x4_api.api.deps import get_db
 from x4_api.api.icons import get_icon_url
 from x4_api.api.schemas import PublicModel
@@ -100,32 +100,25 @@ def list_npcs(
     if not table_exists(conn, "npc"):
         return []
 
-    where = []
-    params: list[str | int] = []
+    conditions: list[tuple[str, Any]] = []
     if employment:
-        where.append("npc.employment = ?")
-        params.append(employment)
+        conditions.append(("npc.employment = ?", employment))
     if owner:
-        where.append("npc.owner_faction = ?")
-        params.append(owner)
+        conditions.append(("npc.owner_faction = ?", owner))
     if entity_type:
-        where.append("npc.entity_type = ?")
-        params.append(entity_type)
+        conditions.append(("npc.entity_type = ?", entity_type))
+    where_clause, where_params = build_where_clause(conditions)
 
-    clause = f"WHERE {' AND '.join(where)}" if where else ""
-    params.extend([limit, offset])
-
-    rows = conn.execute(
-        f"""
+    sql = f"""
         SELECT {_NPC_JOINED_COLS}
         FROM npc
         {_NPC_JOINS}
-        {clause}
+        {where_clause}
         ORDER BY npc.name
-        LIMIT ? OFFSET ?
-        """,
-        params,
-    ).fetchall()
+    """
+    sql, params = paginate(sql, where_params, limit, offset)
+
+    rows = conn.execute(sql, params).fetchall()
     result: list[NPCEntry] = []
     for r in rows:
         d = dict(r)

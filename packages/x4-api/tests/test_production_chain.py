@@ -14,14 +14,8 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from x4_api.config import Settings
 from x4_api.domain.empire_balance import empire_flows
 from x4_extract.db import open_db
-
-
-@pytest.fixture
-def settings(data_dir: Path) -> Settings:
-    return Settings(install_path=Path("C:/fake/x4"), data_dir=data_dir)
 
 
 def _seed_static(data_dir: Path) -> None:

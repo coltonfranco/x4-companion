@@ -14,7 +14,7 @@ from typing import Annotated, Any, cast
 from fastapi import APIRouter, Depends, Query
 from x4_extract.i18n import Localizer
 
-from x4_api.api.db_utils import table_exists
+from x4_api.api.db_utils import build_where_clause, safe_json_loads, table_exists
 from x4_api.api.deps import get_db, get_settings
 from x4_api.api.schemas import PublicModel
 from x4_api.config import Settings
@@ -120,28 +120,25 @@ def _build_clause(
     path (\"combat.destroyed\") to filter by subcategory.  Multiple values are
     OR'ed together.
     """
-    where: list[str] = []
-    params: list[str | int | float] = []
+    conditions: list[tuple[str, Any]] = []
     if category:
         clauses: list[str] = []
+        clause_params: list[str] = []
         for cat in category:
             if "." in cat:
                 clauses.append("(category = ? AND subcategory = ?)")
                 parts = cat.split(".", 1)
-                params.extend([parts[0], parts[1]])
+                clause_params.extend([parts[0], parts[1]])
             else:
                 clauses.append("category = ?")
-                params.append(cat)
+                clause_params.append(cat)
         if clauses:
-            where.append(f"({' OR '.join(clauses)})")
+            conditions.append((f"({' OR '.join(clauses)})", clause_params))
     if min_time is not None:
-        where.append("time >= ?")
-        params.append(min_time)
+        conditions.append(("time >= ?", min_time))
     if q:
-        where.append("(title LIKE ? OR text LIKE ?)")
-        params.extend([f"%{q}%", f"%{q}%"])
-    clause = f"WHERE {' AND '.join(where)}" if where else ""
-    return clause, params
+        conditions.append(("(title LIKE ? OR text LIKE ?)", [f"%{q}%", f"%{q}%"]))
+    return build_where_clause(conditions)
 
 
 @router.get("/logbook", response_model=LogbookPage)
@@ -183,14 +180,9 @@ def list_logbook(
 
     components = set()
     for r in rows:
-        ej_raw = r["extra_json"]
-        if ej_raw:
-            try:
-                ej = json.loads(ej_raw)
-                if "component" in ej:
-                    components.add(ej["component"])
-            except Exception:
-                pass
+        ej = safe_json_loads(r["extra_json"])
+        if "component" in ej:
+            components.add(ej["component"])
 
     component_names = {}
     if components:
@@ -214,14 +206,10 @@ def list_logbook(
         faction_name, faction_color = _resolve_faction_display(faction_ref, localizer, faction_map)
 
         extra_json = d["extra_json"]
-        if extra_json:
-            try:
-                ej = json.loads(extra_json)
-                if "component" in ej and ej["component"] in component_names:
-                    ej["component_name"] = component_names[ej["component"]]
-                    extra_json = json.dumps(ej)
-            except Exception:
-                pass
+        ej = safe_json_loads(extra_json)
+        if "component" in ej and ej["component"] in component_names:
+            ej["component_name"] = component_names[ej["component"]]
+            extra_json = json.dumps(ej)
 
         entries.append(
             LogbookEntry(

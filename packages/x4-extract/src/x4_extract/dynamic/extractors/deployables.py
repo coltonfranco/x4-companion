@@ -21,6 +21,7 @@ from x4_extract.dynamic.extractors.common import (
     element_attrs,
     enclosing_sector_zone,
     extra_json_from_attrs,
+    known_to_player,
     walk_ancestors,
 )
 from x4_extract.dynamic.extractors.positions import position_cache
@@ -80,7 +81,7 @@ class DeployablesCollector:
             return
         cls = elem.get("class", "")
         sector_id, zone_id = enclosing_sector_zone(elem)
-        known = 1 if elem.get("knownto") == "player" else 0
+        known = known_to_player(elem)
         ox, oy, oz = self._resolve_position(elem, obj_id)
 
         self.rows.append(

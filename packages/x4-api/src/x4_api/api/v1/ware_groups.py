@@ -1,15 +1,9 @@
 """REST endpoints for ware group catalog."""
 
-import sqlite3
-from typing import Annotated
+from __future__ import annotations
 
-from fastapi import APIRouter, Depends
-
-from x4_api.api.db_utils import fetch_one_or_404
-from x4_api.api.deps import get_db
+from x4_api.api.catalog_router import simple_catalog_router
 from x4_api.api.schemas import PublicModel
-
-router = APIRouter()
 
 
 class WareGroup(PublicModel):
@@ -28,27 +22,14 @@ _COLUMNS = (
     "group_id, name, tags, factory_name, icon, factory_map_icon, factory_hud_icon, tier, priority"
 )
 
-
-@router.get("/ware-groups", response_model=list[WareGroup])
-def list_ware_groups(
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-) -> list[WareGroup]:
-    """List all ware groups with display metadata."""
-    rows = conn.execute(
-        f"SELECT {_COLUMNS} FROM s.ware_groups ORDER BY COALESCE(priority, 99), group_id"
-    ).fetchall()
-    return [WareGroup(**dict(r)) for r in rows]
-
-
-@router.get("/ware-groups/{group_id}", response_model=WareGroup)
-def get_ware_group(
-    group_id: str,
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-) -> WareGroup:
-    row = fetch_one_or_404(
-        conn,
-        f"SELECT {_COLUMNS} FROM s.ware_groups WHERE group_id = :id",
-        {"id": group_id},
-        f"Unknown group_id: {group_id}",
-    )
-    return WareGroup(**dict(row))
+router = simple_catalog_router(
+    path_prefix="/ware-groups",
+    table="s.ware_groups",
+    list_columns=_COLUMNS,
+    list_model=WareGroup,
+    detail_columns=_COLUMNS,
+    detail_model=WareGroup,
+    list_order_by="COALESCE(priority, 99), group_id",
+    id_col="group_id",
+    id_param_name="group_id",
+)

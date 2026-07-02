@@ -13,6 +13,8 @@ import {
   typeLabel,
   LevelBadge,
   StoryTag,
+  STATUS_STYLES,
+  SectionLabel,
 } from "./helpers";
 import { EmbeddedMap } from "./EmbeddedMap";
 
@@ -129,38 +131,6 @@ function parseProgress(s: string | null): {
   }
   return null;
 }
-
-// ── Status dot style maps ─────────────────────────────────────────────────────
-
-const STATUS_STYLES = {
-  done: {
-    icon: "✓",
-    dotBorder: "#34d399",
-    dotBg: "rgba(52,211,153,0.16)",
-    dotFg: "#34d399",
-    titleColor: "#7a8499",
-    rowBg: "rgba(255,255,255,0.015)",
-    rowBorder: "rgba(255,255,255,0.05)",
-  },
-  current: {
-    icon: "●",
-    dotBorder: "#5cc8ec",
-    dotBg: "rgba(92,200,236,0.16)",
-    dotFg: "#5cc8ec",
-    titleColor: "#eef2f8",
-    rowBg: "rgba(92,200,236,0.05)",
-    rowBorder: "rgba(92,200,236,0.18)",
-  },
-  next: {
-    icon: "",
-    dotBorder: "rgba(255,255,255,0.18)",
-    dotBg: "transparent",
-    dotFg: "#5a6680",
-    titleColor: "#cdd5e3",
-    rowBg: "rgba(255,255,255,0.015)",
-    rowBorder: "rgba(255,255,255,0.05)",
-  },
-} as const;
 
 // ── Bucket metadata ───────────────────────────────────────────────────────────
 
@@ -375,18 +345,15 @@ export function MissionDetail({ m, factionMap, onShowOnMap }: Props) {
       {/* Objectives */}
       {hasObjectives && (
         <>
-          <div className="flex items-center gap-2.5 mt-6 mb-3">
-            <span
-              className="text-[11px] tracking-[1.5px] font-mono uppercase"
-              style={{ color: "#7a8499" }}
-            >
-              ▸ OBJECTIVES
-            </span>
-            <span className="text-[10.5px] text-muted-foreground">
-              · {steps.length} step{steps.length !== 1 ? "s" : ""}
-            </span>
-            <div className="flex-1 h-px bg-border/40" />
-          </div>
+          <SectionLabel
+            extra={
+              <span className="text-[10.5px] text-muted-foreground">
+                · {steps.length} step{steps.length !== 1 ? "s" : ""}
+              </span>
+            }
+          >
+            OBJECTIVES
+          </SectionLabel>
 
           <div className="flex flex-col gap-0.5">
             {steps.map((step, i) => {
@@ -458,30 +425,29 @@ export function MissionDetail({ m, factionMap, onShowOnMap }: Props) {
       {/* Route map */}
       {mapSectorId && (
         <>
-          <div className="flex items-center gap-2.5 mt-6 mb-3">
-            <span
-              className="text-[11px] tracking-[1.5px] font-mono uppercase"
-              style={{ color: "#7a8499" }}
-            >
-              ▸ ROUTE
-            </span>
-            <span className="text-[10.5px] text-muted-foreground">
-              Target: {mapSectorId}
-            </span>
-            <div className="flex-1 h-px bg-border/40" />
-            <button
-              onClick={() => setMapExpanded(true)}
-              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors hover:brightness-125"
-              style={{
-                color: "#7fb9d6",
-                borderColor: "rgba(92,200,236,0.22)",
-                background: "rgba(92,200,236,0.06)",
-              }}
-            >
-              <MaximizeIcon />
-              Expand
-            </button>
-          </div>
+          <SectionLabel
+            extra={
+              <span className="text-[10.5px] text-muted-foreground">
+                Target: {mapSectorId}
+              </span>
+            }
+            after={
+              <button
+                onClick={() => setMapExpanded(true)}
+                className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors hover:brightness-125"
+                style={{
+                  color: "#7fb9d6",
+                  borderColor: "rgba(92,200,236,0.22)",
+                  background: "rgba(92,200,236,0.06)",
+                }}
+              >
+                <MaximizeIcon />
+                Expand
+              </button>
+            }
+          >
+            ROUTE
+          </SectionLabel>
 
           <EmbeddedMap
             targetSectorId={mapSectorId}

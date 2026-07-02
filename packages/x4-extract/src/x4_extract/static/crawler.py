@@ -24,7 +24,9 @@ from lxml import etree
 
 from x4_extract.config import ExtractSettings
 from x4_extract.db import apply_schema
+from x4_extract.parsing import xpath_elements as _xpath_elements
 from x4_extract.static import catdat
+from x4_extract.static.constants import iter_elements
 from x4_extract.static.progress import log_progress as _log
 
 log = logging.getLogger(__name__)
@@ -339,9 +341,7 @@ def _merge_additive(base_bytes: bytes, dlc_bytes: bytes) -> bytes:
 
     # Build an id → element lookup over the base root children
     base_by_id: dict[str, etree._Element] = {}
-    for el in base_root:
-        if callable(el.tag):
-            continue
+    for el in iter_elements(base_root):
         eid = el.get("id")
         if eid is not None:
             base_by_id[eid] = el
@@ -380,10 +380,3 @@ def _flush(conn: sqlite3.Connection, rows: list[dict[str, object]]) -> None:
         "VALUES (:filepath, :directory, :filename, :content)",
         rows,
     )
-
-
-def _xpath_elements(node: etree._Element, query: str) -> list[etree._Element]:
-    result = node.xpath(query)
-    if not isinstance(result, list):
-        return []
-    return [item for item in result if isinstance(item, etree._Element)]

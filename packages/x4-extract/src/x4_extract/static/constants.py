@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
+
+from lxml import etree
 
 _RE_DLC_PATH = re.compile(r"extensions/ego_dlc_(\w+?)/", re.IGNORECASE)
 
@@ -16,6 +19,19 @@ def dlc_from_path(file_path: str | None) -> str | None:
         return None
     m = _RE_DLC_PATH.search(file_path)
     return m.group(1) if m else None
+
+
+def iter_elements(root: etree._Element) -> Iterable[etree._Element]:
+    """Yield `root`'s direct children, skipping XML comment/PI nodes.
+
+    lxml gives comment and processing-instruction nodes a callable `.tag`, which breaks
+    naive `el.get(...)` calls — callers that iterate a root's raw children to read
+    attributes need to filter those out first.
+    """
+    for el in root:
+        if callable(el.tag):
+            continue
+        yield el
 
 
 # Ships

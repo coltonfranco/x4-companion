@@ -16,7 +16,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from x4_api.api.db_utils import fetch_one_or_404, table_exists
+from x4_api.api.db_utils import build_where_clause, fetch_one_or_404, paginate, table_exists
 from x4_api.api.deps import get_db
 from x4_api.api.icons import get_ware_icon_url
 from x4_api.api.schemas import PublicModel
@@ -170,7 +170,16 @@ def list_wares(
 
     price_sql, has_live = _market_price_sql(conn)
 
-    sql = [
+    conditions: list[tuple[str, Any]] = [("w.name NOT LIKE ?", "(TEMP)%")]
+    if group is not None:
+        conditions.append(("w.group_id = ?", group))
+    if transport is not None:
+        conditions.append(("w.transport = ?", transport))
+    if category is not None:
+        conditions.append((f"({_CAT_SQL}) = ?", category))
+    where_clause, where_params = build_where_clause(conditions)
+
+    sql_parts = [
         f"SELECT w.ware_id, w.name, w.shortname, w.description, w.group_id,"
         f"       ({_CAT_SQL}) AS category, w.transport, w.volume,",
         f"       {price_sql},",
@@ -181,22 +190,12 @@ def list_wares(
         "LEFT JOIN s.ware_groups g ON w.group_id = g.group_id",
     ]
     if has_live:
-        sql.append(_market_join_sql())
-    sql.append("WHERE w.name NOT LIKE '(TEMP)%'")
+        sql_parts.append(_market_join_sql())
+    sql_parts.append(where_clause)
+    sql_parts.append("ORDER BY w.ware_id")
+    sql, params = paginate(" ".join(sql_parts), where_params, limit, offset)
 
-    params: dict[str, object] = {"limit": limit, "offset": offset}
-    if group is not None:
-        sql.append("AND w.group_id = :group")
-        params["group"] = group
-    if transport is not None:
-        sql.append("AND w.transport = :transport")
-        params["transport"] = transport
-    if category is not None:
-        sql.append(f"AND ({_CAT_SQL}) = :category")
-        params["category"] = category
-    sql.append("ORDER BY w.ware_id LIMIT :limit OFFSET :offset")
-
-    rows = conn.execute(" ".join(sql), params).fetchall()
+    rows = conn.execute(sql, params).fetchall()
     return [WareSummary(**_ware_fields(r)) for r in rows]
 
 

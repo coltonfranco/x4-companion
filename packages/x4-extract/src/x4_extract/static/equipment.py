@@ -11,7 +11,9 @@ from lxml import etree
 
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
+from x4_extract.parsing import xpath_elements as _xpath_elements
 from x4_extract.static.constants import EQUIPMENT_CLASSES, dlc_from_path
+from x4_extract.static.macro_index import iter_index_macros
 
 # Tags that appear on every component connection and don't restrict compatibility
 # Tags that appear on every component connection and don't restrict compatibility.
@@ -79,36 +81,11 @@ def extract(
     index_bytes: bytes, resolve_path: Callable[[str], bytes], resolve_name: Callable[[str], bytes]
 ) -> ExtractResult:
     """Parse merged macros.xml, resolve equipment macros, and extract row dicts."""
-    root = etree.fromstring(index_bytes)
     out = ExtractResult()
-
-    # Pre-fetch all relevant macros to process
-    for entry in root.iterfind("entry"):
-        name = entry.get("name")
-        if not name:
-            continue
-
-        path = entry.get("value")
-        if not path:
-            continue
-
-        xml_path = path.replace("\\", "/") + ".xml"
-        try:
-            macro_bytes = resolve_path(xml_path)
-            macro_root = etree.fromstring(macro_bytes)
-            macro_el = macro_root.find("macro")
-            if macro_el is None:
-                continue
-
-            class_raw = macro_el.get("class", "")
-            if class_raw not in EQUIPMENT_CLASSES:
-                continue
-
-        except (KeyError, OSError, etree.XMLSyntaxError):
-            continue
-
+    for name, xml_path, macro_el in iter_index_macros(
+        index_bytes, resolve_path, class_filter=EQUIPMENT_CLASSES
+    ):
         _parse_equipment_macro(name, xml_path, macro_el, resolve_name, out)
-
     return out
 
 
@@ -433,10 +410,3 @@ def write(conn: sqlite3.Connection, result: ExtractResult) -> None:
             "VALUES (:software_id, :name, :file_path, :is_legacy, :class_id, :scan_maxlevel, :radar_range)",
             result.software,
         )
-
-
-def _xpath_elements(node: etree._Element, query: str) -> list[etree._Element]:
-    result = node.xpath(query)
-    if not isinstance(result, list):
-        return []
-    return [item for item in result if isinstance(item, etree._Element)]

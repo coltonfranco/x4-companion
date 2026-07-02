@@ -3,7 +3,8 @@ import { AlertTriangle, Eye, EyeOff, Loader2, RotateCcw, Settings as SettingsIco
 import { useEffect, useState } from "react";
 import { apiGet, apiPut } from "../lib/api";
 import { useSettings } from "../lib/settingsStore";
-import { FolderField } from "./setup/FolderField";
+import { toErrorMessage } from "../lib/utils";
+import { GameFolderFields } from "./setup/GameFolderFields";
 import {
   type PathValidation,
   type SetupStatus,
@@ -156,7 +157,7 @@ function AdvancedSection({ onReloadStarted }: { onReloadStarted: () => void }) {
       await qc.invalidateQueries({ queryKey: ["setup-status"] });
       onReloadStarted();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toErrorMessage(e));
       setSubmitting(false);
       setConfirming(false);
     }
@@ -164,21 +165,13 @@ function AdvancedSection({ onReloadStarted }: { onReloadStarted: () => void }) {
 
   return (
     <div className="space-y-4">
-      <FolderField
-        label="Game install folder"
-        hint="The folder containing X4.exe and the .cat archives."
-        value={install}
-        onChange={setInstall}
-        onValidated={setInstallVal}
-        kind="install"
-      />
-      <FolderField
-        label="Save folder"
-        hint="The folder with your *.xml.gz saves (…/Egosoft/X4/<id>/save)."
-        value={save}
-        onChange={setSave}
-        onValidated={setSaveVal}
-        kind="save"
+      <GameFolderFields
+        install={install}
+        onInstallChange={setInstall}
+        onInstallValidated={setInstallVal}
+        save={save}
+        onSaveChange={setSave}
+        onSaveValidated={setSaveVal}
       />
 
       <div className="rounded-md border border-border p-3 space-y-2">

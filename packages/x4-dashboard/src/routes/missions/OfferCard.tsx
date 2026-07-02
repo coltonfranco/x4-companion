@@ -9,6 +9,7 @@ import {
   fmtCredits,
   LevelBadge,
   RepeatableTag,
+  RunToggleButton,
 } from "./helpers";
 
 type Props = {
@@ -109,22 +110,7 @@ export function OfferCard({ o, factionMap, isSelected, isInRun, onClick, onToggl
         </>
       }
       trailingButton={
-        onToggleRun && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleRun(); }}
-            className="absolute right-2.5 bottom-2.5 w-6 h-6 rounded-md flex items-center justify-center text-[13px] transition-colors hover:brightness-125"
-            style={{
-              background: isInRun
-                ? "rgba(52,211,153,0.14)"
-                : "rgba(255,255,255,0.04)",
-              border: `1px solid ${isInRun ? "rgba(52,211,153,0.4)" : "rgba(255,255,255,0.1)"}`,
-              color: isInRun ? "#34d399" : "#7a8499",
-            }}
-            title={isInRun ? "In Run" : "Add to Run"}
-          >
-            {isInRun ? "✓" : "＋"}
-          </button>
-        )
+        onToggleRun && <RunToggleButton isInRun={isInRun} onToggleRun={onToggleRun} />
       }
     />
   );

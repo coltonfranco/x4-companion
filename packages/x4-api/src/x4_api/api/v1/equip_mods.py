@@ -1,15 +1,16 @@
 """Equipment mod endpoints."""
 
+from __future__ import annotations
+
 import sqlite3
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import Depends, Query
 
-from x4_api.api.db_utils import fetch_one_or_404
+from x4_api.api.catalog_router import simple_catalog_router
+from x4_api.api.db_utils import build_where_clause, paginate
 from x4_api.api.deps import get_db
 from x4_api.api.schemas import PublicModel
-
-router = APIRouter()
 
 
 class EquipModSummary(PublicModel):
@@ -31,6 +32,28 @@ class EquipModDetail(EquipModSummary):
     production_time: float | None
 
 
+_LIST_COLS = "ware_id, name, shortname, category, stat, quality, min_factor, max_factor, price_avg"
+_DETAIL_COLS = (
+    "ware_id, name, shortname, description, category, stat, quality, "
+    "min_factor, max_factor, price_min, price_avg, price_max, production_time"
+)
+
+# The list endpoint takes optional filters, so it can't come from the factory's
+# generic (unfiltered) list route — only the flat get-by-id route is shared.
+router = simple_catalog_router(
+    path_prefix="/equipment-mods",
+    table="s.equip_mods",
+    list_columns=_LIST_COLS,
+    list_model=EquipModSummary,
+    detail_columns=_DETAIL_COLS,
+    detail_model=EquipModDetail,
+    list_order_by="category, stat, quality, ware_id",
+    id_col="ware_id",
+    id_param_name="ware_id",
+    include_list=False,
+)
+
+
 @router.get("/equipment-mods", response_model=list[EquipModSummary])
 def list_equip_mods(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
@@ -42,37 +65,20 @@ def list_equip_mods(
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
 ) -> list[EquipModSummary]:
-    sql = [
-        "SELECT ware_id, name, shortname, category, stat, quality, min_factor, max_factor, price_avg",
-        "FROM s.equip_mods WHERE 1=1",
-    ]
-    params: dict[str, object] = {"limit": limit, "offset": offset}
+    conditions: list[tuple[str, Any]] = []
     if category is not None:
-        sql.append("AND category = :category")
-        params["category"] = category
+        conditions.append(("category = ?", category))
     if stat is not None:
-        sql.append("AND stat = :stat")
-        params["stat"] = stat
+        conditions.append(("stat = ?", stat))
     if quality is not None:
-        sql.append("AND quality = :quality")
-        params["quality"] = quality
-    sql.append("ORDER BY category, stat, quality, ware_id LIMIT :limit OFFSET :offset")
+        conditions.append(("quality = ?", quality))
+    where_clause, where_params = build_where_clause(conditions)
 
-    rows = conn.execute(" ".join(sql), params).fetchall()
+    sql = f"SELECT {_LIST_COLS} FROM s.equip_mods"
+    if where_clause:
+        sql += f" {where_clause}"
+    sql += " ORDER BY category, stat, quality, ware_id"
+    sql, params = paginate(sql, where_params, limit, offset)
+
+    rows = conn.execute(sql, params).fetchall()
     return [EquipModSummary(**dict(r)) for r in rows]
-
-
-@router.get("/equipment-mods/{ware_id}", response_model=EquipModDetail)
-def get_equip_mod(
-    ware_id: str,
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-) -> EquipModDetail:
-    row = fetch_one_or_404(
-        conn,
-        "SELECT ware_id, name, shortname, description, category, stat, quality, "
-        "min_factor, max_factor, price_min, price_avg, price_max, production_time "
-        "FROM s.equip_mods WHERE ware_id = :id",
-        {"id": ware_id},
-        f"Unknown ware_id: {ware_id}",
-    )
-    return EquipModDetail(**dict(row))

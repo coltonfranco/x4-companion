@@ -16,9 +16,12 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import attr_flag
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
+from x4_extract.parsing import xpath_elements as _xpath_elements
 from x4_extract.static.constants import SHIP_CLASSES, dlc_from_path
+from x4_extract.static.macro_index import iter_index_macros
 
 CountCache = dict[tuple[str, bool], dict[str, int]]
 
@@ -33,36 +36,11 @@ def extract(
     index_bytes: bytes, resolve_path: Callable[[str], bytes], resolve_name: Callable[[str], bytes]
 ) -> ExtractResult:
     """Parse merged macros.xml, resolve ship macros recursively, and extract row dicts."""
-    root = etree.fromstring(index_bytes)
     out = ExtractResult()
-
-    for entry in root.iterfind("entry"):
-        name = entry.get("name")
-        if not name:
-            continue
-
-        path = entry.get("value")
-        if not path:
-            continue
-
-        # Paths in index use backslashes and omit the .xml extension
-        xml_path = path.replace("\\", "/") + ".xml"
-        try:
-            ship_bytes = resolve_path(xml_path)
-            ship_root = etree.fromstring(ship_bytes)
-            macro_el = ship_root.find("macro")
-            if macro_el is None:
-                continue
-
-            class_raw = macro_el.get("class", "")
-            if class_raw not in SHIP_CLASSES:
-                continue
-
-        except (KeyError, OSError, etree.XMLSyntaxError):
-            continue
-
+    for name, xml_path, macro_el in iter_index_macros(
+        index_bytes, resolve_path, class_filter=SHIP_CLASSES
+    ):
         _parse_ship_macro(name, xml_path, macro_el, resolve_name, out)
-
     return out
 
 
@@ -323,14 +301,12 @@ def _parse_ship_macro(
         ware_id = sw_el.get("ware")
         if not ware_id:
             continue
-        compatible = sw_el.get("compatible")
-        default = sw_el.get("default")
         out.software.append(
             {
                 "ship_id": macro_name,
                 "ware_id": ware_id,
-                "compatible": 1 if compatible == "1" else 0,
-                "is_default": 1 if default == "1" else 0,
+                "compatible": attr_flag(sw_el, "compatible", "1"),
+                "is_default": attr_flag(sw_el, "default", "1"),
             }
         )
 
@@ -537,13 +513,6 @@ def _count_connections(comp_node: etree._Element, counts: dict[str, int]) -> Non
             size = "m"
 
         counts[f"{kind}_{size}"] += 1
-
-
-def _xpath_elements(node: etree._Element, query: str) -> list[etree._Element]:
-    result = node.xpath(query)
-    if not isinstance(result, list):
-        return []
-    return [item for item in result if isinstance(item, etree._Element)]
 
 
 def write(conn: sqlite3.Connection, result: ExtractResult) -> None:

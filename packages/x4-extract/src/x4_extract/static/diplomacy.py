@@ -16,6 +16,7 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import attr_flag
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int_or_none as _int
 
@@ -57,8 +58,8 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "name": action_el.get("name"),
                 "description": action_el.get("description"),
                 "shortdescription": action_el.get("shortdescription"),
-                "hidden": 1 if action_el.get("hidden") == "true" else 0,
-                "is_unique": 1 if action_el.get("unique") == "true" else 0,
+                "hidden": attr_flag(action_el, "hidden"),
+                "is_unique": attr_flag(action_el, "unique"),
                 "friendgroup": action_el.get("friendgroup"),
                 "cost_influence": _int(cost_el, "influence") if cost_el is not None else None,
                 "cost_money": _int(cost_el, "money") if cost_el is not None else None,
@@ -87,7 +88,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "reward_text": reward_el.get("text") if reward_el is not None else None,
                 "icon_active": icon_el.get("active") if icon_el is not None else None,
                 "icon_image": icon_el.get("image") if icon_el is not None else None,
-                "triggers_event": 1 if action_el.get("triggersevent") == "true" else 0,
+                "triggers_event": attr_flag(action_el, "triggersevent"),
             }
         )
 

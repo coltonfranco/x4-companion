@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, fingerprint_for_tier, tables_for_tier
+from x4_extract.dynamic.extractors.common import known_to_player
 from x4_extract.savefile.dispatch import Registration, Target
 
 _SECTOR_DEPTH = 9
@@ -51,15 +52,13 @@ class SectorsCollector:
         if not sector_id:
             return
 
-        known_to_player = 1 if elem.get("knownto") == "player" else 0
-
         # We don't need to dump the rest of the attributes here since static map handles
         # sector layout, but we could put them in extra_json if needed. Let's just track knownto.
 
         self.rows.append(
             SectorStateRow(
                 sector_id=sector_id,
-                known_to_player=known_to_player,
+                known_to_player=known_to_player(elem),
                 extra_json=None,
             )
         )

@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
-from x4_api.config import Settings
 from x4_extract.static import factions
 
 TINY_FACTIONS_XML = b"""<?xml version="1.0" encoding="utf-8"?>
@@ -30,11 +27,6 @@ TINY_COLORS_XML = b"""<?xml version="1.0" encoding="utf-8"?>
   <mapping id="faction_argon" ref="blue_bright" />
 </colormap>
 """
-
-
-@pytest.fixture
-def settings(data_dir: Path) -> Settings:
-    return Settings(install_path=Path("C:/fake/x4"), data_dir=data_dir)
 
 
 def test_list_factions_returns_all_factions(

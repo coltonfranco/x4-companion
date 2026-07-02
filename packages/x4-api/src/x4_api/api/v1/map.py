@@ -9,6 +9,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from x4_api.api.db_utils import table_exists
 from x4_api.api.deps import get_db
 from x4_api.api.faction_utils import disambiguate
 from x4_api.api.schemas import PublicModel
@@ -161,6 +162,32 @@ def list_clusters(
     return out
 
 
+def _sector_summary_sql(conn: sqlite3.Connection) -> tuple[str, str]:
+    """Return (columns_sql, join_live_sql) for the sec.* sector summary column list.
+
+    Feature-detects `sector_state` (added by live-save ingest) so callers automatically
+    fall back to a static `0 AS known_to_player` when no save has been ingested yet.
+    """
+    has_sector_state = table_exists(conn, "sector_state")
+    select_known = (
+        "COALESCE(ss.known_to_player, 0) AS known_to_player"
+        if has_sector_state
+        else "0 AS known_to_player"
+    )
+    join_live = (
+        "LEFT JOIN sector_state ss ON ss.sector_id = LOWER(sec.sector_id) "
+        if has_sector_state
+        else ""
+    )
+    columns = (
+        "sec.sector_id, sec.cluster_id, sec.name AS macro_id, sec.dlc, "
+        "sec.name_id AS name, sec.description_id AS description, sec.sunlight, sec.economy, sec.security, "
+        "sec.tags, sec.access_licence, sec.x, sec.y, sec.z, sec.qx, sec.qy, sec.qz, sec.qw, "
+        f"{select_known}"
+    )
+    return columns, join_live
+
+
 @router.get("/map/sectors", response_model=list[SectorSummary])
 def list_sectors(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
@@ -169,12 +196,6 @@ def list_sectors(
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
 ) -> list[SectorSummary]:
-    has_sector_state = bool(
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sector_state'"
-        ).fetchone()
-    )
-
     # Build sector ownership map from live stations (most-stations-wins per sector).
     live_owner: dict[str, str] = {}
     owner_rows = conn.execute(
@@ -200,23 +221,9 @@ def list_sectors(
             seen.add(sid)
             live_owner[sid] = r["owner_faction"]
 
-    select_known = (
-        "COALESCE(ss.known_to_player, 0) AS known_to_player"
-        if has_sector_state
-        else "0 AS known_to_player"
-    )
-    join_live = (
-        "LEFT JOIN sector_state ss ON ss.sector_id = LOWER(sec.sector_id) "
-        if has_sector_state
-        else ""
-    )
+    columns, join_live = _sector_summary_sql(conn)
 
-    sql = (
-        f"SELECT sec.sector_id, sec.cluster_id, sec.name AS macro_id, sec.dlc, "
-        f"sec.name_id AS name, sec.description_id AS description, sec.sunlight, sec.economy, sec.security, "
-        f"sec.tags, sec.access_licence, sec.x, sec.y, sec.z, sec.qx, sec.qy, sec.qz, sec.qw, {select_known} "
-        f"FROM s.sectors sec {join_live}WHERE 1=1"
-    )
+    sql = f"SELECT {columns} FROM s.sectors sec {join_live}WHERE 1=1"
 
     params: dict[str, object] = {"limit": limit, "offset": offset}
     if cluster_id is not None:
@@ -240,28 +247,10 @@ def get_sector(
     sector_id: str,
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
 ) -> SectorSummary:
-    has_sector_state = bool(
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sector_state'"
-        ).fetchone()
-    )
-    select_known = (
-        "COALESCE(ss.known_to_player, 0) AS known_to_player"
-        if has_sector_state
-        else "0 AS known_to_player"
-    )
-    join_live = (
-        "LEFT JOIN sector_state ss ON ss.sector_id = LOWER(sec.sector_id) "
-        if has_sector_state
-        else ""
-    )
+    columns, join_live = _sector_summary_sql(conn)
 
     row = conn.execute(
-        f"SELECT sec.sector_id, sec.cluster_id, sec.name AS macro_id, sec.dlc, "
-        f"sec.name_id AS name, sec.description_id AS description, sec.sunlight, sec.economy, sec.security, "
-        f"sec.tags, sec.access_licence, sec.x, sec.y, sec.z, sec.qx, sec.qy, sec.qz, sec.qw, {select_known} "
-        f"FROM s.sectors sec {join_live}"
-        f"WHERE sec.sector_id = :id",
+        f"SELECT {columns} FROM s.sectors sec {join_live}WHERE sec.sector_id = :id",
         {"id": sector_id},
     ).fetchone()
     if row is None:
@@ -513,10 +502,7 @@ def list_live_resources(
     Returns [] until a save with resource data is ingested (the dashboard's mining
     heatmap falls back to the static /map/resources in that case).
     """
-    table = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sector_resources'"
-    ).fetchone()
-    if table is None:  # dynamic DB predates the schema; treat as no data
+    if not table_exists(conn, "sector_resources"):  # dynamic DB predates the schema
         return []
     sql = ["SELECT sector_id, ware, current, max, yield_tier FROM sector_resources WHERE 1=1"]
     params: dict[str, object] = {"limit": limit, "offset": offset}
@@ -758,15 +744,45 @@ def list_cluster_resources(
     return [ClusterResourceEntry(**dict(r)) for r in rows]
 
 
+def _hostile_pair_set(conn: sqlite3.Connection) -> set[tuple[str, str]]:
+    """Load mutually-hostile faction pairs (both orderings) for fast `in` lookups."""
+    hostile_rows = conn.execute(
+        "SELECT faction_id, other_faction_id FROM faction_relations_current WHERE relation < -0.1"
+    ).fetchall()
+    hostile_set: set[tuple[str, str]] = set()
+    for row in hostile_rows:
+        hostile_set.add((row[0], row[1]))
+        hostile_set.add((row[1], row[0]))
+    return hostile_set
+
+
+def _group_into_sides(
+    factions: list[ConflictFaction], hostile_set: set[tuple[str, str]]
+) -> list[list[ConflictFaction]]:
+    """Greedily place each faction into the first side with no hostile relation to
+    any faction already in that side, else start a new side."""
+    sides: list[list[ConflictFaction]] = []
+    for cf in factions:
+        placed = False
+        for side in sides:
+            is_hostile = any(
+                (cf.faction_id, existing.faction_id) in hostile_set for existing in side
+            )
+            if not is_hostile:
+                side.append(cf)
+                placed = True
+                break
+        if not placed:
+            sides.append([cf])
+    return sides
+
+
 @router.get("/map/forces", response_model=list[SectorForceEntry])
 def list_forces(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
 ) -> list[SectorForceEntry]:
     """Return total fighter counts per sector and breakdown by faction."""
-    has_ships = bool(
-        conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ships'").fetchone()
-    )
-    if not has_ships:
+    if not table_exists(conn, "ships"):
         return []
 
     breakdown_rows = conn.execute("""
@@ -809,13 +825,7 @@ def list_forces(
             totals_other[sector_id] += cnt
             by_sector[sector_id][faction]["other"] += cnt
 
-    hostile_rows = conn.execute(
-        "SELECT faction_id, other_faction_id FROM faction_relations_current WHERE relation < -0.1"
-    ).fetchall()
-    hostile_set = set()
-    for row in hostile_rows:
-        hostile_set.add((row[0], row[1]))
-        hostile_set.add((row[1], row[0]))
+    hostile_set = _hostile_pair_set(conn)
 
     results = []
     # Collect all sectors that have ANY forces (fighters, miners, or traders)
@@ -842,22 +852,7 @@ def list_forces(
         m_count = totals_miner.get(sector_id, 0)
         t_count = totals_trader.get(sector_id, 0)
 
-        # group into sides
-        sides: list[list[ConflictFaction]] = []
-        for cf in factions:
-            placed = False
-            for side in sides:
-                is_hostile = False
-                for existing_cf in side:
-                    if (cf.faction_id, existing_cf.faction_id) in hostile_set:
-                        is_hostile = True
-                        break
-                if not is_hostile:
-                    side.append(cf)
-                    placed = True
-                    break
-            if not placed:
-                sides.append([cf])
+        sides = _group_into_sides(factions, hostile_set)
 
         conflict_sides = []
         for side_factions in sides:
@@ -892,6 +887,39 @@ def list_forces(
     return results
 
 
+# Shared by list_conflicts/list_tensions: per-sector fighter + station-owner faction
+# strength, merged and lower-cased so live-save sector ids (mixed case) join cleanly.
+# Verbatim-identical in both queries; list_conflicts layers extra CTEs on top.
+_SECTOR_FACTION_STRENGTH_CTE = """
+    sector_fighters AS (
+        SELECT sh.sector_id, sh.owner_faction, COUNT(*) AS cnt
+        FROM ships sh
+        JOIN s.ships c ON c.ship_id = sh.macro
+        WHERE c.role = 'fight'
+          AND sh.owner_faction IS NOT NULL
+          AND sh.sector_id IS NOT NULL
+          AND (sh.state IS NULL OR sh.state = '')
+        GROUP BY sh.sector_id, sh.owner_faction
+    ),
+    sector_owners AS (
+        SELECT LOWER(st.sector_id) AS sector_id, st.owner_faction
+        FROM stations st
+        WHERE st.owner_faction IS NOT NULL AND st.sector_id IS NOT NULL
+        GROUP BY LOWER(st.sector_id)
+    ),
+    sector_factions AS (
+        SELECT sector_id, owner_faction, cnt FROM sector_fighters
+        UNION ALL
+        SELECT sector_id, owner_faction, 0 AS cnt FROM sector_owners
+    ),
+    merged_factions AS (
+        SELECT LOWER(sector_id) AS sector_id, owner_faction, SUM(cnt) AS cnt
+        FROM sector_factions
+        GROUP BY LOWER(sector_id), owner_faction
+    )
+"""
+
+
 @router.get("/map/conflicts", response_model=list[ConflictEntry])
 def list_conflicts(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
@@ -903,51 +931,18 @@ def list_conflicts(
     number of combat-class ships from the hostile factions in that sector.
     Returns [] until a save is ingested.
     """
-    has_ships = bool(
-        conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ships'").fetchone()
-    )
-    has_rels = bool(
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='faction_relations_current'"
-        ).fetchone()
-    )
-    if not has_ships or not has_rels:
+    if not table_exists(conn, "ships") or not table_exists(conn, "faction_relations_current"):
         return []
 
     # Per-sector faction breakdown for hostile sectors
     # We include sector owners even if they have 0 ships, so an invasion is correctly registered.
-    breakdown_rows = conn.execute("""
+    breakdown_rows = conn.execute(f"""
         WITH hostile_pairs AS (
             SELECT r.faction_id AS a, r.other_faction_id AS b
             FROM faction_relations_current r
             WHERE r.relation < -0.1
         ),
-        sector_fighters AS (
-            SELECT sh.sector_id, sh.owner_faction, COUNT(*) AS cnt
-            FROM ships sh
-            JOIN s.ships c ON c.ship_id = sh.macro
-            WHERE c.role = 'fight'
-              AND sh.owner_faction IS NOT NULL
-              AND sh.sector_id IS NOT NULL
-              AND (sh.state IS NULL OR sh.state = '')
-            GROUP BY sh.sector_id, sh.owner_faction
-        ),
-        sector_owners AS (
-            SELECT LOWER(st.sector_id) AS sector_id, st.owner_faction
-            FROM stations st
-            WHERE st.owner_faction IS NOT NULL AND st.sector_id IS NOT NULL
-            GROUP BY LOWER(st.sector_id)
-        ),
-        sector_factions AS (
-            SELECT sector_id, owner_faction, cnt FROM sector_fighters
-            UNION ALL
-            SELECT sector_id, owner_faction, 0 AS cnt FROM sector_owners
-        ),
-        merged_factions AS (
-            SELECT LOWER(sector_id) AS sector_id, owner_faction, SUM(cnt) AS cnt
-            FROM sector_factions
-            GROUP BY LOWER(sector_id), owner_faction
-        ),
+        {_SECTOR_FACTION_STRENGTH_CTE},
         hostile_sectors AS (
             SELECT DISTINCT sf.sector_id
             FROM merged_factions sf
@@ -980,13 +975,7 @@ def list_conflicts(
         if sector not in sector_owners_map:
             sector_owners_map[sector] = (so_id, so_name)
 
-    hostile_rows = conn.execute(
-        "SELECT faction_id, other_faction_id FROM faction_relations_current WHERE relation < -0.1"
-    ).fetchall()
-    hostile_set = set()
-    for row in hostile_rows:
-        hostile_set.add((row[0], row[1]))
-        hostile_set.add((row[1], row[0]))
+    hostile_set = _hostile_pair_set(conn)
 
     name_map = _faction_name_map(conn)
 
@@ -994,23 +983,13 @@ def list_conflicts(
     for sector, factions in sorted(by_sector.items(), key=lambda x: -(totals[x[0]])):
         sorted_facs = sorted(factions.items(), key=lambda x: -(x[1][0]))
 
-        sides: list[list[ConflictFaction]] = []
-        for fid, (fcnt, fname) in sorted_facs:
-            display_name = name_map.get(fid, fname)
-            cf = ConflictFaction(faction_id=fid, faction_name=display_name, fighter_count=fcnt)
-            placed = False
-            for side in sides:
-                is_hostile = False
-                for existing_cf in side:
-                    if (fid, existing_cf.faction_id) in hostile_set:
-                        is_hostile = True
-                        break
-                if not is_hostile:
-                    side.append(cf)
-                    placed = True
-                    break
-            if not placed:
-                sides.append([cf])
+        conflict_factions_sorted = [
+            ConflictFaction(
+                faction_id=fid, faction_name=name_map.get(fid, fname), fighter_count=fcnt
+            )
+            for fid, (fcnt, fname) in sorted_facs
+        ]
+        sides = _group_into_sides(conflict_factions_sorted, hostile_set)
 
         conflict_sides = []
         for side_factions in sides:
@@ -1100,44 +1079,11 @@ def list_tensions(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
 ) -> list[BorderTensionEntry]:
     """Sectors with amassing hostile forces on adjacent borders."""
-    has_ships = bool(
-        conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ships'").fetchone()
-    )
-    has_rels = bool(
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='faction_relations_current'"
-        ).fetchone()
-    )
-    if not has_ships or not has_rels:
+    if not table_exists(conn, "ships") or not table_exists(conn, "faction_relations_current"):
         return []
 
-    breakdown_rows = conn.execute("""
-        WITH sector_fighters AS (
-            SELECT sh.sector_id, sh.owner_faction, COUNT(*) AS cnt
-            FROM ships sh
-            JOIN s.ships c ON c.ship_id = sh.macro
-            WHERE c.role = 'fight'
-              AND sh.owner_faction IS NOT NULL
-              AND sh.sector_id IS NOT NULL
-              AND (sh.state IS NULL OR sh.state = '')
-            GROUP BY sh.sector_id, sh.owner_faction
-        ),
-        sector_owners AS (
-            SELECT LOWER(st.sector_id) AS sector_id, st.owner_faction
-            FROM stations st
-            WHERE st.owner_faction IS NOT NULL AND st.sector_id IS NOT NULL
-            GROUP BY LOWER(st.sector_id)
-        ),
-        sector_factions AS (
-            SELECT sector_id, owner_faction, cnt FROM sector_fighters
-            UNION ALL
-            SELECT sector_id, owner_faction, 0 AS cnt FROM sector_owners
-        ),
-        merged_factions AS (
-            SELECT LOWER(sector_id) AS sector_id, owner_faction, SUM(cnt) AS cnt
-            FROM sector_factions
-            GROUP BY LOWER(sector_id), owner_faction
-        )
+    breakdown_rows = conn.execute(f"""
+        WITH {_SECTOR_FACTION_STRENGTH_CTE}
         SELECT mf.sector_id, mf.owner_faction, mf.cnt,
                COALESCE(f.name, mf.owner_faction) AS faction_name,
                NULL AS sector_owner_id
@@ -1178,13 +1124,7 @@ def list_tensions(
         WHERE z1.sector_id != z2.sector_id
     """).fetchall()
 
-    hostile_rows = conn.execute(
-        "SELECT faction_id, other_faction_id FROM faction_relations_current WHERE relation < -0.1"
-    ).fetchall()
-    hostile_set = set()
-    for f1, f2 in hostile_rows:
-        hostile_set.add((f1, f2))
-        hostile_set.add((f2, f1))
+    hostile_set = _hostile_pair_set(conn)
 
     results = []
 

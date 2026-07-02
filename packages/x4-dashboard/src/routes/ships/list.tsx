@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
@@ -9,7 +9,7 @@ import { EntityIcon } from "../../components/EntityIcon";
 import { FactionBadge } from "../../components/FactionBadge";
 import { StatBar } from "../../components/StatBar";
 import { Currency } from "../../components/Currency";
-import { classShort, getClassColor, getTypeColor, formatLicence } from "../../lib/formatters";
+import { classShort, getClassColor, getTypeColor, formatLicence, formatDlc } from "../../lib/formatters";
 import { cn } from "../../lib/utils";
 import type { FactionSummary } from "../../lib/map/types";
 import { ShipClassBadge, ShipTypeBadge } from "../../components/ShipBadges";
@@ -31,7 +31,8 @@ import { HUDCard } from "../../components/HUDCard";
 import { FilterBar } from "../../components/FilterBar";
 import { SearchInput } from "../../components/ui/search-input";
 import { DataTable } from "../../components/DataTable";
-import type { ColumnDef, ColumnGroup, RowGroup } from "../../components/DataTable";
+import type { ColumnDef, ColumnGroup } from "../../components/DataTable";
+import { useRowGroups } from "../../lib/useRowGroups";
 import { useColumnVisibility } from "../../lib/useColumnVisibility";
 import { apiGet } from "../../lib/api";
 import { useKnownFactions } from "../../lib/useKnownFactions";
@@ -193,11 +194,6 @@ const COLUMN_GROUPS: ColumnGroup[] = [
   { id: "slots-shields",  label: "Shd Slots" },
   { id: "slots-engines",  label: "Eng Slots" },
 ];
-
-function formatDlc(dlc: string) {
-  if (dlc === "base_game") return "Base Game";
-  return dlc.charAt(0).toUpperCase() + dlc.slice(1) + " DLC";
-}
 
 function renderGroupHeaderContent(
   groupBy: string,
@@ -846,44 +842,49 @@ export default function ShipsPage() {
 
   // ── Row groups (when groupBy != "none") ──────────────────────────────────────
 
-  const rowGroups = useMemo<RowGroup<ShipSummary>[] | undefined>(() => {
-    if (groupBy === "none") return undefined;
-
-    const groups: Record<string, ShipSummary[]> = {};
-    sorted.forEach((ship) => {
-      let key = "";
-      if (groupBy === "dlc") key = formatDlc(ship.dlc || "base_game");
-      else if (groupBy === "class_id") key = classShort(ship.class_id);
-      else if (groupBy === "role")
-        key = ship.role
-          ? ship.role.charAt(0).toUpperCase() + ship.role.slice(1)
-          : "Unknown";
-      else if (groupBy === "ship_type")
-        key = ship.ship_type
+  const rowGroupKeyFn = useCallback(
+    (ship: ShipSummary): string => {
+      if (groupBy === "dlc") return formatDlc(ship.dlc || "base_game");
+      if (groupBy === "class_id") return classShort(ship.class_id);
+      if (groupBy === "role")
+        return ship.role ? ship.role.charAt(0).toUpperCase() + ship.role.slice(1) : "Unknown";
+      if (groupBy === "ship_type")
+        return ship.ship_type
           ? ship.ship_type.charAt(0).toUpperCase() + ship.ship_type.slice(1)
           : "Unknown";
-      else if (groupBy === "faction_id")
-        key = ship.faction_id
-          ? (factionMap.get(ship.faction_id)?.name || ship.faction_id)
+      if (groupBy === "faction_id")
+        return ship.faction_id
+          ? factionMap.get(ship.faction_id)?.name || ship.faction_id
           : "No Faction";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(ship);
-    });
+      return "";
+    },
+    [groupBy, factionMap]
+  );
 
-    const orderedKeys = Object.keys(groups).sort((a, b) => {
+  const rowGroupSortFn = useCallback(
+    (a: string, b: string) => {
       if (groupBy === "class_id") {
         const order = ["XS", "S", "M", "L", "XL"];
         return order.indexOf(a) - order.indexOf(b);
       }
       return a.localeCompare(b);
-    });
+    },
+    [groupBy]
+  );
 
-    return orderedKeys.map((key) => ({
-      key,
-      label: renderGroupHeaderContent(groupBy, key, groups[key][0], factions),
-      rows: groups[key],
-    }));
-  }, [sorted, groupBy, factionMap, factions]);
+  const rowGroupLabelFn = useCallback(
+    (key: string, groupRows: ShipSummary[]) =>
+      renderGroupHeaderContent(groupBy, key, groupRows[0], factions),
+    [groupBy, factions]
+  );
+
+  const rowGroups = useRowGroups(
+    sorted,
+    groupBy !== "none",
+    rowGroupKeyFn,
+    rowGroupLabelFn,
+    rowGroupSortFn
+  );
 
   const toggleClass = (cls: string) => {
     setSelectedClass((prev) => (prev === cls ? null : cls));

@@ -24,6 +24,15 @@ export function apiGetOrNull<T>(path: string, init?: RequestInit): Promise<T | n
   return fetch(path, init).then((r) => (r.ok ? (r.json() as Promise<T>) : null));
 }
 
+/** GET that normalizes a non-array (or non-ok) response to `[]` instead of
+ *  throwing — for list endpoints where a bad/error response shape should
+ *  degrade to "no rows" rather than blow up the query. */
+export function apiGetArray<T>(path: string, init?: RequestInit): Promise<T[]> {
+  return fetch(path, init)
+    .then((r) => (r.ok ? r.json() : []))
+    .then((d) => (Array.isArray(d) ? d : []));
+}
+
 function jsonInit(method: string, body?: unknown): RequestInit {
   return {
     method,

@@ -6,9 +6,6 @@ ware catalog, then exercises the endpoints end-to-end through the API client.
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
 from fastapi.testclient import TestClient
 from x4_api.config import Settings
 from x4_extract.db import open_db
@@ -19,11 +16,6 @@ P_SHIP = "[0xP_SHIP]"
 EMPIRE = "[0xEMPIRE]"  # resolves to neither station nor ship → kind 'account'
 N_STAT = "[0xN_STAT]"
 N_SHIP = "[0xN2]"
-
-
-@pytest.fixture
-def settings(data_dir: Path) -> Settings:
-    return Settings(install_path=Path("C:/fake/x4"), data_dir=data_dir)
 
 
 def _seed(settings: Settings) -> None:

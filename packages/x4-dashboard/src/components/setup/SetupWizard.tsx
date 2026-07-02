@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, AlertCircle, Loader2, Circle, Rocket } from "lucide-react";
 import { Button } from "../ui/button";
-import { cn } from "../../lib/utils";
-import { FolderField } from "./FolderField";
+import { cn, toErrorMessage } from "../../lib/utils";
+import { GameFolderFields } from "./GameFolderFields";
 import {
   type PathValidation,
   type SetupStatus,
@@ -69,7 +69,7 @@ function ConfigureStep({ status, initError }: { status: SetupStatus | undefined;
       // Flip the gate into the progress phase immediately.
       await qc.invalidateQueries({ queryKey: ["setup-status"] });
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : String(e));
+      setSubmitError(toErrorMessage(e));
       setSubmitting(false);
     }
   }
@@ -92,22 +92,13 @@ function ConfigureStep({ status, initError }: { status: SetupStatus | undefined;
         </div>
       }
     >
-      <FolderField
-        label="Game install folder"
-        hint="The folder containing X4.exe and the .cat archives."
-        value={install}
-        onChange={setInstall}
-        onValidated={setInstallVal}
-        kind="install"
-        forceCheck={forceCheck}
-      />
-      <FolderField
-        label="Save folder"
-        hint="The folder with your *.xml.gz saves (…/Egosoft/X4/<id>/save)."
-        value={save}
-        onChange={setSave}
-        onValidated={setSaveVal}
-        kind="save"
+      <GameFolderFields
+        install={install}
+        onInstallChange={setInstall}
+        onInstallValidated={setInstallVal}
+        save={save}
+        onSaveChange={setSave}
+        onSaveValidated={setSaveVal}
         forceCheck={forceCheck}
       />
 

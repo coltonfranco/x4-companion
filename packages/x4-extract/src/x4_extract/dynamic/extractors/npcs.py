@@ -43,7 +43,7 @@ from typing import cast
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, hash_rows
-from x4_extract.dynamic.extractors.common import ANCESTOR_WALK_LIMIT
+from x4_extract.dynamic.extractors.common import ANCESTOR_WALK_LIMIT, extra_json_from_attrs
 from x4_extract.savefile.dispatch import Registration, Target
 
 NpcData = dict[str, object]
@@ -363,7 +363,7 @@ class NPCsCollector:
                     skill_boarding=skills.get("boarding"),
                     blackboard_json=json.dumps(bb, sort_keys=True) if bb else None,
                     employment=self._employment(owner, loc_station),
-                    extra_json=json.dumps(extra, sort_keys=True) if extra else None,
+                    extra_json=extra_json_from_attrs({}, frozenset(), extra),
                 )
             )
         conn.executemany(

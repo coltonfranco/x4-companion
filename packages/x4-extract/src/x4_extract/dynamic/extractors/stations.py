@@ -49,6 +49,7 @@ from x4_extract.dynamic.extractors.common import (
     element_attrs,
     enclosing_sector_zone,
     extra_json_from_attrs,
+    known_to_player,
 )
 from x4_extract.savefile.dispatch import Registration, Target
 
@@ -385,7 +386,6 @@ class StationsCollector:
         if name and self.localizer:
             name = self.localizer.resolve(name)
 
-        known_to_player = 1 if elem.get("knownto") == "player" else 0
         nameindex_str = elem.get("nameindex")
         nameindex = int(nameindex_str) if nameindex_str and nameindex_str.isdigit() else None
 
@@ -413,7 +413,7 @@ class StationsCollector:
                 is_under_construction=0,
                 seed_id=seed_id,
                 dynamic_tags=None,
-                known_to_player=known_to_player,
+                known_to_player=known_to_player(elem),
                 basename=basename,
                 nameindex=nameindex,
                 extra_json=extra_json_from_attrs(element_attrs(elem), _MAPPED_STATION_ATTRS),

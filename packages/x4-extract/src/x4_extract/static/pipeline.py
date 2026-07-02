@@ -44,6 +44,31 @@ from x4_extract.static.raw import RawFileStore
 # ── Logging helpers ────────────────────────────────────────────────────────────
 
 
+def run_step(
+    progress_log: Callable[[str], None],
+    label: str,
+    xml: bytes | None,
+    extract_fn: Callable[[bytes], Any],
+    write_fn: Callable[[Any], None],
+    count_fn: Callable[[Any], str],
+) -> Any | None:
+    """Run one extract -> write pipeline step with the shared start/elapsed log shape.
+
+    Always logs the "Extracting: <label>" start message, even when `xml` is None, so
+    the progress-bar step count matches the previous per-block behavior. The
+    "  -> ..." elapsed summary (and the extract/write calls) are skipped when the
+    source XML wasn't present.
+    """
+    t0 = time.monotonic()
+    progress_log(f"Extracting: {label}")
+    if xml is None:
+        return None
+    result = extract_fn(xml)
+    write_fn(result)
+    progress_log(f"  -> {count_fn(result)} ({_elapsed(t0)})")
+    return result
+
+
 def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | None = None) -> None:
     _step = [0]
     _total_steps = 26
@@ -102,71 +127,80 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
                             row_dict[k] = localizer.resolve(v)
         return result
 
-    # Captured during the static pass.
-    factions_result: Any | None = None
-
     _progress_log("Starting static rebuild")
 
     try:
         with conn:
-            t0 = time.monotonic()
-            _progress_log("Extracting: ware groups")
             waregroups_xml = get_raw_file("libraries/waregroups.xml")
-            if waregroups_xml:
-                waregroups.write(conn, _localize_result(waregroups.extract(waregroups_xml)))
-                _progress_log(
-                    f"  -> {len(waregroups.extract(waregroups_xml).groups)} groups ({_elapsed(t0)})"
-                )
+            run_step(
+                _progress_log,
+                "ware groups",
+                waregroups_xml,
+                waregroups.extract,
+                lambda r: waregroups.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.groups)} groups",
+            )
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: mission groups")
             missiongroups_xml = get_raw_file("libraries/missiongroups.xml")
-            if missiongroups_xml:
-                missiongroups.write(
-                    conn, _localize_result(missiongroups.extract(missiongroups_xml))
-                )
-                _progress_log(
-                    f"  -> {len(missiongroups.extract(missiongroups_xml).groups)} groups ({_elapsed(t0)})"
-                )
+            run_step(
+                _progress_log,
+                "mission groups",
+                missiongroups_xml,
+                missiongroups.extract,
+                lambda r: missiongroups.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.groups)} groups",
+            )
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: wares")
             wares_xml = get_raw_file("libraries/wares.xml")
+            # extract() fills each ware's production tier
+            run_step(
+                _progress_log,
+                "wares",
+                wares_xml,
+                wares.extract,
+                lambda r: wares.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.wares)} wares",
+            )
             if wares_xml:
-                result = wares.extract(wares_xml)  # extract() fills each ware's production tier
-                wares.write(conn, _localize_result(result))
-                _progress_log(f"  -> {len(result.wares)} wares ({_elapsed(t0)})")
                 mods_xml = get_raw_file("libraries/equipmentmods.xml")
-                if mods_xml:
-                    t0 = time.monotonic()
-                    _progress_log("Extracting: equipment mods")
-                    mods_result = equip_mods.extract(mods_xml, wares_xml)
-                    equip_mods.write(conn, _localize_result(mods_result))
-                    _progress_log(f"  -> {len(mods_result.mods)} mods ({_elapsed(t0)})")
+                run_step(
+                    _progress_log,
+                    "equipment mods",
+                    mods_xml,
+                    lambda xml: equip_mods.extract(xml, wares_xml),
+                    lambda r: equip_mods.write(conn, _localize_result(r)),
+                    lambda r: f"{len(r.mods)} mods",
+                )
                 drops_xml = get_raw_file("libraries/drops.xml")
-                if drops_xml:
-                    t0 = time.monotonic()
-                    _progress_log("Extracting: drops")
-                    drops_result = drops.extract(drops_xml)
-                    drops.write(conn, _localize_result(drops_result))
-                    _progress_log(f"  -> {len(drops_result.lists)} lists ({_elapsed(t0)})")
+                run_step(
+                    _progress_log,
+                    "drops",
+                    drops_xml,
+                    drops.extract,
+                    lambda r: drops.write(conn, _localize_result(r)),
+                    lambda r: f"{len(r.lists)} lists",
+                )
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: factions")
             factions_xml = get_raw_file("libraries/factions.xml")
-            if factions_xml:
-                colors_xml = get_raw_file("libraries/colors.xml")
-                factions_result = _localize_result(factions.extract(factions_xml, colors_xml))
-                factions.write(conn, factions_result)  # definitions only; relations -> seed.db
-                _progress_log(f"  -> {len(factions_result.factions)} factions ({_elapsed(t0)})")
+            colors_xml = get_raw_file("libraries/colors.xml")
+            run_step(
+                _progress_log,
+                "factions",
+                factions_xml,
+                lambda xml: factions.extract(xml, colors_xml),
+                lambda r: factions.write(conn, _localize_result(r)),  # definitions only; relations -> seed.db
+                lambda r: f"{len(r.factions)} factions",
+            )
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: races")
             races_xml = get_raw_file("libraries/races.xml")
-            if races_xml:
-                races_result = _localize_result(races.extract(races_xml))
-                races.write(conn, races_result)
-                _progress_log(f"  -> {len(races_result.races)} races ({_elapsed(t0)})")
+            run_step(
+                _progress_log,
+                "races",
+                races_xml,
+                races.extract,
+                lambda r: races.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.races)} races",
+            )
 
             macros_xml = get_raw_file("index/macros.xml")
             if macros_xml:
@@ -207,44 +241,59 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
                         return _by_filename[key]
                     raise KeyError(name)
 
-                t0 = time.monotonic()
-                _progress_log("Extracting: ships")
-                s_result = ships.extract(macros_xml, cached_resolver, cached_resolve_name)
-                ships.write(conn, _localize_result(s_result))
-                _progress_log(f"  -> {len(s_result.ships)} ships ({_elapsed(t0)})")
-
-                t0 = time.monotonic()
-                _progress_log("Extracting: equipment")
-                e_result = equipment.extract(macros_xml, cached_resolver, cached_resolve_name)
-                equipment.write(conn, _localize_result(e_result))
-                _progress_log(
-                    f"  -> {len(e_result.engines)} engines, {len(e_result.shields)} shields, {len(e_result.weapons)} weapons ({_elapsed(t0)})"
+                run_step(
+                    _progress_log,
+                    "ships",
+                    macros_xml,
+                    lambda xml: ships.extract(xml, cached_resolver, cached_resolve_name),
+                    lambda r: ships.write(conn, _localize_result(r)),
+                    lambda r: f"{len(r.ships)} ships",
                 )
 
-                t0 = time.monotonic()
-                _progress_log("Extracting: modules")
-                m_result = modules.extract(macros_xml, cached_resolver, cached_resolve_name)
-                modules.write(conn, _localize_result(m_result))
-                _progress_log(f"  -> {len(m_result.modules)} modules ({_elapsed(t0)})")
+                run_step(
+                    _progress_log,
+                    "equipment",
+                    macros_xml,
+                    lambda xml: equipment.extract(xml, cached_resolver, cached_resolve_name),
+                    lambda r: equipment.write(conn, _localize_result(r)),
+                    lambda r: (
+                        f"{len(r.engines)} engines, {len(r.shields)} shields, "
+                        f"{len(r.weapons)} weapons"
+                    ),
+                )
 
-                t0 = time.monotonic()
-                _progress_log("Extracting: station types")
-                st_result = station_types.extract(macros_xml, cached_resolver)
-                station_types.write(conn, _localize_result(st_result))
-                _progress_log(f"  -> {len(st_result.stations)} types ({_elapsed(t0)})")
+                run_step(
+                    _progress_log,
+                    "modules",
+                    macros_xml,
+                    lambda xml: modules.extract(xml, cached_resolver, cached_resolve_name),
+                    lambda r: modules.write(conn, _localize_result(r)),
+                    lambda r: f"{len(r.modules)} modules",
+                )
+
+                run_step(
+                    _progress_log,
+                    "station types",
+                    macros_xml,
+                    lambda xml: station_types.extract(xml, cached_resolver),
+                    lambda r: station_types.write(conn, _localize_result(r)),
+                    lambda r: f"{len(r.stations)} types",
+                )
 
                 t0 = time.monotonic()
                 _progress_log("Computing: derived ship stats")
                 ships.update_derived_stats(conn)
                 _progress_log(f"  done ({_elapsed(t0)})")
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: loadouts")
             loadouts_xml = get_raw_file("libraries/loadouts.xml")
-            if loadouts_xml:
-                lo_result = loadouts.extract(loadouts_xml)
-                loadouts.write(conn, _localize_result(lo_result))
-                _progress_log(f"  -> {len(lo_result.loadouts)} loadouts ({_elapsed(t0)})")
+            run_step(
+                _progress_log,
+                "loadouts",
+                loadouts_xml,
+                loadouts.extract,
+                lambda r: loadouts.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.loadouts)} loadouts",
+            )
 
             t0 = time.monotonic()
             _progress_log("Extracting: map")
@@ -275,21 +324,25 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
                     f"  -> {len(map_result.clusters)} clusters, {len(map_result.sectors)} sectors ({_elapsed(t0)})"
                 )
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: terraforming")
             terraform_xml = get_raw_file("libraries/terraforming.xml")
-            if terraform_xml:
-                tf_result = terraforming.extract(terraform_xml)
-                terraforming.write(conn, _localize_result(tf_result))
-                _progress_log(f"  -> {len(tf_result.projects)} projects ({_elapsed(t0)})")
+            run_step(
+                _progress_log,
+                "terraforming",
+                terraform_xml,
+                terraforming.extract,
+                lambda r: terraforming.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.projects)} projects",
+            )
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: diplomacy")
             diplo_xml = get_raw_file("libraries/diplomacy.xml")
-            if diplo_xml:
-                d_result = diplomacy.extract(diplo_xml)
-                diplomacy.write(conn, _localize_result(d_result))
-                _progress_log(f"  -> {len(d_result.actions)} actions ({_elapsed(t0)})")
+            run_step(
+                _progress_log,
+                "diplomacy",
+                diplo_xml,
+                diplomacy.extract,
+                lambda r: diplomacy.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.actions)} actions",
+            )
 
             t0 = time.monotonic()
             _progress_log("Extracting: gamestart stories")
@@ -305,38 +358,46 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
                     )
                 _progress_log(f"  -> {len(gs_result.stories)} stories ({_elapsed(t0)})")
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: assignments")
             assign_xml = get_raw_file("libraries/assignments.xml")
-            if assign_xml:
-                a_result = assignments.extract(assign_xml)
-                assignments.write(conn, _localize_result(a_result))
-                _progress_log(f"  -> {len(a_result.assignments)} assignments ({_elapsed(t0)})")
+            run_step(
+                _progress_log,
+                "assignments",
+                assign_xml,
+                assignments.extract,
+                lambda r: assignments.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.rows)} assignments",
+            )
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: behaviours")
             behav_xml = get_raw_file("libraries/behaviours.xml")
-            if behav_xml:
-                b_result = behaviours.extract(behav_xml)
-                behaviours.write(conn, _localize_result(b_result))
-                _progress_log(f"  -> {len(b_result.behaviours)} behaviours ({_elapsed(t0)})")
+            run_step(
+                _progress_log,
+                "behaviours",
+                behav_xml,
+                behaviours.extract,
+                lambda r: behaviours.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.rows)} behaviours",
+            )
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: roles")
             roles_xml = get_raw_file("libraries/roles.xml")
             posts_xml = get_raw_file("libraries/posts.xml")
-            if roles_xml:
-                r_result = roles.extract(roles_xml, posts_xml)
-                roles.write(conn, _localize_result(r_result))
-                _progress_log(f"  -> {len(r_result.roles)} roles ({_elapsed(t0)})")
+            run_step(
+                _progress_log,
+                "roles",
+                roles_xml,
+                lambda xml: roles.extract(xml, posts_xml),
+                lambda r: roles.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.roles)} roles",
+            )
 
-            t0 = time.monotonic()
-            _progress_log("Extracting: texts")
             texts_xml = get_raw_file(f"t/0001-l{DEFAULT_LANGUAGE_CODE}.xml")
-            if texts_xml:
-                t_result = texts.extract(texts_xml)
-                texts.write(conn, t_result)
-                _progress_log(f"  -> {len(t_result.texts)} texts ({_elapsed(t0)})")
+            run_step(
+                _progress_log,
+                "texts",
+                texts_xml,
+                texts.extract,
+                lambda r: texts.write(conn, r),
+                lambda r: f"{len(r.texts)} texts",
+            )
 
             t0 = time.monotonic()
             _progress_log("Extracting: orders (aiscripts)")
@@ -349,14 +410,14 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
                 conn.execute("DELETE FROM orders")  # Clear table before loop
                 for row in ai_rows:
                     o_result = orders.extract(row[0].encode("utf-8"))
-                    if o_result.orders:
+                    if o_result.rows:
                         # localized right before insert
                         o_result = _localize_result(o_result)
                         conn.executemany(
                             "INSERT INTO orders (order_id, name) VALUES (:order_id, :name)",
-                            o_result.orders,
+                            o_result.rows,
                         )
-                        total_orders += len(o_result.orders)
+                        total_orders += len(o_result.rows)
                 _progress_log(f"  -> {total_orders} orders ({_elapsed(t0)})")
 
             t0 = time.monotonic()
@@ -384,9 +445,9 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
                 LEFT JOIN modules m ON w.component_ref = m.module_id
                 LEFT JOIN equip_deployables ed ON w.component_ref = ed.deployable_id
                 WHERE use_value IS NOT NULL
-                
+
                 UNION
-                
+
                 SELECT DISTINCT wi.input_ware_id, 'ware' AS use_type, w.ware_id AS use_value
                 FROM ware_inputs wi
                 JOIN wares w ON wi.ware_id = w.ware_id

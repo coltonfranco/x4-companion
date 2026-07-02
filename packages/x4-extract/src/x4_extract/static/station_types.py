@@ -20,6 +20,7 @@ from lxml import etree
 
 from x4_extract.parsing import xml_attr_bool as _bool_attr
 from x4_extract.parsing import xml_attr_int as _int
+from x4_extract.static.macro_index import iter_index_macros
 
 
 @dataclass(slots=True)
@@ -31,31 +32,11 @@ def extract(
     index_bytes: bytes,
     resolve_path: Callable[[str], bytes],
 ) -> ExtractResult:
-    root = etree.fromstring(index_bytes)
     out = ExtractResult()
-    seen: set[str] = set()
-
-    for entry in root.iterfind("entry"):
-        name = entry.get("name")
-        if not name or name in seen:
-            continue
-        path = entry.get("value")
-        if not path:
-            continue
-
-        xml_path = path.replace("\\", "/") + ".xml"
-        try:
-            macro_bytes = resolve_path(xml_path)
-            macro_root = etree.fromstring(macro_bytes)
-            macro_el = macro_root.find("macro")
-            if macro_el is None or macro_el.get("class") != "station":
-                continue
-        except (KeyError, OSError, etree.XMLSyntaxError):
-            continue
-
-        seen.add(name)
+    for name, xml_path, macro_el in iter_index_macros(
+        index_bytes, resolve_path, class_filter={"station"}, dedupe=True
+    ):
         _parse_station(name, xml_path, macro_el, out)
-
     return out
 
 

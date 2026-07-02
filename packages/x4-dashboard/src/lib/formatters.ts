@@ -75,8 +75,16 @@ export function getMkGradientClass(mk: number | null | undefined): string {
   }
 }
 
+// Ids whose in-game meaning isn't recoverable by mechanically reformatting the
+// raw id string (e.g. "capitalequipment" licences gate capital *ships*, not
+// "Capital Equipment").
+const LICENCE_NAME_OVERRIDES: Record<string, string> = {
+  capitalequipment: "Capital Ship",
+};
+
 export function formatLicence(raw: string | null): string {
   if (!raw) return "";
+  if (LICENCE_NAME_OVERRIDES[raw]) return LICENCE_NAME_OVERRIDES[raw];
   // Handle "faction_licence_type" pattern, e.g. "arg_licence_military"
   const m = raw.match(/^([a-z]+)_licence_(.+)$/);
   if (m) {
@@ -92,6 +100,11 @@ export function formatLicence(raw: string | null): string {
     .split(/\s+/)
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
+}
+
+export function formatDlc(dlc: string | null | undefined): string {
+  if (!dlc || dlc === "base_game") return "Base Game";
+  return dlc.charAt(0).toUpperCase() + dlc.slice(1) + " DLC";
 }
 
 export const getWeaponType = (name: string) => {

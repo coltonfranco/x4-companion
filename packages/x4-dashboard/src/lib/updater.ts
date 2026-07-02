@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { toErrorMessage } from "./utils";
 
 export type UpdateStatus =
   | "idle" // no update, or not running in the desktop shell
@@ -68,7 +69,7 @@ export function useAppUpdate(): AppUpdateState {
         // The updater throws when no published release exists yet — that's normal,
         // not an error.  Only surface genuine failures (network down, DNS, etc.).
         if (!cancelled) {
-          const msg = e instanceof Error ? e.message : String(e);
+          const msg = toErrorMessage(e);
           // "could not fetch a valid release" = no published release with updater
           // metadata.  Expected on a fresh repo or when the latest release is still
           // a draft.
@@ -118,7 +119,7 @@ export function useAppUpdate(): AppUpdateState {
       // Relaunch into the freshly installed version.
       await relaunch();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toErrorMessage(e));
       setStatus("error");
     }
   }, [update]);

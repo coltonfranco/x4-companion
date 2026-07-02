@@ -1,11 +1,11 @@
 """REST endpoint for deployables (satellites, resource probes, nav beacons, mines)."""
 
 import sqlite3
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
 
-from x4_api.api.db_utils import table_exists
+from x4_api.api.db_utils import build_where_clause, paginate, table_exists
 from x4_api.api.deps import get_db
 from x4_api.api.schemas import PublicModel
 
@@ -38,27 +38,21 @@ def list_deployables(
     if not table_exists(conn, "deployables"):
         return []
 
-    where = []
-    params: list[str | int] = []
+    conditions: list[tuple[str, Any]] = []
     if class_:
-        where.append("class = ?")
-        params.append(class_)
+        conditions.append(("class = ?", class_))
     if owner:
-        where.append("owner_faction = ?")
-        params.append(owner)
+        conditions.append(("owner_faction = ?", owner))
+    where_clause, where_params = build_where_clause(conditions)
 
-    clause = f"WHERE {' AND '.join(where)}" if where else ""
-    params.extend([limit, offset])
-
-    rows = conn.execute(
-        f"""
+    sql = f"""
         SELECT id, class, code, macro, owner_faction, sector_id, zone_id,
                known_to_player, extra_json
         FROM deployables
-        {clause}
+        {where_clause}
         ORDER BY class, owner_faction
-        LIMIT ? OFFSET ?
-        """,
-        params,
-    ).fetchall()
+    """
+    sql, params = paginate(sql, where_params, limit, offset)
+
+    rows = conn.execute(sql, params).fetchall()
     return [DeployableEntry(**dict(r)) for r in rows]

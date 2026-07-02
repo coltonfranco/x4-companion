@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
-import json
 import sqlite3
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -34,18 +33,11 @@ from dataclasses import dataclass, field
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, hash_rows
+from x4_extract.dynamic.extractors.common import element_attrs, extra_json_from_attrs
+from x4_extract.parsing import str_int
 from x4_extract.savefile.dispatch import Registration, Target
 
 # --- Helpers ---------------------------------------------------------------
-
-
-def _int(v: str | None) -> int | None:
-    if v is None:
-        return None
-    try:
-        return int(v)
-    except ValueError:
-        return None
 
 
 def _bool(v: str | None) -> bool | None:
@@ -61,10 +53,6 @@ def _float(v: str | None) -> float | None:
         return float(v)
     except ValueError:
         return None
-
-
-def _attrs(elem: etree._Element) -> dict[str, str]:
-    return {str(k): str(v) for k, v in elem.attrib.items()}
 
 
 # Attributes promoted to columns for active missions.
@@ -252,8 +240,7 @@ class MissionsCollector:
     # -- Active missions ----------------------------------------------------
 
     def _on_mission(self, elem: etree._Element) -> None:
-        attrs = _attrs(elem)
-        extra = {k: v for k, v in attrs.items() if k not in _MAPPED_MISSION}
+        attrs = element_attrs(elem)
 
         mission_id = attrs.get("id") or _synthetic_mission_id(attrs)
 
@@ -272,7 +259,7 @@ class MissionsCollector:
                 type=attrs.get("type"),
                 level=attrs.get("level"),
                 is_active=attrs.get("active") == "1",
-                priority=_int(attrs.get("priority")),
+                priority=str_int(attrs.get("priority")),
                 abortable=_bool(attrs.get("abortable")),
                 associated_entity=attrs.get("associated"),
                 group_id=group_id,
@@ -281,19 +268,18 @@ class MissionsCollector:
                 icon=attrs.get("icon"),
                 time=_float(attrs.get("time")),
                 rewardtext=attrs.get("rewardtext"),
-                reward_credits=_int(attrs.get("reward")),
+                reward_credits=str_int(attrs.get("reward")),
                 opposing_faction=attrs.get("opposingfaction"),
                 activation=attrs.get("activation"),
                 alert=attrs.get("alert"),
-                extra_json=json.dumps(extra, sort_keys=True) if extra else None,
+                extra_json=extra_json_from_attrs(attrs, _MAPPED_MISSION),
             )
         )
 
     # -- Mission offers -----------------------------------------------------
 
     def _on_offer(self, elem: etree._Element) -> None:
-        attrs = _attrs(elem)
-        extra = {k: v for k, v in attrs.items() if k not in _MAPPED_OFFER}
+        attrs = element_attrs(elem)
 
         offer_id = attrs.get("id") or _synthetic_mission_id(attrs)
 
@@ -317,12 +303,12 @@ class MissionsCollector:
                 rewardtext=rewardtext,
                 opposing_faction=attrs.get("opposingfaction"),
                 group_id=attrs.get("group"),
-                reward_credits=_int(attrs.get("reward")),
+                reward_credits=str_int(attrs.get("reward")),
                 component_id=attrs.get("component"),
-                distance=_int(attrs.get("distance")),
+                distance=str_int(attrs.get("distance")),
                 thread_type=attrs.get("threadtype"),
                 duration=_float(attrs.get("duration")),
-                extra_json=json.dumps(extra, sort_keys=True) if extra else None,
+                extra_json=extra_json_from_attrs(attrs, _MAPPED_OFFER),
             )
         )
 
@@ -333,7 +319,7 @@ class MissionsCollector:
         offer = parent.getparent()  # offer
         if offer is None or offer.tag != "offer":
             return
-        offer_id = offer.get("id") or _synthetic_mission_id(_attrs(offer))
+        offer_id = offer.get("id") or _synthetic_mission_id(element_attrs(offer))
         self._offer_repeatable.add(offer_id)
         rewardtext = elem.get("rewardtext")
         if rewardtext:
@@ -346,7 +332,7 @@ class MissionsCollector:
         offer = parent.getparent()  # offer
         if offer is None or offer.tag != "offer":
             return
-        offer_id = offer.get("id") or _synthetic_mission_id(_attrs(offer))
+        offer_id = offer.get("id") or _synthetic_mission_id(element_attrs(offer))
         if offer_id not in self._offer_stations:
             comp = elem.get("component")
             if comp:
@@ -359,7 +345,7 @@ class MissionsCollector:
         offer = parent.getparent()  # offer
         if offer is None or offer.tag != "offer":
             return
-        offer_id = offer.get("id") or _synthetic_mission_id(_attrs(offer))
+        offer_id = offer.get("id") or _synthetic_mission_id(element_attrs(offer))
         if offer_id not in self._offer_bbs:
             comp = elem.get("component")
             if comp:
@@ -372,11 +358,11 @@ class MissionsCollector:
         if parent_mission is None:
             return
 
-        mission_attrs = _attrs(parent_mission)
+        mission_attrs = element_attrs(parent_mission)
         mission_id = mission_attrs.get("id") or _synthetic_mission_id(mission_attrs)
 
-        attrs = _attrs(elem)
-        step = _int(attrs.get("step"))
+        attrs = element_attrs(elem)
+        step = str_int(attrs.get("step"))
         is_active = attrs.get("active") == "1"
 
         # Read child-element data accumulated by target/progress/encyclopedia handlers.
@@ -393,8 +379,8 @@ class MissionsCollector:
             text=attrs.get("text"),
             is_active=is_active,
             target_id=target_id,
-            progress_current=_int(prog.get("current")),
-            progress_max=_int(prog.get("max")),
+            progress_current=str_int(prog.get("current")),
+            progress_max=str_int(prog.get("max")),
             progress_name=prog.get("name"),
             encyclopedia_type=enc.get("type"),
             encyclopedia_item=enc.get("item"),
@@ -567,11 +553,11 @@ def _find_objective_key(elem: etree._Element) -> tuple[str, int] | None:
     # Walk up: child → (targets|progress|encyclopedia) → objective → (briefing?) → mission
     while node is not None:
         if node.tag == "objective":
-            step = _int(node.get("step")) or 0
+            step = str_int(node.get("step")) or 0
             # Now find the parent mission
             mission_node = _find_parent_mission(node)
             if mission_node is not None:
-                mission_attrs = _attrs(mission_node)
+                mission_attrs = element_attrs(mission_node)
                 mission_id = mission_attrs.get("id") or _synthetic_mission_id(mission_attrs)
                 return (mission_id, step)
             return None

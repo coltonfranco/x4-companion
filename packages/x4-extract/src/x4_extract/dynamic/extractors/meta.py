@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
-import json
 import sqlite3
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -35,6 +34,8 @@ from pathlib import Path
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, hash_rows
+from x4_extract.dynamic.extractors.common import element_attrs, extra_json_from_attrs
+from x4_extract.parsing import str_int
 from x4_extract.savefile.dispatch import Registration, Target
 
 # Attributes promoted to columns, per child element; the rest go to extra_json.
@@ -74,15 +75,15 @@ class MetaCollector:
         ]
 
     def _on_save(self, elem: etree._Element) -> None:
-        self._save = _attrs(elem)
+        self._save = element_attrs(elem)
         self._seen = True
 
     def _on_game(self, elem: etree._Element) -> None:
-        self._game = _attrs(elem)
+        self._game = element_attrs(elem)
         self._seen = True
 
     def _on_player(self, elem: etree._Element) -> None:
-        self._player = _attrs(elem)
+        self._player = element_attrs(elem)
         self._seen = True
 
     def _row(self) -> SaveMeta | None:
@@ -101,13 +102,13 @@ class MetaCollector:
         return SaveMeta(
             save_path=self.save_path,
             save_name=self._save.get("name"),
-            in_game_time_sec=_int(self._game.get("time")),
+            in_game_time_sec=str_int(self._game.get("time")),
             real_time_iso=_unix_to_iso(self._save.get("date")),
             game_version=self._game.get("version"),
             game_build=self._game.get("build"),
-            player_credits=_int(self._player.get("money")),
+            player_credits=str_int(self._player.get("money")),
             player_name=self._player.get("name"),
-            extra_json=json.dumps(extra, sort_keys=True) if extra else None,
+            extra_json=extra_json_from_attrs(extra, frozenset()),
         )
 
     def game_time_sec(self) -> int | None:
@@ -195,18 +196,6 @@ class StatsCollector:
             "INSERT OR REPLACE INTO player_stats (stat_id, value) VALUES (?, ?)",
             sorted(self.stats.items()),
         )
-
-
-def _attrs(elem: etree._Element) -> dict[str, str]:
-    """All attributes coerced to str (lxml may type values as bytes)."""
-    return {
-        (k if isinstance(k, str) else k.decode()): (v if isinstance(v, str) else v.decode())
-        for k, v in elem.attrib.items()
-    }
-
-
-def _int(v: str | None) -> int | None:
-    return int(float(v)) if v is not None else None
 
 
 def _unix_to_iso(v: str | None) -> str | None:

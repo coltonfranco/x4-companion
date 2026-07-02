@@ -72,3 +72,18 @@ def str_float(value: str | None) -> float | None:
         return float(value)
     except ValueError:
         return None
+
+
+def xpath_elements(node: etree._Element, query: str) -> list[etree._Element]:
+    """Evaluate an XPath query and return only the matching element nodes."""
+    result = node.xpath(query)
+    if not isinstance(result, list):
+        return []
+    return [item for item in result if isinstance(item, etree._Element)]
+
+
+def attr_flag(el: etree._Element | None, attr: str, true_value: str = "true") -> int:
+    """Return 1 if the attribute equals *true_value*, else 0."""
+    if el is None:
+        return 0
+    return 1 if el.get(attr) == true_value else 0

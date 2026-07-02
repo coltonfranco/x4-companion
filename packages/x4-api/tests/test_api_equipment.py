@@ -9,16 +9,8 @@ stat joins behave.
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
-from x4_api.config import Settings
-
-
-@pytest.fixture
-def settings(data_dir: Path) -> Settings:
-    return Settings(install_path=Path("C:/fake/x4"), data_dir=data_dir)
 
 
 def _seed(conn: sqlite3.Connection) -> None:

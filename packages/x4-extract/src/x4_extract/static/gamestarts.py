@@ -8,11 +8,14 @@ configuration.  This is the "New Game" menu data.
 from __future__ import annotations
 
 import sqlite3
-from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
 
 from lxml import etree
+
+from x4_extract.parsing import attr_flag
+from x4_extract.parsing import xml_attr_int_or_none as _int
+from x4_extract.static.relations import parse_relation_rows
 
 
 @dataclass(slots=True)
@@ -70,7 +73,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "group_id": group_id,
                 "group_name": group_info.get("name"),
                 "tags": gs_el.get("tags"),
-                "debug": 1 if gs_el.get("debug") == "true" else 0,
+                "debug": attr_flag(gs_el, "debug"),
                 # Location
                 "location_galaxy": loc_el.get("galaxy") if loc_el is not None else None,
                 "location_sector": loc_el.get("sector") if loc_el is not None else None,
@@ -83,7 +86,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "player_macro": pl_el.get("macro") if pl_el is not None else None,
                 "player_money": _int(pl_el, "money") if pl_el is not None else None,
                 "player_name": pl_el.get("name") if pl_el is not None else None,
-                "player_female": 1 if pl_el is not None and pl_el.get("female") == "true" else 0,
+                "player_female": attr_flag(pl_el, "female"),
                 # Universe
                 "universe_ventures": 0
                 if universe_el is not None and universe_el.get("ventures") == "false"
@@ -168,18 +171,12 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                     )
 
         # ── Faction relations ──
-        for rel_el in gs_el.iterfind("relations/relation"):
-            faction = rel_el.get("faction")
-            rel_val = rel_el.get("relation")
-            if faction and rel_val:
-                with suppress(ValueError):
-                    out.relations.append(
-                        {
-                            "gamestart_id": gs_id,
-                            "faction_id": faction,
-                            "relation": float(rel_val),
-                        }
-                    )
+        def _relation_row(other: str, rel: float, gs_id: str = gs_id) -> dict[str, Any]:
+            return {"gamestart_id": gs_id, "faction_id": other, "relation": rel}
+
+        out.relations.extend(
+            parse_relation_rows(gs_el, other_attr="faction", row_factory=_relation_row)
+        )
 
         # ── Player skills ──
         skills_el = gs_el.find("skills")
@@ -303,15 +300,3 @@ def write(conn: sqlite3.Connection, result: ExtractResult) -> None:
             "VALUES (:gamestart_id, :entry_ref, :entry_type)",
             result.encyclopedia,
         )
-
-
-def _int(el: etree._Element | None, attr: str) -> int | None:
-    if el is None:
-        return None
-    v = el.get(attr)
-    if v is None:
-        return None
-    try:
-        return int(v)
-    except ValueError:
-        return None

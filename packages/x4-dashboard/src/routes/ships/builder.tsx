@@ -8,7 +8,7 @@ import { Currency } from "../../components/Currency";
 import { EntityIcon } from "../../components/EntityIcon";
 
 import { StatBar } from "../../components/StatBar";
-import { classShort, getMkGradientClass, getClassColor, getTypeColor, formatCompactNumber, formatStatValue } from "../../lib/formatters";
+import { classShort, getMkGradientClass, getClassColor, getTypeColor, formatCompactNumber, formatStatValue, getWeaponType, formatLicence } from "../../lib/formatters";
 import type { FactionSummary } from "../../lib/map/types";
 import { cn } from "../../lib/utils";
 import { Card, CardContent } from "../../components/ui/card";
@@ -476,23 +476,6 @@ function CartPanel({
 }
 
 
-
-const getWeaponType = (name: string) => {
-  return name
-    .replace(/^(ARG|TEL|PAR|SPL|TER|BOR|PIO|VIG|RIP|XEN|KHA|ATF)\s+/i, '')
-    .replace(/^(S|M|L|XL)\s+/i, '')
-    .replace(/\s+Mk\d+$/i, '')
-    .trim() || "Other";
-};
-
-const LICENCE_NAMES: Record<string, string> = {
-  militaryequipment: "Military Equipment",
-  capitalequipment: "Capital Ship",
-  stationequipment: "Station Equipment",
-  police: "Police",
-  illegal: "Illegal",
-};
-const formatLicence = (l: string | null) => l ? (LICENCE_NAMES[l] || l.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())) : "";
 
 function playerHasLicence(licenceSet: Set<string>, licenceType: string, factionId?: string | null) {
   if (!licenceType) return false;

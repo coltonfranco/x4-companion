@@ -5,16 +5,16 @@ war missions, and story plot chains. Enriches live mission data with
 human-readable group metadata.
 """
 
+from __future__ import annotations
+
 import sqlite3
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import Depends, Query
 
-from x4_api.api.db_utils import fetch_one_or_404
+from x4_api.api.catalog_router import simple_catalog_router
 from x4_api.api.deps import get_db
 from x4_api.api.schemas import PublicModel
-
-router = APIRouter()
 
 
 class MissionGroup(PublicModel):
@@ -26,6 +26,21 @@ class MissionGroup(PublicModel):
 
 
 _COLUMNS = "group_id, name, faction, enemy, is_story"
+
+# The list endpoint takes optional filters, so it can't come from the factory's
+# generic (unfiltered) list route — only the flat get-by-id route is shared.
+router = simple_catalog_router(
+    path_prefix="/mission-groups",
+    table="s.mission_groups",
+    list_columns=_COLUMNS,
+    list_model=MissionGroup,
+    detail_columns=_COLUMNS,
+    detail_model=MissionGroup,
+    list_order_by="is_story DESC, group_id",
+    id_col="group_id",
+    id_param_name="group_id",
+    include_list=False,
+)
 
 
 @router.get("/mission-groups", response_model=list[MissionGroup])
@@ -51,17 +66,3 @@ def list_mission_groups(
         params,
     ).fetchall()
     return [MissionGroup(**dict(r)) for r in rows]
-
-
-@router.get("/mission-groups/{group_id}", response_model=MissionGroup)
-def get_mission_group(
-    group_id: str,
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-) -> MissionGroup:
-    row = fetch_one_or_404(
-        conn,
-        f"SELECT {_COLUMNS} FROM s.mission_groups WHERE group_id = :id",
-        {"id": group_id},
-        f"Unknown group_id: {group_id}",
-    )
-    return MissionGroup(**dict(row))

@@ -43,7 +43,7 @@ import { ContextMenu } from "./ContextMenu";
 import { useUndoRedo, useClipboard } from "./builder-hooks";
 import { SearchInput } from "../../components/ui/search-input";
 import { HUDCard } from "../../components/HUDCard";
-import { cn } from "../../lib/utils";
+import { cn, toErrorMessage } from "../../lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Switch } from "../../components/ui/switch";
 import { AlertCircle, Plus, GripHorizontal, X, Settings, Undo, Redo, Save, FolderOpen, FilePlus2, Trash2, Loader2, DownloadCloud, Wand2, Route } from "lucide-react";
@@ -623,7 +623,7 @@ function StationBuilderContent() {
       setSavedSignature(designSignature(nodes, edges, name));
       showToast("Saved", `Saved "${name}".`, "success");
     } catch (err) {
-      showToast("Save failed", err instanceof Error ? err.message : String(err));
+      showToast("Save failed", toErrorMessage(err));
     }
   }, [nodes, edges, gridMode, currentStationId, importSourceRef, create, update]);
 
@@ -707,7 +707,7 @@ function StationBuilderContent() {
       setLoadDialogOpen(false);
       guardDirty(() => loadDesign(detail));
     } catch (err) {
-      showToast("Load failed", err instanceof Error ? err.message : String(err));
+      showToast("Load failed", toErrorMessage(err));
     }
   }, [guardDirty, loadDesign]);
 
@@ -723,7 +723,7 @@ function StationBuilderContent() {
       setImportDialogOpen(false);
       guardDirty(() => loadDesign(design, { imported: true }));
     } catch (err) {
-      showToast("Import failed", err instanceof Error ? err.message : String(err));
+      showToast("Import failed", toErrorMessage(err));
     }
   }, [guardDirty, loadDesign, modules, nodeAlignment]);
 
@@ -740,7 +740,7 @@ function StationBuilderContent() {
           clearCanvas();
           showToast("Deleted", "Design deleted.", "success");
         } catch (err) {
-          showToast("Delete failed", err instanceof Error ? err.message : String(err));
+          showToast("Delete failed", toErrorMessage(err));
         }
       },
     });
@@ -1511,7 +1511,7 @@ function StationBuilderContent() {
                             if (s.id === currentStationId) clearCanvas();
                             showToast("Deleted", "Design deleted.", "success");
                           } catch (err) {
-                            showToast("Delete failed", err instanceof Error ? err.message : String(err));
+                            showToast("Delete failed", toErrorMessage(err));
                           }
                         },
                       })}

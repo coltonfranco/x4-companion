@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from x4_extract.dynamic import catalog
 
+from x4_api.api.db_utils import table_exists
 from x4_api.api.deps import get_db, get_settings
 from x4_api.api.refresher import MIN_INTERVAL_SEC
 from x4_api.api.schemas import PublicModel
@@ -61,15 +62,6 @@ class EventOut(PublicModel):
     text: str | None
 
 
-def _has_table(conn: sqlite3.Connection, name: str) -> bool:
-    return (
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
-        ).fetchone()
-        is not None
-    )
-
-
 @router.get("/refresh-status", response_model=RefreshStatus)
 def refresh_status(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
@@ -79,7 +71,7 @@ def refresh_status(
     ingested_at: str | None = None
     source_fp: str | None = None
     last_ingest_ms: int | None = None
-    if _has_table(conn, "ingest_state"):
+    if table_exists(conn, "ingest_state"):
         rows = conn.execute("SELECT tier, fingerprint, ingested_at FROM ingest_state").fetchall()
         # Several pseudo-tiers carry ingest metadata, not real tier fingerprints; exclude
         # them so the "most recent real ingest" timestamp reflects actual data rewrites only.
@@ -94,7 +86,7 @@ def refresh_status(
 
     markers: dict[str, int] = {}
     last_event_id = 0
-    if _has_table(conn, "events"):
+    if table_exists(conn, "events"):
         last_event_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM events").fetchone()[0]
         markers = {
             r["entity_type"]: r["max_id"]
@@ -174,7 +166,7 @@ def list_events(
     limit: Annotated[int, Query(ge=1, le=1000)] = 200,
 ) -> list[EventOut]:
     """Classified change feed, newest first. Use `since` to stream only new events."""
-    if not _has_table(conn, "events"):
+    if not table_exists(conn, "events"):
         return []
 
     clauses = ["id > ?"]

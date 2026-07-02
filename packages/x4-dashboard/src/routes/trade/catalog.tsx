@@ -22,7 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
-import { apiGet } from "../../lib/api";
+import { apiGet, apiGetArray } from "../../lib/api";
+import { useSort } from "../../lib/useSort";
 
 type WareGroup = { group_id: string; name: string | null; tier: number | null };
 
@@ -49,33 +50,32 @@ type Ware = {
 
 type SortKey = "name" | "group" | "tier" | "volume" | "price" | "market_avg" | "net_demand" | "supply" | "demand";
 
+const SORT_ACCESSORS: Record<string, (w: Ware) => number | string | null> = {
+  name: (w) => w.name,
+  volume: (w) => w.volume,
+  price: (w) => w.price_avg ?? 0,
+  market_avg: (w) => w.market_avg ?? 0,
+  net_demand: (w) => w.net_demand ?? 0,
+  supply: (w) => w.sell_qty ?? 0,
+  demand: (w) => w.buy_qty ?? 0,
+};
+
 export default function TradeCatalogPage() {
   const { hasSave } = useHasSave();
   const [search, setSearch] = useState("");
   const [group, setGroup] = useState("all");
   const [tierFilter, setTierFilter] = useState("all");
-  const [sort, setSort] = useState<SortKey>("group");
-  const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [selectedWareId, setSelectedWareId] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data: wares = [], isLoading } = useQuery<Ware[]>({
     queryKey: ["wares", "commodity"],
-    // Raw fetch: normalizes a non-array payload to [] (defensive against a bad/error
-    // response shape), which doesn't fit apiGet/apiGetOrNull's ok-vs-throw/null contract.
-    queryFn: () =>
-      fetch("/api/v1/wares?category=commodity&limit=2000")
-        .then((r) => r.json())
-        .then((d) => (Array.isArray(d) ? d : [])),
+    queryFn: () => apiGetArray<Ware>("/api/v1/wares?category=commodity&limit=2000"),
     staleTime: 5 * 60_000,
   });
   const { data: groupList = [] } = useQuery<WareGroup[]>({
     queryKey: ["ware-groups"],
-    // Raw fetch: same defensive array-normalization as `wares` above.
-    queryFn: () =>
-      fetch("/api/v1/ware-groups")
-        .then((r) => r.json())
-        .then((d) => (Array.isArray(d) ? d : [])),
+    queryFn: () => apiGetArray<WareGroup>("/api/v1/ware-groups"),
     staleTime: 10 * 60_000,
   });
 
@@ -108,9 +108,9 @@ export default function TradeCatalogPage() {
     [wares]
   );
 
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    const filtered = wares.filter((w) => {
+    return wares.filter((w) => {
       if (needle && !w.name.toLowerCase().includes(needle)) return false;
       if (group !== "all" && (w.group_id ?? "__none__") !== group) return false;
       if (tierFilter !== "all") {
@@ -119,40 +119,51 @@ export default function TradeCatalogPage() {
       }
       return true;
     });
-    const mul = dir === "asc" ? 1 : -1;
-    return filtered.sort((a, b) => {
-      if (sort === "name") return a.name.localeCompare(b.name) * mul;
-      if (sort === "volume") return (a.volume - b.volume) * mul;
-      if (sort === "price") return ((a.price_avg ?? 0) - (b.price_avg ?? 0)) * mul;
-      if (sort === "market_avg") return ((a.market_avg ?? 0) - (b.market_avg ?? 0)) * mul;
-      if (sort === "net_demand") return ((a.net_demand ?? 0) - (b.net_demand ?? 0)) * mul;
-      if (sort === "supply") return ((a.sell_qty ?? 0) - (b.sell_qty ?? 0)) * mul;
-      if (sort === "demand") return ((a.buy_qty ?? 0) - (b.buy_qty ?? 0)) * mul;
-      
-      const aTier = a.tier ?? 999;
-      const bTier = b.tier ?? 999;
+  }, [wares, search, group, tierFilter]);
 
-      if (sort === "tier") {
+  // "tier" and "group" (the default) are multi-level tiebreaks whose final
+  // name comparison doesn't flip the same way with `dir` in both cases — a
+  // plain accessor can't express that, hence the comparator overrides.
+  const sortComparators = useMemo<
+    Record<string, (a: Ware, b: Ware, dir: "asc" | "desc") => number>
+  >(
+    () => ({
+      tier: (a, b, dir) => {
+        const mul = dir === "asc" ? 1 : -1;
+        const aTier = a.tier ?? 999;
+        const bTier = b.tier ?? 999;
         const t = (aTier - bTier) * mul;
         if (t !== 0) return t;
         return a.name.localeCompare(b.name) * mul;
-      }
-
-      const t = (aTier - bTier) * mul;
-      if (t !== 0) return t;
-      const g = groupName(a.group_id).localeCompare(groupName(b.group_id)) * mul;
-      return g !== 0 ? g : a.name.localeCompare(b.name);
-    });
+      },
+      group: (a, b, dir) => {
+        const mul = dir === "asc" ? 1 : -1;
+        const aTier = a.tier ?? 999;
+        const bTier = b.tier ?? 999;
+        const t = (aTier - bTier) * mul;
+        if (t !== 0) return t;
+        const g = groupName(a.group_id).localeCompare(groupName(b.group_id)) * mul;
+        return g !== 0 ? g : a.name.localeCompare(b.name);
+      },
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wares, search, group, tierFilter, sort, dir, groupInfo]);
+    [groupInfo]
+  );
 
-  const onSort = (c: SortKey) => {
-    if (c === sort) setDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSort(c);
-      setDir(["price", "market_avg", "net_demand", "supply", "demand", "volume"].includes(c) ? "desc" : "asc");
-    }
-  };
+  const { sorted: rows, key: sort, dir, toggle } = useSort<Ware>(
+    filtered,
+    SORT_ACCESSORS,
+    { key: "group", dir: "asc" },
+    sortComparators
+  );
+
+  const onSort = (c: SortKey) =>
+    toggle(
+      c,
+      ["price", "market_avg", "net_demand", "supply", "demand", "volume"].includes(c)
+        ? "desc"
+        : "asc"
+    );
 
   const columns = useMemo<ColumnDef<Ware>[]>(
     () => [

@@ -17,6 +17,8 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.static.constants import iter_elements
+
 
 @dataclass(slots=True)
 class ExtractResult:
@@ -51,9 +53,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
     # First pass: collect all baskets
     basket_entries: dict[str, list[BasketEntry]] = {}
 
-    for el in root:
-        if callable(el.tag):
-            continue
+    for el in iter_elements(root):
         if el.tag not in ("ammo", "wares"):
             continue
         basket_id = el.get("id")
@@ -114,8 +114,8 @@ def extract(xml_bytes: bytes) -> ExtractResult:
         return None
 
     # Second pass: droplists
-    for el in root:
-        if callable(el.tag) or el.tag != "droplist":
+    for el in iter_elements(root):
+        if el.tag != "droplist":
             continue
         list_id = el.get("id")
         if not list_id:

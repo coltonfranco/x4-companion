@@ -7,7 +7,6 @@ diplomacy, and spacesuit references.
 
 from __future__ import annotations
 
-import contextlib
 import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
@@ -16,6 +15,8 @@ from lxml import etree
 
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
+from x4_extract.static.map import _dedup
+from x4_extract.static.relations import parse_relation_rows
 
 
 @dataclass(slots=True)
@@ -84,24 +85,15 @@ def extract(xml_bytes: bytes) -> ExtractResult:
             }
         )
 
-        for rel_el in race_el.iterfind("relations/relation"):
-            other = rel_el.get("race")
-            val = rel_el.get("relation")
-            if other and val is not None:
-                with contextlib.suppress(ValueError):
-                    out.race_relations.append(
-                        {
-                            "race_id": race_id,
-                            "other_race_id": other,
-                            "relation": float(val),
-                        }
-                    )
+        def _relation_row(other: str, rel: float, race_id: str = race_id) -> dict[str, Any]:
+            return {"race_id": race_id, "other_race_id": other, "relation": rel}
+
+        out.race_relations.extend(
+            parse_relation_rows(race_el, other_attr="race", row_factory=_relation_row)
+        )
 
     # Deduplicate (just in case DLC merges produce duplicates)
-    deduped: dict[tuple[str, str], dict[str, Any]] = {}
-    for r in out.race_relations:
-        deduped[(r["race_id"], r["other_race_id"])] = r
-    out.race_relations = list(deduped.values())
+    _dedup(out.race_relations, ("race_id", "other_race_id"))
 
     return out
 

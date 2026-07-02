@@ -38,12 +38,16 @@ def data_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def client(settings: Settings) -> Iterator[TestClient]:
-    """A TestClient wired to a fresh app instance with `settings` dependency-overridden.
+def settings(data_dir: Path) -> Settings:
+    """Default test settings. Override locally in a module when it needs different
+    construction args (e.g. `install_path=None, save_path=None` for the setup-wizard
+    tests, or extra save-file wiring for the dynamic-ingest tests)."""
+    return Settings(install_path=Path("C:/fake/x4"), data_dir=data_dir)
 
-    Depends on a `settings` fixture that each test module defines itself (its
-    `Settings(...)` construction varies — install_path, save_path, etc.).
-    """
+
+@pytest.fixture
+def client(settings: Settings) -> Iterator[TestClient]:
+    """A TestClient wired to a fresh app instance with `settings` dependency-overridden."""
     fast_app = app_factory()
     fast_app.dependency_overrides[get_settings] = lambda: settings
     try:

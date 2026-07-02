@@ -22,6 +22,7 @@ import {
 import { PageLoaderPreset } from "../../components/PageLoader";
 import { PageSubtitle } from "../../components/ui/page-subtitle";
 import { HUDCard } from "../../components/HUDCard";
+import { FilterBar } from "../../components/FilterBar";
 import {
   Table,
   TableBody,
@@ -32,6 +33,7 @@ import {
 } from "../../components/ui/table";
 import { PageTabs, PageTab } from "../../components/ui/page-tabs";
 import { apiGet } from "../../lib/api";
+import { useSort } from "../../lib/useSort";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -92,6 +94,32 @@ function formatRisk(risk: string | null) {
   if (!risk || risk === "none") return "None";
   return risk;
 }
+
+const RISK_ORDER: Record<string, number> = {
+  none: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  veryhigh: 4,
+};
+
+// "risk" sorts by severity rank rather than alphabetically — a plain field
+// accessor already covers this (unlike the multi-level tiebreaks on the
+// trade catalog page), so no comparator override is needed here.
+const ACTION_SORT_ACCESSORS: Record<
+  string,
+  (a: DiploAction) => number | string | null
+> = {
+  name: (a) => a.name,
+  category: (a) => a.category,
+  agent_experience: (a) => a.agent_experience,
+  risk: (a) => RISK_ORDER[a.risk ?? "none"] ?? 0,
+  success_chance: (a) => a.success_chance,
+  cost_influence: (a) => a.cost_influence,
+  cost_money: (a) => a.cost_money,
+  duration_sec: (a) => a.duration_sec,
+  cooldown_sec: (a) => a.cooldown_sec,
+};
 
 // ─── Actions tab ──────────────────────────────────────────────────────────────
 
@@ -264,8 +292,6 @@ function ActionsTab() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedRisk, setSelectedRisk] = useState("all");
   const [selectedRank, setSelectedRank] = useState("all");
-  const [sortKey, setSortKey] = useState<keyof DiploAction>("name");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const { data: actions = [], isLoading: actionsLoading } = useQuery<
     DiploAction[]
@@ -306,42 +332,22 @@ function ActionsTab() {
           selectedRank),
   );
 
-  const sorted = [...filtered].sort((a, b) => {
-    let valA = a[sortKey];
-    let valB = b[sortKey];
+  const {
+    sorted,
+    key: sortKey,
+    dir: sortDir,
+    toggle,
+  } = useSort(filtered, ACTION_SORT_ACCESSORS, { key: "name", dir: "asc" });
 
-    // Risk sorting logic (custom mapping)
-    if (sortKey === "risk") {
-      const riskOrder: Record<string, number> = {
-        none: 0,
-        low: 1,
-        medium: 2,
-        high: 3,
-        veryhigh: 4,
-      };
-      valA = riskOrder[a.risk ?? "none"] as any;
-      valB = riskOrder[b.risk ?? "none"] as any;
-    }
-
-    if (valA === valB) return 0;
-    if (valA == null) return 1;
-    if (valB == null) return -1;
-    const cmp = valA < valB ? -1 : 1;
-    return sortDir === "asc" ? cmp : -cmp;
-  });
-
+  // Every column defaults to ascending on first click, matching the previous
+  // hand-rolled handleSort.
   function handleSort(key: keyof DiploAction) {
-    if (sortKey === key) {
-      setSortDir(sortDir === "asc" ? "desc" : "asc");
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
+    toggle(key, "asc");
   }
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-border/50 bg-muted/5">
+      <FilterBar className="flex-nowrap">
         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="All categories" />
@@ -474,7 +480,7 @@ function ActionsTab() {
         <span className="text-xs text-muted-foreground">
           {sorted.length} actions
         </span>
-      </div>
+      </FilterBar>
 
       {isLoading ? (
         <PageLoaderPreset preset="factions" />

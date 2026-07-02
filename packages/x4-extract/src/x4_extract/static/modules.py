@@ -14,6 +14,7 @@ from x4_extract.parsing import xml_attr_bool as _bool_attr
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int as _int
 from x4_extract.static.constants import MODULE_CLASSES, dlc_from_path
+from x4_extract.static.macro_index import iter_index_macros
 
 _RE_SIZE_FROM_NAME = re.compile(r"_([smlx]{1,2})_", re.IGNORECASE)
 _NAME_TO_SIZE = {"s": "small", "m": "medium", "l": "large", "xl": "extralarge", "xs": "extralarge"}
@@ -27,37 +28,11 @@ class ExtractResult:
 def extract(
     index_bytes: bytes, resolve_path: Callable[[str], bytes], resolve_name: Callable[[str], bytes]
 ) -> ExtractResult:
-    root = etree.fromstring(index_bytes)
     out = ExtractResult()
-    seen: set[str] = set()
-
-    for entry in root.iterfind("entry"):
-        name = entry.get("name")
-        if not name or name in seen:
-            continue
-
-        path = entry.get("value")
-        if not path:
-            continue
-
-        xml_path = path.replace("\\", "/") + ".xml"
-        try:
-            macro_bytes = resolve_path(xml_path)
-            macro_root = etree.fromstring(macro_bytes)
-            macro_el = macro_root.find("macro")
-            if macro_el is None:
-                continue
-
-            class_raw = macro_el.get("class", "")
-            if class_raw not in MODULE_CLASSES:
-                continue
-
-        except (KeyError, OSError, etree.XMLSyntaxError):
-            continue
-
-        seen.add(name)
+    for name, xml_path, macro_el in iter_index_macros(
+        index_bytes, resolve_path, class_filter=MODULE_CLASSES, dedupe=True
+    ):
         _parse_module(name, xml_path, macro_el, resolve_name, out)
-
     return out
 
 

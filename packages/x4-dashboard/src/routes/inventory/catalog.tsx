@@ -14,6 +14,7 @@ import { DataTable } from "../../components/DataTable";
 import type { ColumnDef } from "../../components/DataTable";
 import { PageTabs, PageTab } from "../../components/ui/page-tabs";
 import { apiGet } from "../../lib/api";
+import { useSort } from "../../lib/useSort";
 
 type Ware = {
   ware_id: string;
@@ -144,11 +145,24 @@ const COLUMNS: ColumnDef<Row>[] = [
   },
 ];
 
+const SORT_ACCESSORS: Record<string, (r: Row) => number | string | null> = {
+  name: (r) => r.ware.name,
+  price: (r) => r.ware.price_avg ?? 0,
+};
+
+// "type" ties bucket + name, but the name tiebreak stays ascending regardless
+// of sort direction — a plain accessor can't express that, hence the override.
+const SORT_COMPARATORS: Record<string, (a: Row, b: Row, dir: "asc" | "desc") => number> = {
+  type: (a, b, dir) => {
+    const mul = dir === "asc" ? 1 : -1;
+    const t = a.bucket.localeCompare(b.bucket) * mul;
+    return t !== 0 ? t : a.ware.name.localeCompare(b.ware.name);
+  },
+};
+
 export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
-  const [sort, setSort] = useState<SortKey>("type");
-  const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [selectedWareId, setSelectedWareId] = useState<string | null>(null);
   const qc = useQueryClient();
 
@@ -177,9 +191,9 @@ export default function InventoryPage() {
     return c;
   }, [withBucket]);
 
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    const filtered = withBucket.filter(({ ware, bucket: b }) => {
+    return withBucket.filter(({ ware, bucket: b }) => {
       if (needle && !ware.name.toLowerCase().includes(needle)) return false;
       if (filter === "Craftable" && !ware.has_production) return false;
       if (filter === "Drops" && !ware.has_drops) return false;
@@ -192,23 +206,16 @@ export default function InventoryPage() {
         return false;
       return true;
     });
-    const mul = dir === "asc" ? 1 : -1;
-    return filtered.sort((a, b) => {
-      if (sort === "name") return a.ware.name.localeCompare(b.ware.name) * mul;
-      if (sort === "price")
-        return ((a.ware.price_avg ?? 0) - (b.ware.price_avg ?? 0)) * mul;
-      const t = a.bucket.localeCompare(b.bucket) * mul;
-      return t !== 0 ? t : a.ware.name.localeCompare(b.ware.name);
-    });
-  }, [withBucket, search, filter, sort, dir]);
+  }, [withBucket, search, filter]);
 
-  const onSort = (c: SortKey) => {
-    if (c === sort) setDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSort(c);
-      setDir(c === "price" ? "desc" : "asc");
-    }
-  };
+  const { sorted: rows, key: sort, dir, toggle } = useSort<Row>(
+    filtered,
+    SORT_ACCESSORS,
+    { key: "type", dir: "asc" },
+    SORT_COMPARATORS
+  );
+
+  const onSort = (c: SortKey) => toggle(c, c === "price" ? "desc" : "asc");
 
   return (
     <div className="flex h-full flex-col">

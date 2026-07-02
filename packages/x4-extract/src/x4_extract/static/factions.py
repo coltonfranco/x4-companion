@@ -16,6 +16,9 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.static.map import _dedup
+from x4_extract.static.relations import parse_relation_rows
+
 
 @dataclass(slots=True)
 class ExtractResult:
@@ -65,18 +68,18 @@ def extract(factions_bytes: bytes, colors_bytes: bytes | None = None) -> Extract
             }
         )
 
-        for rel_el in f_el.iterfind("relations/relation"):
-            other = rel_el.get("faction")
-            val = rel_el.get("relation")
-            if other and val is not None:
-                with suppress(ValueError):
-                    out.relations.append(
-                        {
-                            "faction_id": faction_id,
-                            "other_faction_id": other,
-                            "initial_relation": float(val),
-                        }
-                    )
+        def _relation_row(
+            other: str, rel: float, faction_id: str = faction_id
+        ) -> dict[str, Any]:
+            return {
+                "faction_id": faction_id,
+                "other_faction_id": other,
+                "initial_relation": rel,
+            }
+
+        out.relations.extend(
+            parse_relation_rows(f_el, other_attr="faction", row_factory=_relation_row)
+        )
 
         for lic_el in f_el.iterfind("licences/licence"):
             l_type = lic_el.get("type")
@@ -107,18 +110,10 @@ def extract(factions_bytes: bytes, colors_bytes: bytes | None = None) -> Extract
     # Deduplicate relations: merged DLC sub-elements may produce duplicate
     # (faction_id, other_faction_id) pairs.  Last-wins so DLC updates to
     # existing relation values are preserved.
-    deduped_rels: dict[tuple[str, str], dict[str, Any]] = {}
-    for r in out.relations:
-        key = (r["faction_id"], r["other_faction_id"])
-        deduped_rels[key] = r
-    out.relations = list(deduped_rels.values())
+    _dedup(out.relations, ("faction_id", "other_faction_id"))
 
     # Same for licences — merged sub-elements can duplicate (licence_type, faction_id).
-    deduped_lics: dict[tuple[str, str], dict[str, Any]] = {}
-    for lic in out.licences:
-        key = (lic["licence_type"], lic["faction_id"])
-        deduped_lics[key] = lic
-    out.licences = list(deduped_lics.values())
+    _dedup(out.licences, ("licence_type", "faction_id"))
 
     return out
 

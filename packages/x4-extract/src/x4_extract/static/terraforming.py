@@ -9,6 +9,7 @@ from typing import Any
 
 from lxml import etree
 
+from x4_extract.parsing import attr_flag
 from x4_extract.parsing import xml_attr_float as _float
 from x4_extract.parsing import xml_attr_int_or_none as _int
 
@@ -63,7 +64,6 @@ def extract(xml_bytes: bytes) -> ExtractResult:
 
         duration_raw = proj_el.get("duration")
         cooldown_raw = proj_el.get("repeatcooldown")
-        resilient_raw = proj_el.get("resilient")
         chance_raw = proj_el.get("chance")
 
         resources_el = proj_el.find("resources")
@@ -82,7 +82,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 "repeat_cooldown": int(cooldown_raw)
                 if cooldown_raw and cooldown_raw.isdigit()
                 else None,
-                "resilient": 1 if resilient_raw == "true" else 0,
+                "resilient": attr_flag(proj_el, "resilient"),
                 "chance": float(chance_raw) if chance_raw else None,
                 "resource_credits": int(price_raw) if price_raw and price_raw.isdigit() else None,
                 "resource_maxprice": int(maxprice_raw)
@@ -93,7 +93,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                 if pricescale_raw and pricescale_raw.isdigit()
                 else None,
                 "research": proj_el.get("research"),
-                "showalways": 1 if proj_el.get("showalways") == "true" else 0,
+                "showalways": attr_flag(proj_el, "showalways"),
                 "version": _int(proj_el, "version"),
             }
         )
@@ -176,7 +176,7 @@ def extract(xml_bytes: bytes) -> ExtractResult:
                     "project_id": project_id,
                     "stat": se_stat,
                     "change": _float(se_el, "change"),
-                    "beneficial": 1 if se_el.get("beneficial") == "true" else 0,
+                    "beneficial": attr_flag(se_el, "beneficial"),
                     "chance": _float(se_el, "chance"),
                     "setback": se_el.get("setback"),
                     "triggered_project": se_el.get("project"),

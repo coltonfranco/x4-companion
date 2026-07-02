@@ -6,11 +6,11 @@ column joins `s.ships` for catalog specs. Empty until a save is ingested.
 """
 
 import sqlite3
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
 
-from x4_api.api.db_utils import localized_text_sql
+from x4_api.api.db_utils import build_where_clause, localized_text_sql, paginate
 from x4_api.api.deps import get_db
 from x4_api.api.schemas import PublicModel
 
@@ -45,8 +45,17 @@ def list_fleet(
     offset: int = Query(0, ge=0),
 ) -> list[LiveShip]:
     """Live ship instances. Returns [] until a save is ingested."""
+    conditions: list[tuple[str, Any]] = []
+    if owner is not None:
+        conditions.append(("sh.owner_faction = ?", owner))
+    if sector is not None:
+        conditions.append(("sh.sector_id = ?", sector))
+    if player_only:
+        conditions.append(("sh.is_player_owned = 1", ()))
+    where_clause, where_params = build_where_clause(conditions)
+
     # LEFT JOIN the static ship catalog (by macro) for role/type/name/cargo.
-    sql = [
+    sql = (
         "SELECT sh.ship_id, sh.code, "
         f"CASE WHEN sh.name LIKE '{{%,%}}' THEN "
         f"  COALESCE({localized_text_sql('sh.name')}, sh.name) "
@@ -54,19 +63,10 @@ def list_fleet(
         "sh.macro, sh.owner_faction, sh.class_id, "
         "sh.sector_id, sh.state, sh.level, sh.thruster, sh.is_player_owned, "
         "c.name AS catalog_name, c.role, c.ship_type, c.cargo_volume "
-        "FROM ships sh LEFT JOIN s.ships c ON c.ship_id = sh.macro WHERE 1=1"
-    ]
-    params: dict[str, object] = {}
-    if owner is not None:
-        sql.append("AND sh.owner_faction = :owner")
-        params["owner"] = owner
-    if sector is not None:
-        sql.append("AND sh.sector_id = :sector")
-        params["sector"] = sector
-    if player_only:
-        sql.append("AND sh.is_player_owned = 1")
-    sql.append("ORDER BY sh.ship_id LIMIT :limit OFFSET :offset")
-    params["limit"] = limit
-    params["offset"] = offset
-    rows = conn.execute(" ".join(sql), params).fetchall()
+        "FROM ships sh LEFT JOIN s.ships c ON c.ship_id = sh.macro "
+        f"{where_clause} ORDER BY sh.ship_id"
+    )
+    sql, params = paginate(sql, where_params, limit, offset)
+
+    rows = conn.execute(sql, params).fetchall()
     return [LiveShip(**dict(r)) for r in rows]
