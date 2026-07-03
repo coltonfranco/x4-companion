@@ -66,10 +66,11 @@ export function WareDetailPanel({ wareId }: { wareId: string }) {
     staleTime: Infinity,
   });
 
+  const factionMap = useFactionMap(factions);
+
   if (isLoading) return <div className="p-6 text-muted-foreground text-sm">Loading details…</div>;
   if (!data) return null;
 
-  const factionMap = useFactionMap(factions);
   const priceDiff = (data.market_avg != null && data.price_avg != null) ? data.market_avg - data.price_avg : 0;
   const showLive = data.market_avg != null && data.market_avg !== data.price_avg;
 

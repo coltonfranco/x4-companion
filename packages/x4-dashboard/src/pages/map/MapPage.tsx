@@ -126,7 +126,10 @@ export default function MapPage() {
 
   const visibleStations = useMemo(() => {
     if (!settings.fogOfWar) return data.stations;
-    return data.stations.filter(s => s.sector_id && layout.visibleSectorIds.has(s.sector_id));
+    // Live stations carry save-file macro casing (lowercase); visibleSectorIds comes from
+    // the static catalog (mixed case) — compare case-insensitively like computeStationScreenPos does.
+    const visibleLower = new Set(Array.from(layout.visibleSectorIds, (id) => id.toLowerCase()));
+    return data.stations.filter(s => s.sector_id && visibleLower.has(s.sector_id.toLowerCase()));
   }, [data.stations, settings.fogOfWar, layout.visibleSectorIds]);
 
   // ── Per-sector lookup maps for the detail panel ──
