@@ -30,6 +30,8 @@ import TransactionsPage from "../pages/trade/TransactionsPage";
 import TradeRoutesPage from "../pages/trade/RoutesPage";
 import SectorTestPage from "../pages/__dev__/SectorTestPage";
 import StyleguidePage from "../pages/__dev__/StyleguidePage";
+import CrashTestPage from "../pages/__dev__/CrashTestPage";
+import { RouteErrorFallback } from "../components/error/RouteErrorFallback";
 import { StationsLayout } from "../pages/stations/StationsLayout";
 import ModulesPage from "../pages/stations/ModulesPage";
 import MyStationsPage from "../pages/stations/StationsPage";
@@ -168,6 +170,7 @@ const logbookRedirect = createRoute({
 });
 const sectorTestRoute = createRoute({ getParentRoute: () => rootRoute, path: "/sector_test", component: SectorTestPage });
 const styleguideRoute = createRoute({ getParentRoute: () => rootRoute, path: "/styleguide", component: StyleguidePage });
+const crashTestRoute = createRoute({ getParentRoute: () => rootRoute, path: "/__dev__/crash", component: CrashTestPage });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -190,9 +193,10 @@ const routeTree = rootRoute.addChildren([
   logbookRedirect,
   sectorTestRoute,
   styleguideRoute,
+  crashTestRoute,
 ]);
 
-export const router = createRouter({ routeTree });
+export const router = createRouter({ routeTree, defaultErrorComponent: RouteErrorFallback });
 
 declare module "@tanstack/react-router" {
   interface Register {
