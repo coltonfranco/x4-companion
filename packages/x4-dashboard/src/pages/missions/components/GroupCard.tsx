@@ -2,6 +2,7 @@ import { FactionBadge } from "../../../components/game/FactionBadge";
 import { MissionListCard } from "./CardShell";
 import type { FactionSummary } from "../../../lib/types";
 import type { Mission } from "../types";
+import { typeLabel, deriveMissionStageStatus } from "./MissionViewParts";
 
 export type GroupKind = "choice" | "all";
 
@@ -48,9 +49,19 @@ export function GroupCard({
     : "rgba(92,200,236,0.14)";
   const tagColor = isChoice ? "#d79be8" : "#7fb9d6";
 
+  // Some group members — typically a story arc's umbrella mission — carry no
+  // objectives of their own and aren't a real stage still to complete; exclude
+  // them from the stage count/list so they don't look like a second pending task.
+  const actionableMissions = missions.filter((m) => m.objectives.length > 0);
+  const stageMissions = isChoice
+    ? missions
+    : actionableMissions.length > 0
+      ? actionableMissions
+      : missions;
+
   const tag = isChoice
-    ? `CHOICE · ${missions.length} PATHS`
-    : `ALL REQUIRED · ${missions.length} STAGES`;
+    ? `CHOICE · ${stageMissions.length} PATHS`
+    : `ALL REQUIRED · ${stageMissions.length} STAGES`;
 
   const isStory = missions.some((m) => m.is_story);
 
@@ -58,6 +69,16 @@ export function GroupCard({
   const subtitle = isChoice
     ? "Pick one path"
     : "All stages required";
+  const stageStatus = new Map(
+    missions.map((m) => [m.mission_id, deriveMissionStageStatus(m.objectives)]),
+  );
+  const previewStages = [...stageMissions]
+    .sort(
+      (a, b) =>
+        Number(stageStatus.get(b.mission_id) === "current") -
+        Number(stageStatus.get(a.mission_id) === "current"),
+    )
+    .slice(0, 4);
 
   return (
     <MissionListCard
@@ -120,6 +141,45 @@ export function GroupCard({
             </span>
           )}
         </>
+      }
+      details={
+        <div className="mt-3 space-y-1.5 border-t border-white/5 pt-2.5">
+          {previewStages.map((mission, index) => {
+            const isCurrent = stageStatus.get(mission.mission_id) === "current";
+            return (
+              <div key={mission.mission_id ?? index} className="flex items-center gap-2 text-[11px]">
+                <span
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border font-mono text-[9px]"
+                  style={{
+                    borderColor: isCurrent ? "rgba(92,200,236,0.6)" : "rgba(255,255,255,0.14)",
+                    color: isCurrent ? "#5cc8ec" : "#7a8499",
+                    background: isCurrent ? "rgba(92,200,236,0.12)" : "transparent",
+                  }}
+                >
+                  {index + 1}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-foreground/85">
+                  {mission.name ?? "Unnamed stage"}
+                </span>
+                <span
+                  className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] uppercase"
+                  style={{
+                    background: isCurrent ? "rgba(92,200,236,0.12)" : "rgba(255,255,255,0.04)",
+                    color: isCurrent ? "#7fb9d6" : "#7a8499",
+                  }}
+                >
+                  {isCurrent ? "In progress" : typeLabel(mission.type ?? "Mission")}
+                </span>
+              </div>
+            );
+          })}
+          {stageMissions.length > previewStages.length && (
+            <div className="pl-6 text-[10.5px] text-muted-foreground">
+              +{stageMissions.length - previewStages.length} more stage
+              {stageMissions.length - previewStages.length !== 1 ? "s" : ""}
+            </div>
+          )}
+        </div>
       }
     />
   );

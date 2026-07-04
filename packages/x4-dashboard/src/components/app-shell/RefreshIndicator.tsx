@@ -21,7 +21,10 @@ import type { RefreshStatus } from "../../lib/useBackgroundRefresh";
  * save time) — React Query shares both with their other observers.
  */
 
-type IndicatorStatus = Pick<RefreshStatus, "active_key" | "ingested_at" | "last_ingest_ms">;
+type IndicatorStatus = Pick<
+  RefreshStatus,
+  "active_key" | "ingested_at" | "last_ingest_ms" | "following_latest"
+>;
 
 type SaveRow = {
   is_active: boolean;
@@ -93,9 +96,21 @@ export function RefreshIndicator() {
 
   // Hold the last known save time through transient gaps (e.g. the brief active-key churn while
   // a quicksave/autosave rotation is ingested) so the label doesn't flash to "no save" mid-play.
+  // While following the latest save, also refuse a backward jump: mid-rotation the server can
+  // briefly fall back to an older-but-still-current save while the newest one finishes ingesting
+  // (see `resolve_serving_save`), which would otherwise flash a much-older "last save" age before
+  // correcting itself a few seconds later. A pinned save is a deliberate switch, so trust it
+  // outright even if it points further back.
+  const following = status?.following_latest ?? true;
   const lastGood = useRef<number | null>(null);
-  if (epoch != null) lastGood.current = epoch;
+  if (epoch != null && (!following || lastGood.current == null || epoch >= lastGood.current)) {
+    lastGood.current = epoch;
+  }
   const shownEpoch = epoch ?? lastGood.current;
+
+  // A newer save file has landed but isn't being served yet (still ingesting) — keep showing
+  // "Updating…" through this whole window, not just the brief refetch burst once it catches up.
+  const catchingUp = !!saves && saves.length > 0 && !saves[0].is_active;
 
   const refreshing = fetching > 0;
   const ageSecs = shownEpoch != null ? (now - shownEpoch) / 1000 : null;
@@ -125,7 +140,7 @@ export function RefreshIndicator() {
           <WifiOff className="h-3 w-3 text-amber-400/80" />
           <span className="text-amber-400/80">API offline</span>
         </>
-      ) : refreshing || ingesting ? (
+      ) : refreshing || ingesting || catchingUp ? (
         <>
           <RefreshCw className="h-3 w-3 text-primary animate-spin" />
           <span className="text-primary">{ingesting ? "Rebuilding…" : "Updating…"}</span>

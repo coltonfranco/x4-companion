@@ -61,7 +61,7 @@ def simple_catalog_router[ModelT: PublicModel](
     @router.get(f"{path_prefix}/{{{id_param_name}}}", response_model=detail_model)
     def _detail(
         conn: Annotated[sqlite3.Connection, Depends(get_db)],
-        entity_id: Annotated[str, Path(alias=id_param_name)],
+        entity_id: str = Path(..., alias=id_param_name),
     ) -> Any:
         row = fetch_one_or_404(
             conn,

@@ -59,6 +59,9 @@ export type MapStation = {
   y: number | null;
   z: number | null;
   category: string | null;
+  icon_group: string | null;
+  production_product: string | null;
+  production_product_icon_url: string | null;
   is_player_owned: boolean;
   is_hq: boolean;
   is_under_construction: boolean;

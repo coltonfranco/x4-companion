@@ -70,6 +70,9 @@ CREATE TABLE IF NOT EXISTS stations (
     sector_id             TEXT,
     zone_id               TEXT,
     x REAL, y REAL, z REAL,
+    -- Sector-relative position of the station's own zone instance (procedurally-created
+    -- zones like `tempzone` only — see extractors/component_helpers.enclosing_zone_id).
+    zone_dyn_x REAL, zone_dyn_y REAL, zone_dyn_z REAL,
     state                 TEXT,
     build_pct             REAL,
     is_player_owned       INTEGER NOT NULL DEFAULT 0,

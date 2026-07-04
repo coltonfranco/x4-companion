@@ -5,10 +5,8 @@ import type { MissionOffer } from "../types";
 import {
   typeColor,
   typeLabel,
-  fmtCredits,
   LevelBadge,
   RepeatableTag,
-  RunToggleButton,
   MissionFactionCluster,
 } from "./MissionViewParts";
 
@@ -16,19 +14,12 @@ type Props = {
   o: MissionOffer;
   factionMap: Map<string, FactionSummary>;
   isSelected: boolean;
-  isInRun: boolean;
   onClick: () => void;
-  onToggleRun?: () => void;
 };
 
-export function OfferCard({ o, factionMap, isSelected, isInRun, onClick, onToggleRun }: Props) {
+export function OfferCard({ o, factionMap, isSelected, onClick }: Props) {
   const mtypeColor = o.type ? typeColor(o.type) : undefined;
   const mtLabel = o.type ? typeLabel(o.type) : null;
-
-  const hasReward = o.reward_credits != null || o.rewardtext != null;
-  const rewardDisplay = o.reward_credits != null
-    ? fmtCredits(o.reward_credits)
-    : o.rewardtext ?? null;
 
   return (
     <MissionListCard
@@ -47,13 +38,8 @@ export function OfferCard({ o, factionMap, isSelected, isInRun, onClick, onToggl
       }
       trailing={
         <>
-          {hasReward && (
-            <div className="font-mono text-[13px] font-semibold tabular-nums" style={{ color: "var(--gold)" }}>
-              {rewardDisplay}
-            </div>
-          )}
           {o.distance != null && (
-            <div className="font-mono text-[10px] text-muted-foreground mt-1">
+            <div className="font-mono text-[10px] text-muted-foreground">
               ⤳ {o.distance} jump{o.distance !== 1 ? "s" : ""}
             </div>
           )}
@@ -85,9 +71,6 @@ export function OfferCard({ o, factionMap, isSelected, isInRun, onClick, onToggl
             </span>
           )}
         </>
-      }
-      trailingButton={
-        onToggleRun && <RunToggleButton isInRun={isInRun} onToggleRun={onToggleRun} />
       }
     />
   );

@@ -60,19 +60,27 @@ def get_icon_url(logical_id: str | None) -> str | None:
     return f"{ICON_BASE}/{category}/{logical_id}.png"
 
 
-def get_ware_icon_url(ware_id: str, icon_path: str | None, tags: str | None = None) -> str | None:
+def get_ware_icon_url(
+    ware_id: str,
+    icon_path: str | None,
+    tags: str | None = None,
+    transport: str | None = None,
+) -> str | None:
     """Resolve icon URL for a ware.
 
     Uses the stored ``icon_path`` (set for wares whose icons were extracted from
-    the game's asset catalog).  When that field is ``NULL``, falls back to
-    tag-based heuristics for ware categories whose icon filenames follow a known
-    convention (e.g. ``paintmod_XXXX`` → ``paintmods/paintmod_XXXX.png``).
+    the game's asset catalog).  Normal inventory items return no fallback URL
+    because most do not have generated icons; paint mods keep their known path.
     """
     if icon_path:
         return get_icon_url(icon_path)
-    if not tags:
-        return None
-    tags_lower = tags.lower()
+    tags_lower = tags.lower() if tags else ""
     if "paintmod" in tags_lower:
         return f"{ICON_BASE}/paintmods/{ware_id}.png"
-    return None
+    logical_id = f"ware_{ware_id}"
+    manifest = _load_manifest()
+    if logical_id in manifest and "path" in manifest[logical_id]:
+        return f"{ICON_BASE}/{manifest[logical_id]['path']}"
+    if transport == "inventory":
+        return None
+    return f"{ICON_BASE}/wares/{logical_id}.png"

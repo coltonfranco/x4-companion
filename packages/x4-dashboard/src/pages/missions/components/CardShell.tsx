@@ -16,12 +16,12 @@ export function MissionListCard({
   subtitle,
   trailing,
   badges,
+  details,
   edgeColor,
   alwaysShowEdge = false,
   opacityClassName,
   bg = "rgba(255,255,255,0.02)",
   unselectedBorder = "rgba(255,255,255,0.07)",
-  trailingButton,
 }: {
   onClick: () => void;
   isSelected: boolean;
@@ -33,6 +33,8 @@ export function MissionListCard({
   trailing?: ReactNode;
   /** Wrapped badge row below the top row. */
   badges?: ReactNode;
+  /** Optional content below the badge row. */
+  details?: ReactNode;
   /** Left-strip color. Defaults to the selection highlight (cyan) when omitted. */
   edgeColor?: string;
   /** GroupCard: the strip is always shown in `edgeColor`, not just on selection. */
@@ -40,8 +42,6 @@ export function MissionListCard({
   opacityClassName?: string;
   bg?: string;
   unselectedBorder?: string;
-  /** Absolutely-positioned bottom-right button (the run-toggle), Mission/Offer only. */
-  trailingButton?: ReactNode;
 }) {
   const stripColor = alwaysShowEdge ? edgeColor : isSelected ? (edgeColor ?? "#5cc8ec") : "transparent";
 
@@ -78,7 +78,7 @@ export function MissionListCard({
         {/* Badge row */}
         {badges && <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">{badges}</div>}
 
-        {trailingButton}
+        {details}
       </div>
     </div>
   );

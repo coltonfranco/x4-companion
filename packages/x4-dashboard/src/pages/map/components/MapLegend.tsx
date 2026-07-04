@@ -8,10 +8,12 @@ export function MapLegend({
   fillMode,
   factionMap,
   resource,
+  wareId,
 }: {
   fillMode: FillMode;
   factionMap?: Map<string, FactionSummary>;
   resource?: string | null;
+  wareId?: string | null;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -144,7 +146,7 @@ export function MapLegend({
         </div>
       )}
 
-      {fillMode === "trade" && (
+      {fillMode === "trade" && !wareId && (
         <div className="flex flex-col gap-2">
           <p className="mb-1 leading-tight">Sector trade route profit per hour.</p>
           <div className="flex items-center gap-2 mt-1">
@@ -153,6 +155,23 @@ export function MapLegend({
               background: `linear-gradient(to right, ${STATUS_COLORS.danger}, ${STATUS_COLORS.warning}, ${STATUS_COLORS.success})`,
             }} />
             <span>High Profit</span>
+          </div>
+        </div>
+      )}
+
+      {fillMode === "trade" && wareId && (
+        <div className="flex flex-col gap-2.5">
+          <p className="mb-1 leading-tight">Sector supply vs. demand for the selected ware.</p>
+          <div className="flex items-center gap-2 mt-1">
+            <span>Deficit</span>
+            <div className="h-2 flex-1 rounded-full" style={{
+              background: `linear-gradient(to right, ${STATUS_COLORS.danger}, rgba(255,255,255,0.1), ${STATUS_COLORS.success})`,
+            }} />
+            <span>Surplus</span>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="w-3.5 h-2.5 rounded-[2px] border border-dashed border-white/40 bg-white/[0.035]" />
+            <span>Traded here, none available right now</span>
           </div>
         </div>
       )}

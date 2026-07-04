@@ -83,3 +83,24 @@ def enclosing_sector_zone(
             sector_id = ancestor.get("macro")
             break
     return sector_id, zone_id
+
+
+def enclosing_zone_id(
+    elem: etree._Element,
+    *,
+    limit: int = ANCESTOR_WALK_LIMIT,
+) -> str | None:
+    """Return the enclosing zone component's own save-unique `id` (not its macro).
+
+    Needed to look up a zone's dynamic position (see the `_on_zone_position`-style visitor
+    pattern used by extractors that care about it): `tempzone` is a placeholder macro shared
+    by every physically distinct procedurally-created zone instance across the galaxy, so
+    macro alone can't disambiguate them — only the component id can.
+    """
+    for ancestor in walk_ancestors(elem, limit=limit):
+        class_attr = ancestor.get("class", "")
+        if class_attr == "zone":
+            return ancestor.get("id")
+        if class_attr == "sector":
+            return None
+    return None

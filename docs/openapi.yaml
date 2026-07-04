@@ -5421,6 +5421,11 @@ components:
           - type: string
           - type: 'null'
           title: Category
+        icon_group:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Icon Group
         is_player_owned:
           type: boolean
           title: Is Player Owned
@@ -5467,6 +5472,11 @@ components:
           - type: string
           - type: 'null'
           title: Production Product
+        production_product_icon_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Production Product Icon Url
         seed_id:
           anyOf:
           - type: string
@@ -5660,6 +5670,21 @@ components:
           - type: string
           - type: 'null'
           title: Category
+        icon_group:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Icon Group
+        production_product:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Production Product
+        production_product_icon_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Production Product Icon Url
         is_player_owned:
           type: boolean
           title: Is Player Owned

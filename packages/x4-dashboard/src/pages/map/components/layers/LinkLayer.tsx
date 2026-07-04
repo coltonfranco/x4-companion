@@ -17,14 +17,44 @@ type LinkContext = {
   visibleSectorIds: Set<string>;
   overlappingPaths: OverlappingPaths;
   transform: Transform;
+  viewport: { w: number; h: number };
   borderTensions?: Map<string, BorderTensionEntry>;
   setHoveredLinkId?: (id: string | null) => void;
 };
 
+// Extra world-space margin (screen px, converted per-frame) around the viewport so
+// links spanning just off-screen don't visibly pop in/out while panning.
+const CULL_MARGIN_PX = 150;
+
+function visibleRect(transform: Transform, viewport: { w: number; h: number }) {
+  const margin = CULL_MARGIN_PX / transform.scale;
+  return {
+    active: viewport.w > 0 && viewport.h > 0,
+    minX: (0 - transform.x) / transform.scale - margin,
+    maxX: (viewport.w - transform.x) / transform.scale + margin,
+    minY: (0 - transform.y) / transform.scale - margin,
+    maxY: (viewport.h - transform.y) / transform.scale + margin,
+  };
+}
+
+// Segment (bounding-box) test — cheap and sufficient since we only need to avoid
+// building DOM for links that can't possibly be on screen, not pixel-perfect clipping.
+function segmentOutsideRect(
+  p1: [number, number], p2: [number, number],
+  rect: ReturnType<typeof visibleRect>,
+): boolean {
+  if (!rect.active) return false;
+  const segMinX = Math.min(p1[0], p2[0]), segMaxX = Math.max(p1[0], p2[0]);
+  const segMinY = Math.min(p1[1], p2[1]), segMaxY = Math.max(p1[1], p2[1]);
+  return segMaxX < rect.minX || segMinX > rect.maxX || segMaxY < rect.minY || segMinY > rect.maxY;
+}
+
 export function HighwayLayer({
   highways, showHighways, showLocalHighways,
-  zoneMap, zoneScreenPos, sectorCoords, visibleSectorIds, overlappingPaths, transform, borderTensions, setHoveredLinkId
+  zoneMap, zoneScreenPos, sectorCoords, visibleSectorIds, overlappingPaths, transform, viewport, borderTensions, setHoveredLinkId
 }: LinkContext & { highways: Highway[]; showHighways: boolean; showLocalHighways: boolean }) {
+  if (!showHighways && !showLocalHighways) return null;
+  const rect = visibleRect(transform, viewport);
   return (
     <>
       {highways.map((hw) => {
@@ -44,6 +74,7 @@ export function HighwayLayer({
         const p1 = zoneScreenPos.get(hw.from_zone_id) ?? sectorCoords.get(z1.sector_id);
         const p2 = zoneScreenPos.get(hw.to_zone_id) ?? sectorCoords.get(z2.sector_id);
         if (!p1 || !p2) return null;
+        if (segmentOutsideRect(p1, p2, rect)) return null;
 
         const stroke = isLocal ? MAP_THEME.localhighway : MAP_THEME.superhighway;
         const baseScreenStroke = isLocal ? 1.0 : 2.0;
@@ -150,9 +181,10 @@ export function HighwayLayer({
 
 export function GateLayer({
   gates, showGates,
-  zoneMap, zoneScreenPos, sectorCoords, visibleSectorIds, overlappingPaths, transform, borderTensions, setHoveredLinkId
+  zoneMap, zoneScreenPos, sectorCoords, visibleSectorIds, overlappingPaths, transform, viewport, borderTensions, setHoveredLinkId
 }: LinkContext & { gates: Gate[]; showGates: boolean }) {
   if (!showGates) return null;
+  const rect = visibleRect(transform, viewport);
   return (
     <>
       {gates.map((g) => {
@@ -162,6 +194,7 @@ export function GateLayer({
         const p1 = zoneScreenPos.get(g.from_zone_id) ?? sectorCoords.get(z1.sector_id);
         const p2 = zoneScreenPos.get(g.to_zone_id) ?? sectorCoords.get(z2.sector_id);
         if (!p1 || !p2) return null;
+        if (segmentOutsideRect(p1, p2, rect)) return null;
         const isAccelerator = g.kind === "accelerator";
         const stroke = isAccelerator ? MAP_THEME.accelerator : MAP_THEME.gate; // Yellow for accelerator, Slate for warp gate
 

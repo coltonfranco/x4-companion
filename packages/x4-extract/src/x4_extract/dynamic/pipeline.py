@@ -53,7 +53,7 @@ _FINGERPRINT_BLOCK = 1 << 16  # 64 KiB head+tail sample is enough to detect a re
 # that differs forces a full re-ingest even when the save file itself is unchanged —
 # otherwise a newly-added table (e.g. sector_resources) would never be populated for
 # saves already ingested under the old pipeline.
-_PIPELINE_VERSION = "18"
+_PIPELINE_VERSION = "19"
 
 # Delta entity types tracked in row_state but kept out of the events feed — high-churn,
 # low-signal data (player stats tick constantly and aren't worth alerting on).

@@ -226,7 +226,6 @@ export function EmbeddedMap({
         background:
           "radial-gradient(120% 120% at 50% 0%, #0c1322 0%, #070b14 55%, #05070e 100%)",
       }}
-      onClick={fullscreen ? undefined : onExpand}
       onWheel={onWheel}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
@@ -304,10 +303,16 @@ export function EmbeddedMap({
       {/* Expand button (small mode only) */}
       {!fullscreen && onExpand && (
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-          <div className="flex items-center gap-1.5 text-[11px] text-[#7fb9d6] bg-[#0c1322]/80 px-2.5 py-1 rounded-md border border-[rgba(92,200,236,0.22)]">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onExpand();
+            }}
+            className="flex items-center gap-1.5 text-[11px] text-[#7fb9d6] bg-[#0c1322]/80 px-2.5 py-1 rounded-md border border-[rgba(92,200,236,0.22)] hover:brightness-125"
+          >
             <Maximize2 className="w-3 h-3" />
             Expand
-          </div>
+          </button>
         </div>
       )}
     </div>

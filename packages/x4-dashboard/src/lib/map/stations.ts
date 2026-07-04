@@ -29,16 +29,19 @@ export function isPlayerStation(st: MapStation): boolean {
   return st.is_player_owned || st.is_hq;
 }
 
-// Visibility tiers, driven by how large a sector hex is on screen:
-//  - "player": fully zoomed out → only the player's own stations
-//  - "major":  mid zoom → also every faction's main facilities
-//  - "all":    zoomed into a sector (grid territory) → every station
-export type StationTier = "player" | "major" | "all";
+// On-screen sector-hex radius (px) thresholds for the map's zoom-tiered station reveal
+// (see StationLayer's revealOpacity). Shared here so "jump to station" can compute the
+// minimum zoom that actually makes the target station visible, instead of landing on an
+// arbitrary fixed scale that might leave it faded out.
+export const STATION_ALL_SCREEN_RADIUS = 520;
+export const STATION_MAJOR_SCREEN_RADIUS = 110;
 
-export function stationVisibleAt(st: MapStation, tier: StationTier): boolean {
-  if (tier === "all") return true;
-  if (tier === "major") return isPlayerStation(st) || isMainFacility(st);
-  return isPlayerStation(st);
+// Minimum map `transform.scale` at which `st` is fully revealed, given the universe's
+// hex size. Player-owned/HQ stations are always visible, so this returns 0 for them.
+export function minScaleForStationReveal(st: MapStation, hexSize: number): number {
+  if (isPlayerStation(st) || hexSize <= 0) return 0;
+  const radius = isMainFacility(st) ? STATION_MAJOR_SCREEN_RADIUS : STATION_ALL_SCREEN_RADIUS;
+  return radius / hexSize;
 }
 
 export function stationCategoryLabel(category: string | null): string {

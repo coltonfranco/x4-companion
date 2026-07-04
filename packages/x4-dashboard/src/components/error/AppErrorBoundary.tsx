@@ -30,6 +30,7 @@ export class AppErrorBoundary extends Component<Props, State> {
           error={this.state.error}
           componentStack={this.state.componentStack}
           onRetry={this.reset}
+          onGoHome={() => { window.location.href = "/"; }}
         />
       );
     }

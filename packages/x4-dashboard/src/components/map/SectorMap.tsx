@@ -232,10 +232,6 @@ export function SectorMap({ sectorId }: { sectorId: string }) {
                 {isSelected && (
                   <circle r={renderedSize * 0.72} fill="none" stroke="#ffffff" strokeWidth={1.5 / transform.scale} />
                 )}
-                {st.is_player_owned && !st.is_hq && (
-                  <circle r={renderedSize * 0.6} fill="none" stroke="#ffffff" strokeWidth={0.8 / transform.scale} opacity={0.8} />
-                )}
-
                 <StationMapIcon station={st} color={color} sizeWorld={renderedSize} />
 
                 {transform.scale > 0.0002 && (

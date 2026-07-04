@@ -3,7 +3,61 @@
 
 import { MAP_H, MAP_W, SQRT3 } from "./constants";
 import { axialToPixel } from "./geometry";
-import type { Cluster, Gate, Highway, MapStation, Sector, Zone } from "./types";
+import type { Cluster, Gate, Highway, MapStation, Sector, Transform, Zone } from "./types";
+
+// Once zoomed in this far, a single sector effectively fills the screen — treat it as
+// "active" the same as an explicit hover/select, since deep zoom can make hovering the
+// actual hex unreliable (it may render with a transparent fill once the build grid takes
+// over) and shouldn't force a click just to look up wares for the sector you're already
+// looking at.
+const DOMINANT_SECTOR_MIN_SCALE = 1.2;
+
+// The sector nearest the viewport center, once zoomed in enough that it dominates the
+// screen. Returns null if zoomed out further than that, or if no sector is close enough
+// to center to count as "the one you're looking at".
+export function computeDominantSectorId(
+  transform: Transform,
+  viewport: { w: number; h: number },
+  sectorCoords: Map<string, [number, number]>,
+  hexSize: number,
+): string | null {
+  if (transform.scale < DOMINANT_SECTOR_MIN_SCALE || viewport.w === 0 || hexSize === 0) return null;
+  const centerMapX = (viewport.w / 2 - transform.x) / transform.scale;
+  const centerMapY = (viewport.h / 2 - transform.y) / transform.scale;
+
+  let centerSectorId: string | null = null;
+  let minDist = Infinity;
+  for (const [sid, [cx, cy]] of sectorCoords.entries()) {
+    const dx = cx - centerMapX;
+    const dy = cy - centerMapY;
+    const distSq = dx * dx + dy * dy;
+    if (distSq < minDist && distSq < hexSize * hexSize * 1.5) {
+      minDist = distSq;
+      centerSectorId = sid;
+    }
+  }
+  return centerSectorId;
+}
+
+// A double-clicked sector's on-screen hex radius should reach this fraction of the
+// shorter viewport dimension — big enough to dominate the view without depending on
+// window/monitor size the way a fixed pixel or fixed-scale target would.
+const SECTOR_FILL_FRACTION = 0.85;
+
+// The map scale at which `sectorId`'s hex radius fills most of the current viewport.
+// Callers combine this with a "never zoom out" cap (see usePanZoom's panToWorldPos) so
+// double-clicking a sector zooms in when needed but just pans/recenters if the user is
+// already zoomed in further than this.
+export function computeSectorFillScale(
+  hexSize: number,
+  isSubSector: boolean,
+  viewport: { w: number; h: number },
+): number {
+  const effectiveHexSize = isSubSector ? hexSize * 0.5 : hexSize;
+  if (effectiveHexSize <= 0 || viewport.w === 0 || viewport.h === 0) return 3.0;
+  const targetOnScreenR = SECTOR_FILL_FRACTION * Math.min(viewport.w, viewport.h) * 0.5;
+  return targetOnScreenR / effectiveHexSize;
+}
 
 // Sectors that share a cluster with other sectors render at half hex size.
 export function computeSubSectorSet(clusters: Cluster[], sectors: Sector[]): Set<string> {

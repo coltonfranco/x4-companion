@@ -35,7 +35,6 @@ export type PathSegment = {
 export type AnalysisOverlay = {
   sectorTint: Map<string, SectorTint> | null; // keyed by lowercase sector id; null → faction base
   sectorBadges: Map<string, string>;
-  sectorTooltips: Map<string, string>;
   sectorConflicts: Map<string, ConflictEntry>;
   borderTensions: Map<string, BorderTensionEntry>;
   sectorForces: Map<string, SectorForceEntry>;
@@ -170,7 +169,6 @@ export function useAnalysisOverlay({
       source: null as ResourceSource | null,
       loading: false,
       tooltips: new Map<string, string>(),
-      sectorTooltips: new Map(),
       sectorConflicts: new Map(),
       borderTensions: new Map(),
       sectorForces,
@@ -403,7 +401,9 @@ export function useAnalysisOverlay({
 
     if (wareOn) {
       // Signed net volume: green = surplus (supply − demand), red = deficit, gray ≈ 0.
-      // Also track best buy/sell prices per sector for the hover tooltip.
+      // Also track best buy/sell prices per sector — the hover tooltip (MapCanvas's
+      // "Unified Sector Hover Tooltip") reads sectorWarePrices directly, so no separate
+      // tooltip text is built here (that used to render as a duplicate native title).
       const bySector = new Map<string, {
         supply: number; demand: number;
         bestBuyPrice: number | null; bestSellPrice: number | null;
@@ -425,21 +425,27 @@ export function useAnalysisOverlay({
       bySector.forEach((a) => { maxAbs = Math.max(maxAbs, Math.abs(a.supply - a.demand)); });
       const tint = new Map<string, SectorTint>();
       const badges = new Map<string, string>();
-      const sectorTooltips = new Map<string, string>();
       bySector.forEach((a, sid) => {
+        // Traded here (a station lists it), but nothing is actually available right now on
+        // either side — e.g. sold out. Render hollow/dashed instead of a colored fill so it
+        // doesn't read as "balanced surplus/demand" and isn't confused with untraded sectors.
+        if (a.supply === 0 && a.demand === 0) {
+          tint.set(sid, {
+            fill: "rgba(255,255,255,0.035)",
+            stroke: "rgba(255,255,255,0.4)",
+            strokeWidth: 0.8,
+            strokeDasharray: "4 3",
+          });
+          return;
+        }
+
         const net = a.supply - a.demand;
         const mag = Math.abs(net) / maxAbs;
         const hex = net >= 0 ? STATUS_COLORS.success : STATUS_COLORS.danger;
         tint.set(sid, { fill: `${hex}${alpha(0.15 + 0.75 * mag)}`, stroke: `${hex}${alpha(0.85)}` });
         badges.set(sid, `${net >= 0 ? "+" : ""}${compact(net)}`);
-        const buyStr = a.bestBuyPrice != null ? `${a.bestBuyPrice.toLocaleString()} Cr` : "—";
-        const sellStr = a.bestSellPrice != null ? `${a.bestSellPrice.toLocaleString()} Cr` : "—";
-        sectorTooltips.set(
-          sid,
-          `Supply: ${a.supply.toLocaleString()} · Demand: ${a.demand.toLocaleString()} · Buy: ${buyStr} · Sell: ${sellStr}`
-        );
       });
-      return { ...empty, tint, badges, sectorTooltips, sectorWarePrices: bySector, dim: true, loading: offers.isLoading };
+      return { ...empty, tint, badges, sectorWarePrices: bySector, dim: true, loading: offers.isLoading };
     }
 
     return empty; // faction, or trade-routes view (no fill tint)
@@ -525,7 +531,6 @@ export function useAnalysisOverlay({
   return useMemo(() => ({
     sectorTint: tradeRoutesOn ? routeData.tint : fill.tint,
     sectorBadges: tradeRoutesOn ? routeData.badges : fill.badges,
-    sectorTooltips: fill.sectorTooltips,
     sectorConflicts: fill.sectorConflicts,
     borderTensions: fill.borderTensions,
     sectorForces: fill.sectorForces,

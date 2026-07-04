@@ -26,7 +26,10 @@ export function CriticalAlertsWidget() {
   const minTime = currentTime > 0 ? currentTime - 3600 : undefined;
 
   const { data } = useQuery<{ entries: { id: number; title: string; text: string; category: string; subcategory: string; faction: string | null; faction_name: string | null; faction_color: string | null; time: number; extra_json: string | null }[] }>({
-    queryKey: ["critical-alerts", minTime],
+    // Namespaced under "logbook" (not its own polling key) so the shared background-refresh
+    // watcher invalidates this alongside the rest of the logbook when new entries actually
+    // arrive, instead of this widget re-checking on its own timer regardless of a real change.
+    queryKey: ["logbook", "critical-alerts", minTime],
     queryFn: () => {
       const p = new URLSearchParams();
       if (minTime != null) p.set("min_time", String(minTime));
@@ -34,7 +37,6 @@ export function CriticalAlertsWidget() {
       return apiGet(`/api/v1/logbook?${p}`);
     },
     enabled: currentTime > 0,
-    refetchInterval: 30_000,
   });
 
   const critical = useMemo(() => {

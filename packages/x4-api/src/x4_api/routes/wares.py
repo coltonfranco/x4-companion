@@ -148,7 +148,9 @@ def _ware_fields(r: sqlite3.Row) -> dict[str, Any]:
     """Common WareSummary/WareDetail field prep shared by list_wares and get_ware."""
     d = dict(r)
     icon_path = d.pop("icon_path", None)
-    d["icon_url"] = get_ware_icon_url(d["ware_id"], icon_path, d.get("tags"))
+    d["icon_url"] = get_ware_icon_url(
+        d["ware_id"], icon_path, d.get("tags"), d.get("transport")
+    )
     d["has_production"] = bool(d["has_production"])
     d["has_drops"] = bool(d["has_drops"])
     return d

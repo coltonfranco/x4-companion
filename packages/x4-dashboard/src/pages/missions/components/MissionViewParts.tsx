@@ -18,7 +18,9 @@ import {
   TYPE_COLORS,
   type Difficulty,
   type MissionType,
+  type MissionObjective,
 } from "../types";
+import { missionTextPlain } from "../lib/missionText";
 
 // ── Labels ────────────────────────────────────────────────────────────────────
 
@@ -177,6 +179,137 @@ export function getStatusStyle(status: keyof typeof STATUS_STYLES) {
   return STATUS_STYLES[status];
 }
 
+// ── Objective processing ──────────────────────────────────────────────────────
+
+/**
+ * The save's top-level `mission.is_active` flag marks whichever single mission
+ * the player has pinned as "active" in the in-game log — not whether the
+ * mission has been started or has open work. Real progress lives on each
+ * objective's own `is_active`/progress fields, which this derives from.
+ */
+
+export type ProcessedObjective = {
+  step: number;
+  text: string | null;
+  target_name: string | null;
+  target_sector_id: string | null;
+  status: "done" | "current" | "next";
+  progress_current: number | null;
+  progress_max: number | null;
+  type: string | null;
+};
+
+function parseProgress(s: string | null): {
+  current: number;
+  max: number;
+  cleanText: string;
+} | null {
+  if (!s) return null;
+  const match = s.match(/\(\s*(\d+)\s*\/\s*(\d+)\s*\)/);
+  if (match) {
+    return {
+      current: parseInt(match[1], 10),
+      max: parseInt(match[2], 10),
+      cleanText: s.replace(match[0], "").trim(),
+    };
+  }
+  return null;
+}
+
+export function processObjectives(objectives: MissionObjective[]): {
+  steps: ProcessedObjective[];
+  activeStep: number;
+} {
+  const parsed = objectives.map((obj) => {
+    let text = obj.text;
+    let progress_current = obj.progress_current;
+    let progress_max = obj.progress_max;
+
+    // Try to parse progress from text fields
+    if (progress_current == null || progress_max == null) {
+      const p = parseProgress(text);
+      if (p) {
+        progress_current = p.current;
+        progress_max = p.max;
+        text = p.cleanText;
+      }
+    }
+
+    return { ...obj, text, progress_current, progress_max };
+  });
+
+  // Normalize step numbers
+  const maxStep = Math.max(0, ...parsed.map((o) => o.step ?? 0));
+  parsed.forEach((o) => {
+    if (o.step == null || o.step === 0) {
+      o.step = maxStep > 0 ? maxStep + 1 : 1;
+    }
+  });
+
+  const sorted = [...parsed].sort((a, b) => (a.step ?? 0) - (b.step ?? 0));
+
+  // Determine active step
+  const activeStep =
+    sorted.find((o) => o.is_active)?.step ??
+    Math.max(0, ...sorted.map((o) => o.step ?? 0));
+
+  // Deduplicate
+  const seen = new Map<string, number>();
+  sorted.forEach((o, i) => {
+    const sig = `${o.type}|${(o.text ?? "").toLowerCase()}|${(o.target_name ?? "").toLowerCase()}`;
+    seen.set(sig, i);
+  });
+  const deduped = sorted.filter((o, i) => {
+    const sig = `${o.type}|${(o.text ?? "").toLowerCase()}|${(o.target_name ?? "").toLowerCase()}`;
+    return seen.get(sig) === i;
+  });
+
+  const steps: ProcessedObjective[] = deduped.map((o) => {
+    const step = o.step ?? 0;
+    const isComplete =
+      (activeStep > 0 && step < activeStep) ||
+      (o.progress_current != null &&
+        o.progress_max != null &&
+        o.progress_max > 0 &&
+        o.progress_current >= o.progress_max);
+    const isActive = !isComplete && o.is_active;
+    const status: ProcessedObjective["status"] = isComplete
+      ? "done"
+      : isActive
+        ? "current"
+        : "next";
+
+    return {
+      step,
+      text: missionTextPlain(o.text),
+      target_name: o.target_name,
+      target_sector_id: o.target_sector_id,
+      status,
+      progress_current: o.progress_current,
+      progress_max: o.progress_max,
+      type: o.type,
+    };
+  });
+
+  return { steps, activeStep };
+}
+
+/**
+ * Whether a mission still has open work, derived from its objectives rather than
+ * the unreliable top-level `is_active` flag. A mission with no extracted
+ * objectives is treated as "current" (in progress) rather than "done" or
+ * "locked" — its mere presence in the save means it's already unlocked.
+ */
+export function deriveMissionStageStatus(
+  objectives: MissionObjective[],
+): "done" | "current" {
+  if (objectives.length === 0) return "current";
+  const { steps } = processObjectives(objectives);
+  return steps.length > 0 && steps.every((s) => s.status === "done")
+    ? "done"
+    : "current";
+}
+
 // ── Section label ─────────────────────────────────────────────────────────────
 
 /**
@@ -231,17 +364,12 @@ export function useMapExpand(targetSectorId: string | null) {
 export function RouteMapSection({
   label,
   extra,
-  beforeExpand,
-  expandButtonContent = "⤢ Expand",
   targetSectorId,
   height,
   onExpand,
 }: {
   label: React.ReactNode;
   extra?: React.ReactNode;
-  /** Extra button(s) rendered before the Expand button in the same `after` slot. */
-  beforeExpand?: React.ReactNode;
-  expandButtonContent?: React.ReactNode;
   targetSectorId: string | null;
   height: number;
   onExpand: () => void;
@@ -250,22 +378,6 @@ export function RouteMapSection({
     <>
       <SectionLabel
         extra={extra}
-        after={
-          <>
-            {beforeExpand}
-            <button
-              onClick={onExpand}
-              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border transition-colors hover:brightness-125"
-              style={{
-                color: "#7fb9d6",
-                borderColor: "rgba(92,200,236,0.22)",
-                background: "rgba(92,200,236,0.06)",
-              }}
-            >
-              {expandButtonContent}
-            </button>
-          </>
-        }
       >
         {label}
       </SectionLabel>
@@ -377,33 +489,5 @@ export function MissionFactionCluster({
         </>
       )}
     </>
-  );
-}
-
-// ── Run toggle button ─────────────────────────────────────────────────────────
-
-export function RunToggleButton({
-  isInRun,
-  onToggleRun,
-}: {
-  isInRun: boolean;
-  onToggleRun: () => void;
-}) {
-  return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggleRun();
-      }}
-      className="absolute right-2.5 bottom-2.5 w-6 h-6 rounded-md flex items-center justify-center text-[13px] transition-colors hover:brightness-125"
-      style={{
-        background: isInRun ? "rgba(52,211,153,0.14)" : "rgba(255,255,255,0.04)",
-        border: `1px solid ${isInRun ? "rgba(52,211,153,0.4)" : "rgba(255,255,255,0.1)"}`,
-        color: isInRun ? "#34d399" : "#7a8499",
-      }}
-      title={isInRun ? "In Run" : "Add to Run"}
-    >
-      {isInRun ? "✓" : "＋"}
-    </button>
   );
 }

@@ -48,6 +48,7 @@ from x4_extract.dynamic.collector import Tier, hash_rows
 from x4_extract.dynamic.extractors.component_helpers import (
     element_attrs,
     enclosing_sector_zone,
+    enclosing_zone_id,
     extra_json_from_attrs,
     known_to_player,
 )
@@ -61,6 +62,11 @@ _OFFER_DEPTH = 19
 # It must be captured at the leaf <position> because the streaming dispatcher clears child
 # subtrees before the station's own end event (see savefile/dispatch.py).
 _STATION_POS_DEPTH = 17
+# A zone's own position, present only for procedurally-created zones (e.g. `tempzone` —
+# a placeholder macro shared by every dynamic zone instance galaxy-wide; ordinary named
+# zones rely on the static catalog instead and never carry this). zone(12)/offset(13)/
+# position(14) — probed the same way as the station's own offset above.
+_ZONE_POS_DEPTH = _STATION_DEPTH - 1
 # Direct children of the station component sit at station depth + 1.
 _STATION_CHILD_DEPTH = _STATION_DEPTH + 1
 # workforces/workforce + workforces/bonus sit at station depth + 2.
@@ -107,6 +113,12 @@ class StationRow:
     x: float | None
     y: float | None
     z: float | None
+    # Sector-relative position of the station's own zone instance, when the zone is a
+    # procedurally-created one (e.g. `tempzone`) that has no static-catalog centre. See
+    # `enclosing_zone_position`. None for stations in ordinary named zones.
+    zone_dyn_x: float | None
+    zone_dyn_y: float | None
+    zone_dyn_z: float | None
     state: str | None
     build_pct: float | None
     is_player_owned: int
@@ -138,6 +150,12 @@ class StationsCollector:
     offer_rows: list[OfferRow] = field(default_factory=list)
     # station id → (x, y, z) zone-relative offset, captured before the station row builds.
     station_offsets: dict[str, tuple[float | None, float | None, float | None]] = field(
+        default_factory=dict
+    )
+    # zone component id → (x, y, z) sector-relative position, for procedurally-created zones
+    # only (see `_ZONE_POS_DEPTH`). Captured before any station in that zone is visited —
+    # zone children stream in document order and `offset` always precedes `connections`.
+    zone_positions: dict[str, tuple[float | None, float | None, float | None]] = field(
         default_factory=dict
     )
     # station id -> seed_id from <source entry="...">
@@ -187,6 +205,10 @@ class StationsCollector:
             Registration(
                 target=Target(depth=_STATION_POS_DEPTH, tag="position", parent_tag="offset"),
                 visitor=self._on_station_offset,
+            ),
+            Registration(
+                target=Target(depth=_ZONE_POS_DEPTH, tag="position", parent_tag="offset"),
+                visitor=self._on_zone_position,
             ),
             Registration(
                 target=Target(depth=_STATION_CHILD_DEPTH, tag="source"),
@@ -372,6 +394,17 @@ class StationsCollector:
         if sid:
             self.station_offsets[sid] = (_f(elem.get("x")), _f(elem.get("y")), _f(elem.get("z")))
 
+    def _on_zone_position(self, elem: etree._Element) -> None:
+        offset = elem.getparent()
+        if offset is None or offset.tag != "offset":
+            return
+        zone = offset.getparent()
+        if zone is None or zone.get("class") != "zone":
+            return
+        zid = zone.get("id")
+        if zid:
+            self.zone_positions[zid] = (_f(elem.get("x")), _f(elem.get("y")), _f(elem.get("z")))
+
     def _on_station(self, elem: etree._Element) -> None:
         sector_id, zone_id = enclosing_sector_zone(elem, limit=9)
 
@@ -393,6 +426,9 @@ class StationsCollector:
         sid = elem.get("id") or ""
         seed_id = self.station_sources.get(sid)
 
+        zone_component_id = enclosing_zone_id(elem, limit=9)
+        zdx, zdy, zdz = self.zone_positions.get(zone_component_id or "", (None, None, None))
+
         # Base row. is_under_construction / build_pct are finalised in flush() because the
         # global build tasks may stream after this station; dynamic_tags is likewise deferred.
         self.station_rows.append(
@@ -407,6 +443,9 @@ class StationsCollector:
                 x=ox,
                 y=oy,
                 z=oz,
+                zone_dyn_x=zdx,
+                zone_dyn_y=zdy,
+                zone_dyn_z=zdz,
                 state=elem.get("state"),
                 build_pct=None,
                 is_player_owned=int(elem.get("owner") == "player"),
@@ -597,11 +636,13 @@ class StationsCollector:
                 """
                 INSERT OR REPLACE INTO stations
                     (station_id, code, name, macro, owner_faction, sector_id, zone_id,
-                     x, y, z, state, build_pct, is_player_owned, is_under_construction,
+                     x, y, z, zone_dyn_x, zone_dyn_y, zone_dyn_z, state, build_pct,
+                     is_player_owned, is_under_construction,
                      seed_id, dynamic_tags, known_to_player, basename, nameindex, extra_json)
                 VALUES
                     (:station_id, :code, :name, :macro, :owner_faction, :sector_id, :zone_id,
-                     :x, :y, :z, :state, :build_pct, :is_player_owned, :is_under_construction,
+                     :x, :y, :z, :zone_dyn_x, :zone_dyn_y, :zone_dyn_z, :state, :build_pct,
+                     :is_player_owned, :is_under_construction,
                      :seed_id, :dynamic_tags, :known_to_player, :basename, :nameindex, :extra_json)
                 """,
                 [dataclasses.asdict(r) for r in self.station_rows],

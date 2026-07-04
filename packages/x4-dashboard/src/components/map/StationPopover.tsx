@@ -33,13 +33,14 @@ function OfferList({ title, offers }: { title: string; offers: Offer[] }) {
 }
 
 export function StationPopover({
-  station, x, y, faction, onClose,
+  station, x, y, faction, onClose, onOpenDetail,
 }: {
   station: MapStation;
   x: number;
   y: number;
   faction: FactionSummary | null;
   onClose: () => void;
+  onOpenDetail?: (stationId: string) => void;
 }) {
   const isLive = station.source === "live";
   const offersQuery = useQuery<Offer[] | null>({
@@ -57,6 +58,9 @@ export function StationPopover({
     <div
       style={{ position: "absolute", left: x + 12, top: y + 12, zIndex: 25, maxWidth: 260 }}
       className="rounded-md border border-border bg-popover/95 px-3 py-2.5 shadow-lg backdrop-blur text-xs"
+      // The map canvas clears selection on any click that bubbles to it (for "click empty
+      // space to deselect"); stop it here so clicks inside the popover don't unmount it.
+      onClick={(e) => e.stopPropagation()}
     >
       <button onClick={onClose}
         className="absolute top-1.5 right-1.5 flex items-center justify-center w-4 h-4 rounded text-muted-foreground hover:text-foreground">
@@ -86,6 +90,15 @@ export function StationPopover({
         )
       ) : (
         <p className="text-muted-foreground/60 mt-2 border-t border-border pt-2">Gamestart placement (load a save for live trade)</p>
+      )}
+
+      {isLive && onOpenDetail && (
+        <button
+          onClick={() => onOpenDetail(station.station_id)}
+          className="mt-2 w-full text-center text-[11px] font-medium uppercase tracking-wide text-primary border-t border-border pt-2 hover:text-primary/80 transition-colors"
+        >
+          View full details
+        </button>
       )}
     </div>
   );

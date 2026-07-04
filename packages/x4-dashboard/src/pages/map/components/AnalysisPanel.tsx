@@ -10,6 +10,7 @@ import type { FillMode } from "../../../lib/map/overlays/types";
 import type { EconomyWare } from "../../../lib/map/overlays/types";
 import type { ResourceSource } from "../../../lib/map/overlays/useAnalysisData";
 import type { ConflictToggles } from "../../../lib/map/overlays/useAnalysisOverlay";
+import { TradeStationList } from "./TradeStationList";
 
 const TABS: { id: FillMode; label: string; icon: React.ReactNode }[] = [
   {
@@ -118,6 +119,9 @@ export function AnalysisPanel({
   overlayLoading,
   conflictToggles,
   onToggleConflict,
+  sectorName,
+  onSelectStation,
+  currentSectorId,
 }: {
   fillMode: FillMode;
   onFillModeChange: (m: FillMode) => void;
@@ -136,9 +140,13 @@ export function AnalysisPanel({
   overlayLoading?: boolean;
   conflictToggles?: ConflictToggles;
   onToggleConflict?: (key: keyof ConflictToggles, value: boolean) => void;
+  sectorName?: (id: string | null) => string;
+  onSelectStation?: (stationId: string) => void;
+  currentSectorId?: string | null;
 }) {
   const [wareFilter, setWareFilter] = useState("");
   const [panelOpen, setPanelOpen] = useState(true);
+  const [tradeSide, setTradeSide] = useState<"sell" | "buy">("sell");
   const filtered = economyWares
     .filter((w) =>
       (w.ware_name ?? w.ware_id)
@@ -359,7 +367,10 @@ export function AnalysisPanel({
                       {filtered.map((w) => (
                         <button
                           key={w.ware_id}
-                          onClick={() => onWareChange(w.ware_id)}
+                          onClick={() => {
+                            onWareChange(w.ware_id);
+                            setWareFilter("");
+                          }}
                           className={`text-left text-[12px] px-2 py-1.5 rounded transition-colors ${
                             wareId === w.ware_id
                               ? "bg-primary/20 text-white"
@@ -369,6 +380,19 @@ export function AnalysisPanel({
                           {w.ware_name ?? w.ware_id}
                         </button>
                       ))}
+                    </div>
+                  )}
+
+                  {!wareFilter && (
+                    <div className="border-t border-white/10 pt-3">
+                      <TradeStationList
+                        wareId={wareId}
+                        side={tradeSide}
+                        onSideChange={setTradeSide}
+                        sectorName={sectorName ?? ((id) => id ?? "Unknown")}
+                        onSelectStation={(stationId) => onSelectStation?.(stationId)}
+                        currentSectorId={currentSectorId}
+                      />
                     </div>
                   )}
                 </div>
@@ -435,7 +459,10 @@ export function AnalysisPanel({
                       {filtered.map((w) => (
                         <button
                           key={w.ware_id}
-                          onClick={() => onWareChange(w.ware_id)}
+                          onClick={() => {
+                            onWareChange(w.ware_id);
+                            setWareFilter("");
+                          }}
                           className={`text-left text-[12px] px-2 py-1.5 rounded transition-colors ${
                             wareId === w.ware_id
                               ? "bg-primary/20 text-white"

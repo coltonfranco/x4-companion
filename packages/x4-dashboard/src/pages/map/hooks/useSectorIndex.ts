@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { sectorDisplayName } from "../../../lib/map/names";
 import type { ConflictEntry, SectorForceEntry } from "../../../lib/map/overlays/useAnalysisData";
 import type { MapData } from "../../../lib/map/useMapData";
+import type { MapStation } from "../../../lib/map/types";
 
 type ConnectionEntry = { sectorId: string; name: string; kind: string };
 
@@ -26,15 +27,16 @@ export function useSectorIndex(
     return m;
   }, [data.zones]);
 
-  // Station category counts per sector.
-  const stationCatsBySector = useMemo(() => {
-    const m = new Map<string, Map<string, number>>();
+  // Full station list per sector — the detail panel derives category counts from this
+  // and lets you click through to an individual station's detail modal.
+  const stationsBySector = useMemo(() => {
+    const m = new Map<string, MapStation[]>();
     for (const st of data.stations) {
-      if (st.sector_id && st.category) {
+      if (st.sector_id) {
         const k = st.sector_id.toLowerCase();
-        const cats = m.get(k) ?? new Map<string, number>();
-        cats.set(st.category, (cats.get(st.category) ?? 0) + 1);
-        m.set(k, cats);
+        const list = m.get(k) ?? [];
+        list.push(st);
+        m.set(k, list);
       }
     }
     return m;
@@ -82,5 +84,5 @@ export function useSectorIndex(
     return m;
   }, [conflictsData]);
 
-  return { zoneCountBySector, stationCatsBySector, connectionsBySector, forcesBySector, conflictsBySector };
+  return { zoneCountBySector, stationsBySector, connectionsBySector, forcesBySector, conflictsBySector };
 }

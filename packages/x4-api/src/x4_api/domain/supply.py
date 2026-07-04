@@ -14,6 +14,8 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
+from x4_api.domain.station_naming import bulk_resolve_station_names
+
 # Demand/supply ratio past which a ware is flagged. 1.5 = 50% imbalance.
 _IMBALANCE = 1.5
 
@@ -71,12 +73,13 @@ class WareOffer:
     quantity: int
 
 
-# Procedural NPC stations carry no `name`; fall back to the in-game code, then the id, so the
-# UI never shows a bare internal id. owner_faction + sector_id are resolved to display names
-# client-side (factions / map-sectors are already cached there).
+# Procedural NPC stations carry no `name`; resolve the in-game display name (via
+# bulk_resolve_station_names) where possible, else fall back to the in-game code, then
+# the id, so the UI never shows a bare internal id. owner_faction + sector_id are
+# resolved to display names client-side (factions / map-sectors are already cached
+# there).
 _OFFERS_QUERY = """
-SELECT o.station_id,
-       COALESCE(NULLIF(st.name, ''), NULLIF(st.code, ''), o.station_id) AS station_name,
+SELECT o.station_id, st.name, st.basename, st.nameindex, st.macro,
        st.code AS station_code, st.owner_faction, st.sector_id,
        o.side, o.price, o.quantity
 FROM station_offers o
@@ -88,10 +91,16 @@ ORDER BY o.quantity DESC
 
 def ware_stations(conn: sqlite3.Connection, ware_id: str) -> list[WareOffer]:
     """Every station offer for one ware — drives the 'where is it short/hoarded?' drill-down."""
+    rows = conn.execute(_OFFERS_QUERY, (ware_id,)).fetchall()
+    resolved_names = bulk_resolve_station_names(conn, rows)
     return [
         WareOffer(
             station_id=r["station_id"],
-            station_name=r["station_name"],
+            station_name=(
+                resolved_names[r["station_id"]].name
+                if r["station_id"] in resolved_names
+                else (r["name"] or r["station_code"] or r["station_id"])
+            ),
             station_code=r["station_code"],
             owner_faction=r["owner_faction"],
             sector_id=r["sector_id"],
@@ -99,7 +108,7 @@ def ware_stations(conn: sqlite3.Connection, ware_id: str) -> list[WareOffer]:
             price=r["price"],
             quantity=r["quantity"],
         )
-        for r in conn.execute(_OFFERS_QUERY, (ware_id,)).fetchall()
+        for r in rows
     ]
 
 

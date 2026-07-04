@@ -87,6 +87,20 @@ def _seed(conn: sqlite3.Connection) -> None:
             ),
             # inventory
             dict(
+                ware_id="securitydecryption",
+                name="Security Decryption System",
+                group_id=None,
+                transport="inventory",
+                volume=1,
+                pmin=100,
+                pavg=200,
+                pmax=300,
+                storage=None,
+                tags="inventory crafting",
+                lic=None,
+                icon=None,
+            ),
+            dict(
                 ware_id="paintmod_neon",
                 name="Neon Paint",
                 group_id=None,
@@ -150,10 +164,16 @@ def test_wares_category_filter_partitions_catalog(
     assert commodity[0]["price_min"] == 10 and commodity[0]["price_max"] == 22
 
     inventory = client.get("/api/v1/wares?category=inventory").json()
-    assert [w["ware_id"] for w in inventory] == ["paintmod_neon"]
+    assert [w["ware_id"] for w in inventory] == ["paintmod_neon", "securitydecryption"]
     # paint mod drops but isn't produced; energy cell is neither here.
-    assert inventory[0]["has_drops"] is True
-    assert inventory[0]["has_production"] is False
+    inventory_by_id = {w["ware_id"]: w for w in inventory}
+    assert inventory_by_id["paintmod_neon"]["has_drops"] is True
+    assert inventory_by_id["paintmod_neon"]["has_production"] is False
+    assert (
+        inventory_by_id["paintmod_neon"]["icon_url"]
+        == "/static/icons/paintmods/paintmod_neon.png"
+    )
+    assert inventory_by_id["securitydecryption"]["icon_url"] is None
     assert commodity[0]["has_drops"] is False
 
 

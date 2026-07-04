@@ -1,12 +1,9 @@
-import { useMemo } from "react";
 import {
   MapPin,
-  Target,
 } from "lucide-react";
 import { StatBar } from "../../../components/data-display/StatBar";
 import type { FactionSummary } from "../../../lib/types";
-import type { MapObjective } from "./MissionMapModal";
-import type { Mission, MissionObjective } from "../types";
+import type { Mission, Bucket } from "../types";
 import {
   typeColor,
   typeLabel,
@@ -17,121 +14,20 @@ import {
   MissionFactionCluster,
   useMapExpand,
   RouteMapSection,
+  processObjectives,
 } from "./MissionViewParts";
+import { MissionBriefingText } from "../lib/missionText";
 
 type Props = {
   m: Mission;
   factionMap: Map<string, FactionSummary>;
-  onShowOnMap: (sectorId: string | null, objectives: MapObjective[]) => void;
+  /**
+   * Which bucket this mission is being viewed from. Passed by the caller rather
+   * than inferred from `m.is_active` — that flag marks the player's single
+   * pinned/tracked mission, not whether it's an active save mission vs. an offer.
+   */
+  bucket: Bucket;
 };
-
-// ── Objective helpers ─────────────────────────────────────────────────────────
-
-type ProcessedObjective = {
-  step: number;
-  text: string | null;
-  target_name: string | null;
-  target_sector_id: string | null;
-  status: "done" | "current" | "next";
-  progress_current: number | null;
-  progress_max: number | null;
-  type: string | null;
-};
-
-function processObjectives(objectives: MissionObjective[]): {
-  steps: ProcessedObjective[];
-  activeStep: number;
-} {
-  const parsed = objectives.map((obj) => {
-    let text = obj.text;
-    let progress_current = obj.progress_current;
-    let progress_max = obj.progress_max;
-
-    // Try to parse progress from text fields
-    if (progress_current == null || progress_max == null) {
-      const p = parseProgress(text);
-      if (p) {
-        progress_current = p.current;
-        progress_max = p.max;
-        text = p.cleanText;
-      }
-    }
-
-    return { ...obj, text, progress_current, progress_max };
-  });
-
-  // Normalize step numbers
-  const maxStep = Math.max(0, ...parsed.map((o) => o.step ?? 0));
-  parsed.forEach((o) => {
-    if (o.step == null || o.step === 0) {
-      o.step = maxStep > 0 ? maxStep + 1 : 1;
-    }
-  });
-
-  const sorted = [...parsed].sort((a, b) => (a.step ?? 0) - (b.step ?? 0));
-
-  // Determine active step
-  const activeStep =
-    sorted.find((o) => o.is_active)?.step ??
-    Math.max(0, ...sorted.map((o) => o.step ?? 0));
-
-  // Deduplicate
-  const seen = new Map<string, number>();
-  sorted.forEach((o, i) => {
-    const sig = `${o.type}|${(o.text ?? "").toLowerCase()}|${(o.target_name ?? "").toLowerCase()}`;
-    seen.set(sig, i);
-  });
-  const deduped = sorted.filter((o, i) => {
-    const sig = `${o.type}|${(o.text ?? "").toLowerCase()}|${(o.target_name ?? "").toLowerCase()}`;
-    return seen.get(sig) === i;
-  });
-
-  const steps: ProcessedObjective[] = deduped.map((o) => {
-    const step = o.step ?? 0;
-    const isComplete =
-      (activeStep > 0 && step < activeStep) ||
-      (o.progress_current != null &&
-        o.progress_max != null &&
-        o.progress_max > 0 &&
-        o.progress_current >= o.progress_max);
-    const isActive = !isComplete && o.is_active;
-    const status: ProcessedObjective["status"] = isComplete
-      ? "done"
-      : isActive
-        ? "current"
-        : "next";
-
-    return {
-      step,
-      text: o.text,
-      target_name: o.target_name,
-      target_sector_id: o.target_sector_id,
-      status,
-      progress_current: o.progress_current,
-      progress_max: o.progress_max,
-      type: o.type,
-    };
-  });
-
-  return { steps, activeStep };
-}
-
-function parseProgress(s: string | null): {
-  current: number;
-  max: number;
-  cleanText: string;
-} | null {
-  if (!s) return null;
-  const match = s.match(/\(\s*(\d+)\s*\/\s*(\d+)\s*\)/);
-  if (match) {
-    return {
-      current: parseInt(match[1], 10),
-      max: parseInt(match[2], 10),
-      cleanText: s.replace(match[0], "").trim(),
-    };
-  }
-  return null;
-}
 
 // ── Bucket metadata ───────────────────────────────────────────────────────────
 
@@ -143,10 +39,9 @@ const BUCKET_META: Record<string, { label: string; color: string }> = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function MissionDetail({ m, factionMap, onShowOnMap }: Props) {
+export function MissionDetail({ m, factionMap, bucket }: Props) {
   const mtypeColor = m.type ? typeColor(m.type) : undefined;
   const mtLabel = m.type ? typeLabel(m.type) : null;
-  const bucket = m.is_active ? "active" : "offer";
   const bucketMeta = BUCKET_META[bucket] ?? BUCKET_META.offer;
 
   // Process objectives
@@ -159,30 +54,6 @@ export function MissionDetail({ m, factionMap, onShowOnMap }: Props) {
     currentStep?.target_sector_id ??
     m.associated_entity_sector_id ??
     null;
-
-  // Gather map objectives for "Show on Map"
-  const allMapObjectives = useMemo((): MapObjective[] => {
-    const points: MapObjective[] = [];
-    for (const obj of m.objectives) {
-      if (obj.target_name || obj.target_x != null) {
-        points.push({
-          label: obj.target_name ?? obj.text ?? `Step ${obj.step}`,
-          x: obj.target_x,
-          z: obj.target_z,
-          zoneId: obj.target_zone_id,
-        });
-      }
-    }
-    if (m.associated_entity_name && m.associated_entity_x != null) {
-      points.push({
-        label: m.associated_entity_name,
-        x: m.associated_entity_x,
-        z: m.associated_entity_z,
-        zoneId: m.associated_entity_zone_id,
-      });
-    }
-    return points;
-  }, [m]);
 
   const routeMap = useMapExpand(mapSectorId);
   if (routeMap.fullscreenView) return routeMap.fullscreenView;
@@ -251,7 +122,7 @@ export function MissionDetail({ m, factionMap, onShowOnMap }: Props) {
               DO THIS NEXT
             </div>
             <div className="text-sm font-semibold text-foreground mt-1">
-              {currentStep.text ?? `Step ${currentStep.step}`}
+              {currentStep.text || `Step ${currentStep.step}`}
             </div>
           </div>
           <div className="text-right shrink-0">
@@ -312,7 +183,7 @@ export function MissionDetail({ m, factionMap, onShowOnMap }: Props) {
             className="text-[12.5px] mt-1.5 leading-relaxed"
             style={{ color: "#aab4c6" }}
           >
-            {m.description || "No briefing available."}
+            <MissionBriefingText text={m.description} />
           </div>
         </div>
       </div>
@@ -366,7 +237,7 @@ export function MissionDetail({ m, factionMap, onShowOnMap }: Props) {
                           step.status === "done" ? "line-through" : "none",
                       }}
                     >
-                      {step.text ?? `Step ${step.step}`}
+                      {step.text || `Step ${step.step}`}
                     </div>
                     {step.target_name && (
                       <div className="flex items-center gap-1.5 mt-1">
@@ -406,43 +277,11 @@ export function MissionDetail({ m, factionMap, onShowOnMap }: Props) {
               Target: {mapSectorId}
             </span>
           }
-          expandButtonContent={
-            <>
-              <MaximizeIcon />
-              Expand
-            </>
-          }
           targetSectorId={mapSectorId}
           height={220}
           onExpand={routeMap.expand}
         />
       )}
-
-      {/* Actions */}
-      <div className="flex items-center gap-2.5 mt-5">
-        {mapSectorId && (
-          <button
-            onClick={() => onShowOnMap(mapSectorId, allMapObjectives)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-medium transition-colors hover:brightness-125"
-            style={{
-              background: "rgba(92,200,236,0.12)",
-              border: "1px solid rgba(92,200,236,0.3)",
-              color: "#7fb9d6",
-            }}
-          >
-            <Target className="w-4 h-4" />
-            Show on Map
-          </button>
-        )}
-      </div>
     </div>
-  );
-}
-
-function MaximizeIcon() {
-  return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-    </svg>
   );
 }

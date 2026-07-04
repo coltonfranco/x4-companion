@@ -10,7 +10,11 @@ import { MapLegend } from "./components/MapLegend";
 import { NavPanel } from "./components/NavPanel";
 import { SectorDetailPanel } from "./components/SectorDetailPanel";
 import { SectorSearch } from "./components/SectorSearch";
+import { DetailDialog } from "../../components/ui/detail-dialog";
+import { StationDetailPanel } from "../../components/detail-panels/StationDetailPanel";
 import { sectorDisplayName } from "../../lib/map/names";
+import { minScaleForStationReveal, stationDisplayName } from "../../lib/map/stations";
+import { computeDominantSectorId, computeSectorFillScale } from "../../lib/map/positions";
 import { useMapData } from "../../lib/map/useMapData";
 import { useMapLayout } from "../../lib/map/useMapLayout";
 import { usePanZoom } from "./hooks/usePanZoom";
@@ -133,10 +137,22 @@ export default function MapPage() {
   }, [data.stations, settings.fogOfWar, layout.visibleSectorIds]);
 
   // ── Per-sector lookup maps for the detail panel ──
-  const { zoneCountBySector, stationCatsBySector, connectionsBySector, forcesBySector, conflictsBySector } =
+  const { zoneCountBySector, stationsBySector, connectionsBySector, forcesBySector, conflictsBySector } =
     useSectorIndex(data, forcesData, conflictsData);
 
+  // Station detail modal — lives at the page level (not inside MapCanvas's pannable
+  // container) so it isn't torn down by the "click empty space deselects" handler there.
+  const [stationDetailId, setStationDetailId] = useState<string | null>(null);
+
   const panZoom = usePanZoom(sectorCoords, visibleSectors, hexSize);
+
+  // The sector filling the screen once zoomed in far enough counts as "active" for
+  // trade lookups too, so searching wares within the sector you're already deep-zoomed
+  // into doesn't require an explicit hover/click first.
+  const dominantSectorId = useMemo(
+    () => computeDominantSectorId(panZoom.transform, panZoom.viewport, sectorCoords, hexSize),
+    [panZoom.transform, panZoom.viewport, sectorCoords, hexSize]
+  );
 
   const economyWaresQuery = useEconomyWares(fillMode === "trade");
   const wareName = useMemo(
@@ -186,11 +202,38 @@ export default function MapPage() {
     if (st) setSelectedSectorId(null);
   }, []);
 
+  // Jumping to a station from a list (e.g. the trade panel's per-station breakdown):
+  // look it up by id, center the map on its exact position, and open its popover. Only
+  // zooms IN as far as needed to actually reveal that station — never zooms out, and
+  // never lands at a scale where it'd still be faded out by the reveal-tier opacity.
+  const handleJumpToStation = useCallback((stationId: string) => {
+    const st = data.stations.find((s) => s.station_id === stationId);
+    if (!st) return;
+    handleSelectStation(st);
+    const pos = layout.stationScreenPos.get(st.station_id);
+    if (pos) {
+      panZoom.panToWorldPos(pos, minScaleForStationReveal(st, layout.hexSize));
+    } else if (st.sector_id) {
+      panZoom.zoomToSector(st.sector_id);
+    }
+  }, [data.stations, handleSelectStation, panZoom, layout.stationScreenPos, layout.hexSize]);
+
   // Right-click: set the navigation destination (origin stays sticky for repeat probing).
   const handleContextSector = useCallback((id: string, mapPos?: [number, number]) => {
     setNavTo(id);
     setNavToPos(mapPos ?? null);
   }, []);
+
+  // Double-click: zoom in so the sector fills most of the screen. Only zooms IN — if
+  // already zoomed in further than that (e.g. deep inside the sector already), it just
+  // recenters instead of zooming back out. Double-clicking a station instead opens its
+  // detail view (StationLayer stops propagation before this ever fires).
+  const handleDoubleClickSector = useCallback((id: string) => {
+    const pos = sectorCoords.get(id);
+    if (!pos) return;
+    const fillScale = computeSectorFillScale(hexSize, layout.subSectorSet.has(id), panZoom.viewport);
+    panZoom.panToWorldPos(pos, fillScale);
+  }, [sectorCoords, hexSize, layout.subSectorSet, panZoom]);
 
   const clearNav = useCallback(() => {
     setNavFrom(null); setNavTo(null);
@@ -228,12 +271,14 @@ export default function MapPage() {
         onSelectSector={handleSelectSector}
         onHoverSector={setHoveredSectorId}
         onContextSector={handleContextSector}
+        onDoubleClickSector={handleDoubleClickSector}
         navFrom={navFrom}
         navTo={navTo}
         onClearNav={clearNav}
         sectorName={sectorName}
         selectedStation={selectedStation}
         onSelectStation={handleSelectStation}
+        onOpenStationDetail={setStationDetailId}
         showFactionLabels={toggles.showFactionLogos}
         playerSectorId={player?.sector_id ?? player?.current_sector ?? null}
         playerZoneId={player?.zone_id ?? null}
@@ -358,6 +403,9 @@ export default function MapPage() {
           overlayLoading={overlay.isLoading}
           conflictToggles={conflictToggles}
           onToggleConflict={(k, v) => setConflictToggles(prev => ({ ...prev, [k]: v }))}
+          sectorName={(id) => (id ? sectorName(id) : "Unknown")}
+          onSelectStation={handleJumpToStation}
+          currentSectorId={selectedSectorId ?? hoveredSectorId ?? dominantSectorId}
         />
       </div>
 
@@ -366,10 +414,6 @@ export default function MapPage() {
         const sid = selectedSector.sector_id.toLowerCase();
         const forceEntry = forcesBySector.get(sid) ?? null;
         const conflictEntry = conflictsBySector.get(sid) ?? null;
-        const stationCats = stationCatsBySector.get(sid);
-        const catList = stationCats
-          ? [...stationCats.entries()].map(([category, count]) => ({ category, count }))
-          : [];
 
         return (
           <div className="absolute top-[64px] right-[20px] pointer-events-auto z-10">
@@ -381,7 +425,8 @@ export default function MapPage() {
               onClose={() => setSelectedSectorId(null)}
               connections={connectionsBySector.get(sid) ?? []}
               zoneCount={zoneCountBySector.get(sid) ?? 0}
-              stationCategories={catList}
+              stations={stationsBySector.get(sid) ?? []}
+              onOpenStationDetail={setStationDetailId}
               forces={forceEntry?.factions.map((f: any) => ({
                 factionId: f.faction_id,
                 factionName: f.faction_name,
@@ -447,8 +492,30 @@ export default function MapPage() {
           fillMode={fillMode}
           factionMap={layout.factionMap}
           resource={resource}
+          wareId={wareId}
         />
       </div>
+
+      {/* Station detail modal — kept at page level so it survives the map canvas's
+          "click empty space to deselect" handler and works from any trigger (popover,
+          sector panel, trade list). */}
+      {stationDetailId && (
+        <DetailDialog
+          open={!!stationDetailId}
+          onOpenChange={(open) => !open && setStationDetailId(null)}
+          title={(() => {
+            const st = data.stations.find((s) => s.station_id === stationDetailId);
+            return st ? stationDisplayName(st) : "Station Details";
+          })()}
+          description="Station details"
+        >
+          <StationDetailPanel
+            stationId={stationDetailId}
+            factionMap={layout.factionMap}
+            sectorName={(id) => (id ? sectorName(id) : "Unknown")}
+          />
+        </DetailDialog>
+      )}
 
     </div>
   );

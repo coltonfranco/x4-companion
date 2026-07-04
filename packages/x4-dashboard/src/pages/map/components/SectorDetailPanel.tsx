@@ -4,10 +4,12 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, MapPin, Shield, Swords, X } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_ORDER, RESOURCE_COLORS, RESOURCE_ORDER } from "../../../lib/map/constants";
 import { dlcLabel, sectorDisplayName } from "../../../lib/map/names";
-import type { Cluster, Sector } from "../../../lib/map/types";
+import { stationCategoryLabel, stationDisplayName } from "../../../lib/map/stations";
+import { StationTypeIcon } from "../../../components/map/StationMapIcon";
+import type { Cluster, MapStation, Sector } from "../../../lib/map/types";
 import type { FactionSummary } from "../../../lib/types";
 
-export function SectorDetailPanel({ sector, cluster, resources, factionMap, onClose, connections, zoneCount, stationCategories, forces, conflict, playerCurrentSector, liveResources, onNavigate }: {
+export function SectorDetailPanel({ sector, cluster, resources, factionMap, onClose, connections, zoneCount, stations, forces, conflict, playerCurrentSector, liveResources, onNavigate, onOpenStationDetail }: {
   sector: Sector;
   cluster: Cluster | null;
   resources: Set<string>;
@@ -15,12 +17,13 @@ export function SectorDetailPanel({ sector, cluster, resources, factionMap, onCl
   onClose: () => void;
   connections: { sectorId: string; name: string; kind: string }[];
   zoneCount: number;
-  stationCategories: { category: string; count: number }[];
+  stations: MapStation[];
   forces: { factionId: string; factionName: string; fighterCount: number; minerCount?: number; traderCount?: number; otherCount?: number }[] | null;
   conflict: { type: string; intensity: number; invaderName?: string; sectorOwnerName?: string } | null;
   playerCurrentSector: string | null;
   liveResources: { ware: string; current: number; max: number }[] | null;
   onNavigate?: (sectorId: string) => void;
+  onOpenStationDetail?: (stationId: string) => void;
 }) {
   const [descExpanded, setDescExpanded] = useState(false);
 
@@ -41,16 +44,23 @@ export function SectorDetailPanel({ sector, cluster, resources, factionMap, onCl
   }
   const hasLiveResources = liveByWare.size > 0;
 
-  // Station categories ordered and labeled.  Specific factory subtypes (e.g.
-  // "Weapon Components") aren't in CATEGORY_ORDER — append them after the known
-  // order so they still appear in the breakdown.
+  // Stations grouped by category, ordered and labeled. Specific factory subtypes (e.g.
+  // "Weapon Components") aren't in CATEGORY_ORDER — append them after the known order so
+  // they still appear in the breakdown. Each group's stations are individually clickable.
+  const byCategory = new Map<string, MapStation[]>();
+  for (const st of stations) {
+    const key = st.category ?? "other";
+    const list = byCategory.get(key) ?? [];
+    list.push(st);
+    byCategory.set(key, list);
+  }
   const orderedCats = CATEGORY_ORDER
-    .map((c) => ({ category: c, count: stationCategories.find((sc) => sc.category === c)?.count ?? 0 }))
-    .filter((c) => c.count > 0);
+    .filter((c) => byCategory.has(c))
+    .map((c) => ({ category: c, stations: byCategory.get(c)! }));
   const knownCats = new Set(orderedCats.map((c) => c.category));
-  for (const sc of stationCategories) {
-    if (!knownCats.has(sc.category)) {
-      orderedCats.push(sc);
+  for (const [category, list] of byCategory) {
+    if (!knownCats.has(category)) {
+      orderedCats.push({ category, stations: list });
     }
   }
 
@@ -216,19 +226,38 @@ export function SectorDetailPanel({ sector, cluster, resources, factionMap, onCl
           </div>
         )}
 
-        {/* Station breakdown */}
+        {/* Station breakdown — click a station to open its detail panel */}
         {orderedCats.length > 0 && (
-          <div>
-            <p className="text-[10px] tracking-[1.2px] text-[#6b7890] uppercase mb-[6px]">
-              Stations ({orderedCats.reduce((s, c) => s + c.count, 0)})
+          <div className="flex flex-col gap-[8px]">
+            <p className="text-[10px] tracking-[1.2px] text-[#6b7890] uppercase">
+              Stations ({stations.length})
             </p>
-            <div className="flex flex-wrap gap-[5px]">
-              {orderedCats.map(({ category, count }) => (
-                <span key={category} className="px-[8px] py-[3px] rounded-[6px] text-[10px] bg-white/[0.04] border border-white/[0.06] text-[#aeb7c8]">
-                  {CATEGORY_LABELS[category] ?? category} <span className="text-[#6b7890] ml-[2px] tabular-nums">{count}</span>
-                </span>
-              ))}
-            </div>
+            {orderedCats.map(({ category, stations: catStations }) => (
+              <div key={category} className="flex flex-col gap-[4px]">
+                <p className="text-[10px] text-[#6b7890]">
+                  {CATEGORY_LABELS[category] ?? stationCategoryLabel(category)}
+                  <span className="ml-[4px] tabular-nums">({catStations.length})</span>
+                </p>
+                <div className="flex flex-wrap gap-[5px]">
+                  {catStations.map((st) => {
+                    const stFaction = st.owner_faction ? factionMap.get(st.owner_faction) : null;
+                    const iconColor = st.is_hq ? "#f59e0b" : (stFaction?.color_hex ?? "#aeb7c8");
+                    return (
+                      <button
+                        key={st.station_id}
+                        onClick={() => onOpenStationDetail?.(st.station_id)}
+                        disabled={!onOpenStationDetail || st.source !== "live"}
+                        className="flex items-center gap-[5px] px-[8px] py-[3px] rounded-[6px] text-[10px] bg-white/[0.04] border border-white/[0.06] text-[#aeb7c8] hover:bg-white/[0.08] hover:text-[#eef3fa] hover:border-white/[0.12] transition-colors disabled:hover:bg-white/[0.04] disabled:hover:text-[#aeb7c8] disabled:hover:border-white/[0.06] disabled:cursor-default cursor-pointer text-left truncate max-w-[280px]"
+                        title={stationDisplayName(st)}
+                      >
+                        <StationTypeIcon station={st} color={iconColor} className="w-[13px] h-[13px] shrink-0" />
+                        <span className="truncate">{stationDisplayName(st)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

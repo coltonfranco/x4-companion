@@ -17,8 +17,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from x4_api.deps import get_db
+from x4_api.domain.station_naming import StationName, bulk_resolve_station_names
 from x4_api.routes._db import fetch_one_or_404
-from x4_api.routes.map.stations import _category_from_macro
+from x4_api.routes.map.stations import _category_from_macro, _single_product_icons
 from x4_api.schemas import PublicModel
 
 router = APIRouter()
@@ -33,6 +34,8 @@ class LiveStation(PublicModel):
     sector_id: str | None
     # Function category derived from the macro (factory/shipyard/wharf/tradestation/…).
     category: str | None = None
+    # Ware group id for factory-type stations — lets the client pick a distinct icon.
+    icon_group: str | None = None
     is_player_owned: bool
     is_under_construction: bool
     # Rollup from station_overview (None until a save with composition is ingested).
@@ -44,6 +47,7 @@ class LiveStation(PublicModel):
     workforce_capacity: int | None = None
     workforce_bonus: float | None = None
     production_product: str | None = None
+    production_product_icon_url: str | None = None
     seed_id: str | None = None
     dynamic_tags: str | None = None
     known_to_player: bool
@@ -125,9 +129,29 @@ _LIST_COLS = (
 )
 
 
-def _row_to_station(r: sqlite3.Row) -> LiveStation:
+def _row_to_station(
+    r: sqlite3.Row,
+    resolved: StationName | None = None,
+    single_product: tuple[str, str | None] | None = None,
+) -> LiveStation:
     d = dict(r)
-    return LiveStation(category=_category_from_macro(d.get("macro")), **d)
+    category = _category_from_macro(d.get("macro"))
+    if single_product is not None:
+        d["production_product"], d["production_product_icon_url"] = single_product
+    else:
+        d["production_product_icon_url"] = None
+    if resolved:
+        d["name"] = resolved.name
+        # Many "type" stations (defence platforms, shipyards...) share one generic
+        # macro indistinguishable from a factory — the basename-resolved category is
+        # authoritative when present, overriding the macro-derived guess.
+        if resolved.category:
+            category = resolved.category
+    return LiveStation(
+        category=category,
+        icon_group=resolved.icon_group if resolved else None,
+        **d,
+    )
 
 
 @router.get("/stations", response_model=list[LiveStation])
@@ -157,7 +181,16 @@ def list_stations(
     params["limit"] = limit
     params["offset"] = offset
     rows = conn.execute(" ".join(sql), params).fetchall()
-    return [_row_to_station(r) for r in rows]
+    resolved_names = bulk_resolve_station_names(conn, rows)
+    single_products = _single_product_icons(conn, [r["station_id"] for r in rows])
+    return [
+        _row_to_station(
+            r,
+            resolved_names.get(r["station_id"]),
+            single_products.get(r["station_id"]),
+        )
+        for r in rows
+    ]
 
 
 def _require_station(conn: sqlite3.Connection, station_id: str) -> sqlite3.Row:
@@ -166,6 +199,30 @@ def _require_station(conn: sqlite3.Connection, station_id: str) -> sqlite3.Row:
         "SELECT station_id, is_under_construction, build_pct FROM stations WHERE station_id = :id",
         {"id": station_id},
         f"Unknown station_id: {station_id}",
+    )
+
+
+@router.get("/stations/{station_id}", response_model=LiveStation)
+def get_station(
+    station_id: str,
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+) -> LiveStation:
+    """Single station's list-row rollup, for detail panels that only have an id
+    (e.g. clicked from the map, which doesn't carry the full overview). 404 if unknown."""
+    row = fetch_one_or_404(
+        conn,
+        f"SELECT {_LIST_COLS} FROM stations st "
+        "LEFT JOIN station_overview ov ON ov.station_id = st.station_id "
+        "WHERE st.station_id = :id",
+        {"id": station_id},
+        f"Unknown station_id: {station_id}",
+    )
+    resolved_names = bulk_resolve_station_names(conn, [row])
+    single_products = _single_product_icons(conn, [row["station_id"]])
+    return _row_to_station(
+        row,
+        resolved_names.get(row["station_id"]),
+        single_products.get(row["station_id"]),
     )
 
 

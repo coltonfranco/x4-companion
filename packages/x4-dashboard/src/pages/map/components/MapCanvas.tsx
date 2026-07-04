@@ -1,13 +1,14 @@
 // The pannable/zoomable SVG canvas: composes the grid, link, sector, and overlay layers,
 // and renders screen-space HUD bits (route tooltip, nav readout, zoom, legend).
 
-import { type RefObject, useState, Fragment } from "react";
+import { type RefObject, useMemo, useState, Fragment } from "react";
 import { X } from "lucide-react";
 
 import {
   stationCategoryLabel,
   stationDisplayName,
 } from "../../../lib/map/stations";
+import { computeDominantSectorId } from "../../../lib/map/positions";
 import { RESOURCE_COLORS } from "../../../lib/map/constants";
 
 import type { MapData } from "../../../lib/map/useMapData";
@@ -59,12 +60,14 @@ export function MapCanvas({
   onSelectSector,
   onHoverSector,
   onContextSector,
+  onDoubleClickSector,
   navFrom,
   navTo,
   onClearNav,
   sectorName,
   selectedStation,
   onSelectStation,
+  onOpenStationDetail,
   showFactionLabels,
   playerSectorId,
   playerZoneId,
@@ -83,12 +86,14 @@ export function MapCanvas({
   onSelectSector: (id: string | null, mapPos?: [number, number]) => void;
   onHoverSector: (id: string | null) => void;
   onContextSector: (id: string, mapPos?: [number, number]) => void;
+  onDoubleClickSector?: (id: string) => void;
   navFrom: string | null;
   navTo: string | null;
   onClearNav: () => void;
   sectorName: (id: string) => string;
   selectedStation: MapStation | null;
   onSelectStation: (st: MapStation | null) => void;
+  onOpenStationDetail?: (stationId: string) => void;
   showFactionLabels?: boolean;
   playerSectorId?: string | null;
   playerZoneId?: string | null;
@@ -109,11 +114,21 @@ export function MapCanvas({
     stationScreenPos,
   } = layout;
 
+  // Once a sector fills most of the screen at deep zoom, treat it as hovered too — its
+  // hex may render with a transparent fill there (the build grid takes over), which can
+  // make it unreliable to actually hover, and searching wares for the sector you're
+  // already deep-zoomed into shouldn't require an explicit hover/click first.
+  const dominantSectorId = useMemo(
+    () => computeDominantSectorId(transform, viewport, sectorCoords, hexSize),
+    [transform, viewport, sectorCoords, hexSize]
+  );
+  const effectiveHoveredSectorId = hoveredSectorId ?? dominantSectorId;
+
   // In trade-routes view, hovering a buy sector shows its routes (the whole hex is the
   // target now — no tiny dot to hit).
-  const hoveredMarker = hoveredSectorId
+  const hoveredMarker = effectiveHoveredSectorId
     ? (overlay.routeMarkers.find(
-        (m) => m.id === hoveredSectorId.toLowerCase(),
+        (m) => m.id === effectiveHoveredSectorId.toLowerCase(),
       ) ?? null)
     : null;
 
@@ -277,9 +292,9 @@ export function MapCanvas({
               }
               onContextSector(id, mapPos);
             }}
+            onDoubleClick={onDoubleClickSector}
             sectorTint={overlay.sectorTint}
             sectorBadges={overlay.sectorBadges}
-            sectorTooltips={overlay.sectorTooltips}
             alternateDots={overlay.alternateDots}
             dimOthers={overlay.dimOthers}
             showFactionLabels={showFactionLabels}
@@ -296,6 +311,7 @@ export function MapCanvas({
             visibleSectorIds={visibleSectorIds}
             overlappingPaths={overlappingPaths}
             transform={transform}
+            viewport={viewport}
             borderTensions={overlay.borderTensions}
             setHoveredLinkId={setHoveredLinkId}
           />
@@ -309,6 +325,7 @@ export function MapCanvas({
             visibleSectorIds={visibleSectorIds}
             overlappingPaths={overlappingPaths}
             transform={transform}
+            viewport={viewport}
             borderTensions={overlay.borderTensions}
             setHoveredLinkId={setHoveredLinkId}
           />
@@ -320,9 +337,11 @@ export function MapCanvas({
               factionMap={factionMap}
               hexSize={hexSize}
               transform={transform}
+              viewport={viewport}
               selectedStationId={selectedStation?.station_id ?? null}
               onSelect={onSelectStation}
               onHover={setHoveredStation}
+              onOpenDetail={onOpenStationDetail}
             />
           )}
 
@@ -430,18 +449,18 @@ export function MapCanvas({
       )}
 
       {/* Unified Sector Hover Tooltip */}
-      {hoveredSectorId &&
-        (overlay.sectorConflicts?.has(hoveredSectorId.toLowerCase()) ||
-          overlay.sectorForces?.has(hoveredSectorId.toLowerCase()) ||
-          overlay.sectorResources?.has(hoveredSectorId.toLowerCase()) ||
-          overlay.sectorWarePrices?.has(hoveredSectorId.toLowerCase())) &&
+      {effectiveHoveredSectorId &&
+        (overlay.sectorConflicts?.has(effectiveHoveredSectorId.toLowerCase()) ||
+          overlay.sectorForces?.has(effectiveHoveredSectorId.toLowerCase()) ||
+          overlay.sectorResources?.has(effectiveHoveredSectorId.toLowerCase()) ||
+          overlay.sectorWarePrices?.has(effectiveHoveredSectorId.toLowerCase())) &&
         (() => {
-          const hid = hoveredSectorId.toLowerCase();
+          const hid = effectiveHoveredSectorId.toLowerCase();
           const conflict = overlay.sectorConflicts?.get(hid);
           const forces = overlay.sectorForces?.get(hid);
           const sr = overlay.sectorResources?.get(hid);
           const wp = overlay.sectorWarePrices?.get(hid);
-          const pos = layout.sectorCoords.get(hoveredSectorId);
+          const pos = layout.sectorCoords.get(effectiveHoveredSectorId);
           if (!pos) return null;
 
           const forceKey = overlay.displayForcesMode === "miners" ? "miner_count" : overlay.displayForcesMode === "traders" ? "trader_count" : "fighter_count";
@@ -497,31 +516,40 @@ export function MapCanvas({
           }
           
           if (wp) {
+            const soldOut = wp.supply === 0 && wp.demand === 0;
             const net = wp.supply - wp.demand;
             sections.push(
               <div className="flex flex-col gap-1.5" key="warePrices">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "var(--success)" }} />
-                    <span>Supply</span>
-                  </div>
-                  <span className="tabular-nums font-medium">{wp.supply.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "var(--danger)" }} />
-                    <span>Demand</span>
-                  </div>
-                  <span className="tabular-nums font-medium">{wp.demand.toLocaleString()}</span>
-                </div>
-                <div className="border-t border-border/30 pt-1.5 mt-0.5 flex items-center justify-between gap-4">
-                  <span className="text-muted-foreground">Net</span>
-                  <span className={`tabular-nums font-bold ${net > 0 ? "text-success" : net < 0 ? "text-danger" : "text-muted-foreground"}`}>
-                    {net >= 0 ? "+" : ""}{net.toLocaleString()}
-                  </span>
-                </div>
+                {soldOut ? (
+                  <p className="text-muted-foreground leading-snug">
+                    Traded here, but nothing available right now.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "var(--success)" }} />
+                        <span>Supply</span>
+                      </div>
+                      <span className="tabular-nums font-medium">{wp.supply.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "var(--danger)" }} />
+                        <span>Demand</span>
+                      </div>
+                      <span className="tabular-nums font-medium">{wp.demand.toLocaleString()}</span>
+                    </div>
+                    <div className="border-t border-border/30 pt-1.5 mt-0.5 flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Net</span>
+                      <span className={`tabular-nums font-bold ${net > 0 ? "text-success" : net < 0 ? "text-danger" : "text-muted-foreground"}`}>
+                        {net >= 0 ? "+" : ""}{net.toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                )}
                 {wp.bestBuyPrice != null && (
-                  <div className="border-t border-border/30 pt-1.5 mt-0.5 flex items-center justify-between gap-4">
+                  <div className={`flex items-center justify-between gap-4 ${soldOut ? "" : "border-t border-border/30 pt-1.5 mt-0.5"}`}>
                     <span className="text-muted-foreground">Best buy</span>
                     <Currency value={wp.bestBuyPrice} icon={false} />
                   </div>
@@ -618,7 +646,7 @@ export function MapCanvas({
             >
               <p className="font-semibold border-b border-border/50 pb-1.5 mb-2">
                 <span style={{ color: ownerHex ?? "inherit" }}>
-                  {sectorName(hoveredSectorId)}
+                  {sectorName(effectiveHoveredSectorId)}
                 </span>
                 {conflict && (
                   <span className="text-muted-foreground font-normal ml-1 capitalize">
@@ -915,27 +943,13 @@ export function MapCanvas({
               : null
           }
           onClose={() => onSelectStation(null)}
+          onOpenDetail={onOpenStationDetail}
         />
       )}
 
       {/* Current Sector HUD (only visible when zoomed in) */}
       {(() => {
-        if (transform.scale < 1.2 || viewport.w === 0) return null;
-        const centerMapX = (viewport.w / 2 - transform.x) / transform.scale;
-        const centerMapY = (viewport.h / 2 - transform.y) / transform.scale;
-
-        let centerSectorId: string | null = null;
-        let minDist = Infinity;
-        for (const [sid, [cx, cy]] of sectorCoords.entries()) {
-          const dx = cx - centerMapX;
-          const dy = cy - centerMapY;
-          const distSq = dx * dx + dy * dy;
-          if (distSq < minDist && distSq < hexSize * hexSize * 1.5) {
-            minDist = distSq;
-            centerSectorId = sid;
-          }
-        }
-
+        const centerSectorId = dominantSectorId;
         if (!centerSectorId) return null;
 
         const sector = data.sectors.find((s) => s.sector_id === centerSectorId);

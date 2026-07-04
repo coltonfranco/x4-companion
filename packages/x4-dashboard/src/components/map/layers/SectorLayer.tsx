@@ -27,9 +27,9 @@ export function SectorLayer({
   onSelect,
   onHover,
   onContext,
+  onDoubleClick,
   sectorTint = null,
   sectorBadges,
-  sectorTooltips,
   alternateDots,
   dimOthers = false,
   showFactionLabels = false,
@@ -47,9 +47,9 @@ export function SectorLayer({
   onSelect: (id: string | null, cx?: number, cy?: number) => void;
   onHover: (id: string | null) => void;
   onContext?: (id: string, cx: number, cy: number) => void;
+  onDoubleClick?: (id: string) => void;
   sectorTint?: Map<string, SectorTint> | null;
   sectorBadges?: Map<string, string>;
-  sectorTooltips?: Map<string, string>;
   alternateDots?: Map<string, string[]>;
   dimOthers?: boolean;
   showFactionLabels?: boolean;
@@ -179,6 +179,14 @@ export function SectorLayer({
                   }
                 : undefined
             }
+            onDoubleClick={
+              onDoubleClick
+                ? (e) => {
+                    e.stopPropagation();
+                    onDoubleClick(sector.sector_id);
+                  }
+                : undefined
+            }
             onMouseEnter={() => onHover(sector.sector_id)}
             onMouseLeave={() => onHover(null)}
           >
@@ -231,10 +239,6 @@ export function SectorLayer({
               >
                 {effectiveFaction.name}
               </text>
-            )}
-
-            {sectorTooltips?.get(sidLower) && (
-              <title>{sectorTooltips.get(sidLower)}</title>
             )}
 
             {badge && (

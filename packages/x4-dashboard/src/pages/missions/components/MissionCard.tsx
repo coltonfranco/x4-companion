@@ -7,10 +7,8 @@ import {
   typeColor,
   typeLabel,
   fmtTime,
-  fmtCredits,
   LevelBadge,
   StoryTag,
-  RunToggleButton,
   MissionFactionCluster,
 } from "./MissionViewParts";
 
@@ -19,21 +17,13 @@ type Props = {
   factionMap: Map<string, FactionSummary>;
   nowSec: number | null;
   isSelected: boolean;
-  isInRun: boolean;
   onClick: () => void;
-  onToggleRun?: () => void;
 };
 
-export function MissionCard({ m, factionMap, nowSec, isSelected, isInRun, onClick, onToggleRun }: Props) {
+export function MissionCard({ m, factionMap, nowSec, isSelected, onClick }: Props) {
   const mtypeColor = m.type ? typeColor(m.type) : undefined;
   const mtLabel = m.type ? typeLabel(m.type) : null;
   const relativeTime = fmtTime(m.time, nowSec);
-
-  // Reward display
-  const hasReward = m.reward_credits != null || m.rewardtext != null;
-  const rewardDisplay = m.reward_credits != null
-    ? fmtCredits(m.reward_credits)
-    : m.rewardtext ?? null;
 
   return (
     <MissionListCard
@@ -46,23 +36,14 @@ export function MissionCard({ m, factionMap, nowSec, isSelected, isInRun, onClic
           <><UserLabel /> {m.caption}</>
         ) : m.group_name ? (
           `${m.group_name} · Mission`
-        ) : relativeTime ? (
-          relativeTime
         ) : null
       }
       trailing={
-        <>
-          {hasReward && (
-            <div className="font-mono text-[13px] font-semibold tabular-nums" style={{ color: "var(--gold)" }}>
-              {rewardDisplay}
-            </div>
-          )}
-          {relativeTime && (
-            <div className="font-mono text-[10px] text-muted-foreground mt-1">
-              {relativeTime}
-            </div>
-          )}
-        </>
+        relativeTime ? (
+          <div className="font-mono text-[10px] text-muted-foreground">
+            {relativeTime}
+          </div>
+        ) : null
       }
       badges={
         <>
@@ -101,9 +82,6 @@ export function MissionCard({ m, factionMap, nowSec, isSelected, isInRun, onClic
             </span>
           )}
         </>
-      }
-      trailingButton={
-        onToggleRun && <RunToggleButton isInRun={isInRun} onToggleRun={onToggleRun} />
       }
     />
   );

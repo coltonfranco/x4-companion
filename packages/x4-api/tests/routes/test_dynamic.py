@@ -176,6 +176,12 @@ def test_map_stations(client: TestClient) -> None:
     assert st["is_player_owned"] is False
     # No gamestart tags for this fixture station → no derived category.
     assert st["category"] is None
+    assert st["production_product"] == "microchips"
+    assert st["production_product_icon_url"] == "/static/icons/wares/ware_microchips.png"
+
+    detail = client.get("/api/v1/stations/%5B0x100%5D").json()
+    assert detail["production_product"] == "microchips"
+    assert detail["production_product_icon_url"] == "/static/icons/wares/ware_microchips.png"
 
 
 def test_live_resources(client: TestClient) -> None:

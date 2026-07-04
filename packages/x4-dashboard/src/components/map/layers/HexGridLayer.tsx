@@ -1,9 +1,13 @@
-// Background hex grid — faint cells tiled across the canvas behind everything.
+// Background hex grid — faint cells tiled across the canvas behind everything. Neither
+// `cells` nor `hexSize` depend on pan/zoom (they're derived once from the sector layout),
+// so this is memoized: without it, React would re-diff up to ~10k polygons on every
+// mousemove while panning even though none of them ever actually change.
 
+import { memo } from "react";
 import { hexPoints } from "../../../lib/map/geometry";
 import { MAP_THEME } from "../../../lib/map/constants";
 
-export function HexGridLayer({ cells, hexSize }: { cells: [number, number][]; hexSize: number }) {
+function HexGridLayerImpl({ cells, hexSize }: { cells: [number, number][]; hexSize: number }) {
   return (
     <>
       {cells.map(([cx, cy], i) => (
@@ -18,3 +22,5 @@ export function HexGridLayer({ cells, hexSize }: { cells: [number, number][]; he
     </>
   );
 }
+
+export const HexGridLayer = memo(HexGridLayerImpl);

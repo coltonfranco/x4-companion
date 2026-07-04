@@ -60,6 +60,13 @@ def _migrate_dynamic(conn: sqlite3.Connection) -> None:
             with suppress(sqlite3.OperationalError):
                 conn.execute(f"ALTER TABLE station_overview ADD COLUMN {col} INTEGER")
 
+    # stations: zone_dyn_x/y/z — dynamic-zone (e.g. tempzone) sector-relative position (2026-07)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info('stations')").fetchall()}
+    for col in ("zone_dyn_x", "zone_dyn_y", "zone_dyn_z"):
+        if col not in cols:
+            with suppress(sqlite3.OperationalError):
+                conn.execute(f"ALTER TABLE stations ADD COLUMN {col} REAL")
+
     # logbook: subcategory (2026-07)
     cols = {r[1] for r in conn.execute("PRAGMA table_info('logbook')").fetchall()}
     if "subcategory" not in cols:

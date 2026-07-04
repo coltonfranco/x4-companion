@@ -22,6 +22,15 @@ export function usePanZoom(
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: 1 });
+
+  // Live-save ids (stations, offers) carry save-file macro casing (lowercase) while
+  // sectorCoords is keyed by the static catalog's mixed-case ids — look up case-insensitively
+  // so zoomToSector works for both.
+  const coordsCI = useMemo(() => {
+    const m = new Map<string, [number, number]>();
+    sectorCoords.forEach((v, k) => m.set(k.toLowerCase(), v));
+    return m;
+  }, [sectorCoords]);
   const [viewport, setViewport] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef<{ cx: number; cy: number; tx: number; ty: number } | null>(null);
@@ -115,13 +124,28 @@ export function usePanZoom(
   const zoomToSector = useCallback((sectorId: string) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const pos = sectorCoords.get(sectorId);
+    const pos = coordsCI.get(sectorId.toLowerCase());
     if (!pos) return;
     const [cx, cy] = pos;
     // zoom in to scale 3.0 centered on sector; clamp only scale, not position
     const scale = Math.min(25, Math.max(0.04, 3.0));
     setTransform({ x: rect.width / 2 - cx * scale, y: rect.height / 2 - cy * scale, scale });
-  }, [sectorCoords]);
+  }, [coordsCI]);
+
+  // Centers a specific world-space point (e.g. a station) in view. Never zooms OUT —
+  // if already zoomed in past minScale it just pans, and only zooms in as far as
+  // minScale requires (the caller computes that from what the point actually needs to
+  // be visible, e.g. minScaleForStationReveal), so it never lands at a zoom level that
+  // leaves the target faded out.
+  const panToWorldPos = useCallback((worldPos: [number, number], minScale = 0) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const [wx, wy] = worldPos;
+    setTransform((t) => {
+      const scale = Math.max(t.scale, Math.min(25, minScale));
+      return { x: rect.width / 2 - wx * scale, y: rect.height / 2 - wy * scale, scale };
+    });
+  }, []);
 
   const handleZoom = useCallback((factor: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -183,6 +207,7 @@ export function usePanZoom(
     fitView,
     resetView,
     zoomToSector,
+    panToWorldPos,
     zoomIn,
     zoomOut,
     handlers: { onWheel, onMouseDown, onMouseMove, onMouseUp },

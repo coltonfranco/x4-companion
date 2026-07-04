@@ -4,8 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { MultiSelect } from "../../components/ui/multi-select";
 import { FactionCombobox } from "../../components/game/FactionCombobox";
 import { PageLoaderPreset } from "../../components/layout/PageLoader";
-import { MissionMapModal } from "./components/MissionMapModal";
-import type { MapObjective } from "./components/MissionMapModal";
 import type { FactionSummary } from "../../lib/types";
 import { useSaveTime } from "../../lib/useSaveTime";
 
@@ -25,6 +23,7 @@ import {
 import {
   typeColor,
   typeLabel,
+  deriveMissionStageStatus,
 } from "./components/MissionViewParts";
 import { MissionCard } from "./components/MissionCard";
 import { OfferCard } from "./components/OfferCard";
@@ -34,28 +33,16 @@ import { ChoiceGroupDetail } from "./components/ChoiceGroupDetail";
 import type { PathOption } from "./components/ChoiceGroupDetail";
 import { AllRequiredGroupDetail } from "./components/AllRequiredGroupDetail";
 import type { SubStage } from "./components/AllRequiredGroupDetail";
-import { RunPlanner } from "./components/RunPlanner";
 import { apiGet } from "../../lib/api";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function MissionsPage() {
-  // Tab state: "board" or "run"
-  const [tab, setTab] = useState<"board" | "run">("board");
   // Bucket: active / offer / guild
   const [bucket, setBucket] = useState<Bucket>("active");
   // Selection
   const [selectedKind, setSelectedKind] = useState<"mission" | "choice" | "all">("mission");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Run planner
-  const [runIds, setRunIds] = useState<string[]>([]);
-  // Map modal
-  const [mapModal, setMapModal] = useState<{
-    sectorId: string | null;
-    objectives: MapObjective[];
-    title?: string;
-  } | null>(null);
-
   // Filters
   const [difficultyFilter, setDifficultyFilter] = useState<Set<Difficulty>>(new Set());
   const [typeFilter, setTypeFilter] = useState<Set<MissionType>>(new Set());
@@ -267,40 +254,17 @@ export default function MissionsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Sub-tabs */}
+      {/* Mission status */}
       <div className="h-[50px] shrink-0 border-b border-border flex items-center gap-2 px-6 bg-background/60">
-        <button
-          onClick={() => setTab("board")}
+        <div
           className="flex items-center gap-2 text-[13px] px-3.5 py-2 rounded-lg transition-colors"
           style={{
-            background: tab === "board" ? "rgba(92,200,236,0.14)" : "transparent",
-            color: tab === "board" ? "#cfe6f7" : "#7a8499",
+            background: "rgba(92,200,236,0.14)",
+            color: "#cfe6f7",
           }}
         >
           <span className="text-sm">◎</span> Mission Board
-        </button>
-        <button
-          onClick={() => setTab("run")}
-          className="flex items-center gap-2 text-[13px] px-3.5 py-2 rounded-lg transition-colors"
-          style={{
-            background: tab === "run" ? "rgba(92,200,236,0.14)" : "transparent",
-            color: tab === "run" ? "#cfe6f7" : "#7a8499",
-          }}
-        >
-          <span className="text-sm">⛓</span> Run Planner
-          {runIds.length > 0 && (
-            <span
-              className="font-mono text-[11px] font-semibold min-w-[18px] h-[18px] px-1.5 rounded-full inline-flex items-center justify-center"
-              style={{
-                background: tab === "run" ? "#5cc8ec" : "rgba(255,255,255,0.1)",
-                color: tab === "run" ? "#06121c" : "#8a95ab",
-              }}
-            >
-              {runIds.length}
-            </span>
-          )}
-        </button>
-
+        </div>
         <div className="ml-auto flex items-center gap-2.5 font-mono text-[11px] tracking-[1px] text-muted-foreground">
           <span
             className="w-[7px] h-[7px] rounded-full shrink-0"
@@ -430,32 +394,21 @@ export default function MissionsPage() {
             {bucketItems.map((item) => {
               if (item.kind === "offer") {
                 const isSel = selectedKind === "mission" && selectedId === item.offer.offer_id;
-                const inRun = runIds.includes(item.offer.offer_id!);
                 return (
                   <OfferCard
                     key={item.offer.offer_id}
                     o={item.offer}
                     factionMap={factionMap}
                     isSelected={isSel}
-                    isInRun={inRun}
                     onClick={() => {
                       setSelectedKind("mission");
                       setSelectedId(item.offer.offer_id!);
-                      setTab("board");
-                    }}
-                    onToggleRun={() => {
-                      setRunIds((prev) =>
-                        prev.includes(item.offer.offer_id!)
-                          ? prev.filter((id) => id !== item.offer.offer_id)
-                          : [...prev, item.offer.offer_id!],
-                      );
                     }}
                   />
                 );
               }
               if (item.kind === "card") {
                 const isSel = selectedKind === "mission" && selectedId === item.mission.mission_id;
-                const inRun = runIds.includes(item.mission.mission_id!);
                 return (
                   <MissionCard
                     key={item.mission.mission_id}
@@ -463,18 +416,9 @@ export default function MissionsPage() {
                     factionMap={factionMap}
                     nowSec={nowSec}
                     isSelected={isSel}
-                    isInRun={inRun}
                     onClick={() => {
                       setSelectedKind("mission");
                       setSelectedId(item.mission.mission_id!);
-                      setTab("board");
-                    }}
-                    onToggleRun={() => {
-                      setRunIds((prev) =>
-                        prev.includes(item.mission.mission_id!)
-                          ? prev.filter((id) => id !== item.mission.mission_id)
-                          : [...prev, item.mission.mission_id!],
-                      );
                     }}
                   />
                 );
@@ -496,7 +440,6 @@ export default function MissionsPage() {
                   onClick={() => {
                     setSelectedKind(kind);
                     setSelectedId(item.groupId);
-                    setTab("board");
                   }}
                 />
               );
@@ -506,14 +449,7 @@ export default function MissionsPage() {
 
         {/* ===== DETAIL ===== */}
         <div className="flex-1 min-w-0 overflow-auto">
-          {tab === "run" ? (
-            <RunPlanner
-              missions={missions ?? []}
-              offers={offers ?? []}
-              runIds={runIds}
-              onRemoveFromRun={(id) => setRunIds((prev) => prev.filter((x) => x !== id))}
-            />
-          ) : selectedKind === "choice" && selectedGroup ? (
+          {selectedKind === "choice" && selectedGroup ? (
             <ChoiceGroupDetail
               groupName={selectedGroup.groupName}
               groupId={selectedGroup.groupId}
@@ -529,7 +465,7 @@ export default function MissionsPage() {
               groupId={selectedGroup.groupId}
               subStages={selectedGroup.missions.map((m): SubStage => ({
                 mission: m,
-                status: m.is_active ? "current" : "next",
+                status: deriveMissionStageStatus(m.objectives),
                 typeLabel: m.type ? typeLabel(m.type) : "Mission",
                 destName: m.associated_entity_name ?? "—",
               }))}
@@ -539,9 +475,7 @@ export default function MissionsPage() {
             <MissionDetail
               m={selectedMission}
               factionMap={factionMap}
-              onShowOnMap={(sectorId, objectives) =>
-                setMapModal({ sectorId, objectives })
-              }
+              bucket={bucket}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -551,13 +485,6 @@ export default function MissionsPage() {
         </div>
       </div>
 
-      {/* Map modal */}
-      <MissionMapModal
-        open={!!mapModal}
-        onClose={() => setMapModal(null)}
-        sectorId={mapModal?.sectorId ?? ""}
-        objectives={mapModal?.objectives ?? []}
-      />
     </div>
   );
 }

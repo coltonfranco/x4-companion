@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/setup/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Discover Paths */
+        get: operations["discover_paths_api_v1_setup_discover_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/setup/status": {
         parameters: {
             query?: never;
@@ -2407,6 +2424,13 @@ export interface components {
             /** Faction Id */
             faction_id: string;
         };
+        /** DiscoverPathsResponse */
+        DiscoverPathsResponse: {
+            /** Install Path */
+            install_path: string | null;
+            /** Save Path */
+            save_path: string | null;
+        };
         /** DropEntry */
         DropEntry: {
             /** Ware Id */
@@ -2745,6 +2769,8 @@ export interface components {
             running: boolean;
             /** Error */
             error: string | null;
+            /** Detail */
+            detail: string | null;
         };
         /** LicenceItem */
         LicenceItem: {
@@ -2815,6 +2841,8 @@ export interface components {
             sector_id: string | null;
             /** Category */
             category?: string | null;
+            /** Icon Group */
+            icon_group?: string | null;
             /** Is Player Owned */
             is_player_owned: boolean;
             /** Is Under Construction */
@@ -2835,6 +2863,8 @@ export interface components {
             workforce_bonus?: number | null;
             /** Production Product */
             production_product?: string | null;
+            /** Production Product Icon Url */
+            production_product_icon_url?: string | null;
             /** Seed Id */
             seed_id?: string | null;
             /** Dynamic Tags */
@@ -2913,6 +2943,12 @@ export interface components {
             z?: number | null;
             /** Category */
             category?: string | null;
+            /** Icon Group */
+            icon_group?: string | null;
+            /** Production Product */
+            production_product?: string | null;
+            /** Production Product Icon Url */
+            production_product_icon_url?: string | null;
             /**
              * Is Player Owned
              * @default false
@@ -4137,7 +4173,7 @@ export interface components {
             /** Install Path */
             install_path: string;
             /** Save Path */
-            save_path?: string | null;
+            save_path: string;
         };
         /** SetupStatus */
         SetupStatus: {
@@ -4348,12 +4384,20 @@ export interface components {
             /** Restriction Licence */
             restriction_licence?: string | null;
             /**
+             * Has Blueprint
+             * @default false
+             */
+            has_blueprint: boolean;
+            /**
              * Is Obtainable
              * @default false
              */
             is_obtainable: boolean;
-            /** Can Be Captured */
-            can_be_captured: number | null;
+            /**
+             * Can Be Captured
+             * @default true
+             */
+            can_be_captured: boolean;
             /** Description */
             description: string | null;
             /** Basename */
@@ -4649,6 +4693,11 @@ export interface components {
             is_owned: boolean;
             /** Restriction Licence */
             restriction_licence?: string | null;
+            /**
+             * Has Blueprint
+             * @default false
+             */
+            has_blueprint: boolean;
             /**
              * Is Obtainable
              * @default false
@@ -5198,6 +5247,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    discover_paths_api_v1_setup_discover_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoverPathsResponse"];
                 };
             };
         };
