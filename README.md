@@ -42,9 +42,10 @@ uv run x4c rebuild-icons
 # 6. Parse the current save
 uv run x4c ingest-save
 
-# 7. Serve
-uv run x4c serve
-# → http://127.0.0.1:8765
+# 7. Run the app
+cd packages/x4-desktop
+npm install
+npm run dev
 ```
 
 ## Status

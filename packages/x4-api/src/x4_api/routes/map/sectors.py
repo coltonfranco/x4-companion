@@ -10,8 +10,6 @@ from x4_api.routes._db import table_exists
 from x4_api.routes.map import router
 from x4_api.schemas import PublicModel
 
-from ._common import _OWNERSHIP_CLAIM_SQL, _first_wins_by
-
 
 class SectorSummary(PublicModel):
     sector_id: str
@@ -35,6 +33,18 @@ class SectorSummary(PublicModel):
     qz: float | None = None
     qw: float | None = None
     known_to_player: bool = False
+
+def _resolve_sector_owners(conn: sqlite3.Connection) -> dict[str, str]:
+    """Return {lowercase_sector_id: owner_faction} from the game's own sector ownership
+    records. Sectors with no recorded owner remain unowned (not in the map)."""
+    if not table_exists(conn, "sector_state"):
+        return {}
+    rows = conn.execute(
+        "SELECT LOWER(sector_id) AS sid, owner_faction "
+        "FROM sector_state WHERE owner_faction IS NOT NULL"
+    ).fetchall()
+    return {r["sid"]: r["owner_faction"] for r in rows}
+
 
 def _sector_summary_sql(conn: sqlite3.Connection) -> tuple[str, str]:
     """Return (columns_sql, join_live_sql) for the sec.* sector summary column list.
@@ -69,18 +79,9 @@ def list_sectors(
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
 ) -> list[SectorSummary]:
-    # Build sector ownership map from live stations (most-stations-wins per sector).
-    owner_rows = conn.execute(
-        "SELECT LOWER(st.sector_id) AS sector_id, st.owner_faction, COUNT(*) AS cnt "
-        "FROM stations st "
-        "LEFT JOIN s.station_types stype ON stype.station_id = st.macro "
-        "WHERE st.owner_faction IS NOT NULL AND st.sector_id IS NOT NULL "
-        f"  AND {_OWNERSHIP_CLAIM_SQL} "
-        "GROUP BY LOWER(st.sector_id), st.owner_faction "
-        "ORDER BY cnt DESC"
-    ).fetchall()
-    winners = _first_wins_by(owner_rows, "sector_id")
-    live_owner = {sid: r["owner_faction"] for sid, r in winners.items()}
+    # Prefer game-authoritative sector ownership from the save (sector_state.owner_faction).
+    # Fall back to station-counting heuristic when no save data exists.
+    live_owner = _resolve_sector_owners(conn)
 
     columns, join_live = _sector_summary_sql(conn)
 
@@ -116,15 +117,11 @@ def get_sector(
     if row is None:
         raise HTTPException(status_code=404, detail=f"Unknown sector_id: {sector_id}")
     d = dict(row)
-    owner_row = conn.execute(
-        "SELECT st.owner_faction, COUNT(*) AS cnt FROM stations st "
-        "LEFT JOIN s.station_types stype ON stype.station_id = st.macro "
-        "WHERE LOWER(st.sector_id) = LOWER(:sid) AND st.owner_faction IS NOT NULL "
-        f"  AND {_OWNERSHIP_CLAIM_SQL} "
-        "GROUP BY st.owner_faction ORDER BY cnt DESC LIMIT 1",
+    ss_row = conn.execute(
+        "SELECT owner_faction FROM sector_state WHERE LOWER(sector_id) = LOWER(:sid) AND owner_faction IS NOT NULL",
         {"sid": sector_id},
     ).fetchone()
-    d["owner_faction"] = owner_row["owner_faction"] if owner_row else None
+    d["owner_faction"] = ss_row["owner_faction"] if ss_row else None
     return SectorSummary(**d)
 
 class SectorConnection(PublicModel):

@@ -132,6 +132,7 @@ export function GroupCard({
                 icon_url={factionObj.icon_url}
                 faction_id={factionObj.faction_id}
                 size="sm"
+                linked={false}
               />
             </span>
           )}

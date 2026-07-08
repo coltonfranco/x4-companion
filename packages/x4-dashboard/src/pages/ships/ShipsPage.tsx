@@ -24,6 +24,7 @@ import type { ColumnDef } from "../../components/data-display/DataTable";
 import { useRowGroups } from "../../lib/useRowGroups";
 import { useColumnVisibility } from "../../lib/useColumnVisibility";
 import { apiGet } from "../../lib/api";
+import { VISIBLE_FACTIONS_PATH, VISIBLE_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import { useKnownFactions } from "../../lib/useKnownFactions";
 import { useFactionMap } from "../../lib/useFactionMap";
 import { usePlayerLicences } from "../../lib/usePlayerLicences";
@@ -53,7 +54,7 @@ export default function ShipsPage() {
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedSubTypes, setSelectedSubTypes] = useState<Set<string>>(new Set());
   const [ownedOnly, setOwnedOnly] = useState(false);
-  const [obtainableOnly, setObtainableOnly] = useState(false);
+  const [obtainableOnly, setObtainableOnly] = useState(true);
   const [selectedShip, setSelectedShip] = useState<ShipSummary | null>(null);
   const [sortCol, setSortCol] = useState<SortKey>("name");
   const [sortDesc, setSortDesc] = useState(false);
@@ -75,8 +76,8 @@ export default function ShipsPage() {
   });
 
   const { data: factions = [] } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: VISIBLE_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(VISIBLE_FACTIONS_PATH),
   });
 
   const { data: knownFactions = {} } = useKnownFactions();
@@ -173,7 +174,7 @@ export default function ShipsPage() {
     selectedTypes.size > 0 ||
     (selectedTypes.size > 0 && selectedSubTypes.size > 0) ||
     ownedOnly ||
-    obtainableOnly;
+    !obtainableOnly;
 
   // ── DataTable columns (memoized — render fns close over stat scaling values) ──
 
@@ -668,7 +669,7 @@ export default function ShipsPage() {
           setSelectedTypes(new Set());
           setSelectedSubTypes(new Set());
           setOwnedOnly(false);
-          setObtainableOnly(false);
+          setObtainableOnly(true);
         }}
         visibleColumns={visibleColumns} setVisibleColumns={setVisibleColumns}
         groupBy={groupBy} setGroupBy={setGroupBy}

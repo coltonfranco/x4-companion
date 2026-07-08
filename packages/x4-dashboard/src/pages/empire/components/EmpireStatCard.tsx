@@ -14,11 +14,22 @@ export function StatCard({ icon: Icon, tone, value, label, big }: { icon?: typeo
   );
 }
 
-export function Panel({ title, icon: Icon, children }: { title: string; icon: typeof Coins; children: ReactNode }) {
+export function Panel({
+  title,
+  icon: Icon,
+  headerRight,
+  children,
+}: {
+  title: string;
+  icon: typeof Coins;
+  headerRight?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <HUDCard className="p-4">
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4 border-b border-border/50 pb-3">
         <Icon className="h-3.5 w-3.5" /> {title}
+        {headerRight && <span className="ml-auto normal-case tracking-normal font-normal">{headerRight}</span>}
       </div>
       {children}
     </HUDCard>

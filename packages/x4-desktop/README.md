@@ -36,7 +36,17 @@ npm run dev             # = tauri dev
 
 `tauri dev` starts the Vite dev server (`beforeDevCommand`), opens the window pointed at
 http://localhost:5173, and `src/main.rs` spawns `uv run x4c serve` for the API. Closing the
-window kills the server child.
+window kills both: the API via its own `taskkill /T` (same as release builds), and Vite by
+looking up whatever's listening on `:5173` and `taskkill /T`-ing that too.
+
+> Vite is spawned by `tauri-cli` itself (`beforeDevCommand`), not by `main.rs` — `tauri dev`
+> polls `devUrl` before it will even launch our Rust binary, so we can't take over that spawn
+> without deadlocking startup. But on Windows, `tauri-cli`'s own cleanup only kills the
+> immediate `npm.cmd` wrapper it spawned, not the `node`/`vite` grandchild actually holding
+> the port — a known upstream limitation ([tauri#2794](https://github.com/tauri-apps/tauri/issues/2794),
+> [#4949](https://github.com/tauri-apps/tauri/issues/4949)). `main.rs` works around it by
+> finding whoever owns `:5173` via `netstat` at shutdown and killing that tree directly,
+> since we never get a `Child` handle to a process we didn't spawn.
 
 > Don't already have a separate `vite`/`npm run dev` running on :5173 — Tauri starts its own
 > on that port and loads it. A pre-existing instance makes Vite drift to :5174 while Tauri

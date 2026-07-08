@@ -22,8 +22,10 @@ x4c doctor                  # verify install + save paths
 x4c rebuild-static          # extract game XML → static.db
 x4c rebuild-icons           # extract icon DDS → PNG
 x4c ingest-save [PATH]      # parse the current save → dynamic.db
-x4c serve                   # run the FastAPI server
 ```
+
+Run the API by starting the desktop app (`npm run dev` in `packages/x4-desktop`), which
+spawns and manages the server for you.
 
 ## Python
 

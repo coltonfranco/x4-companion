@@ -34,6 +34,7 @@ import type { PathOption } from "./components/ChoiceGroupDetail";
 import { AllRequiredGroupDetail } from "./components/AllRequiredGroupDetail";
 import type { SubStage } from "./components/AllRequiredGroupDetail";
 import { apiGet } from "../../lib/api";
+import { ALL_FACTIONS_PATH, ALL_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -71,8 +72,8 @@ export default function MissionsPage() {
   });
 
   const { data: factions } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: ALL_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(ALL_FACTIONS_PATH),
     staleTime: 300_000,
   });
 
@@ -181,7 +182,7 @@ export default function MissionsPage() {
   ].sort() as string[];
 
   const factionSummaries: FactionSummary[] = (factions ?? [])
-    .filter((f) => availableFactionIds.includes(f.faction_id))
+    .filter((f) => !f.is_hidden && availableFactionIds.includes(f.faction_id))
     .map((f) => ({ ...f }));
 
   // ── Selected detail ──────────────────────────────────────────────────────

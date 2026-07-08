@@ -8,12 +8,21 @@ type Props = {
   icon_url?: string | null;
   size?: "sm" | "md";
   faction_id?: string;
+  linked?: boolean;
   className?: string;
 };
 
 const ICON_SZ = { sm: 12, md: 14 } as const;
 
-export function FactionBadge({ name, color_hex, icon_url, size = "md", faction_id, className }: Props) {
+export function FactionBadge({
+  name,
+  color_hex,
+  icon_url,
+  size = "md",
+  faction_id,
+  linked = true,
+  className,
+}: Props) {
   const bgColor = 'transparent';
   const borderColor = color_hex ?? 'rgba(136, 136, 136, 0.25)';
   const textColor = color_hex ?? "#888";
@@ -56,11 +65,11 @@ export function FactionBadge({ name, color_hex, icon_url, size = "md", faction_i
     </Badge>
   );
 
-  if (faction_id) {
+  if (faction_id && linked) {
     return (
-      <Link 
-        to="/factions" 
-        search={{ faction: faction_id }} 
+      <Link
+        to="/factions/list"
+        search={{ faction: faction_id }}
         className="hover:underline"
         style={{ textDecorationColor: color_hex ?? "#888" }}
       >

@@ -8,7 +8,7 @@ import { useSaveTime } from "../../lib/useSaveTime";
 import { useJson } from "../../lib/useJson";
 import type { Account, NetWorthBreakdown, Player, Trade, WareMarket, WarePnl } from "./types";
 import { TradeKpiRow } from "./components/TradeKpiRow";
-import { PnlByCommodity } from "./components/PnlByCommodity";
+import { FlowBarChart } from "./components/FlowBarChart";
 import { MarketPulse } from "./components/MarketPulse";
 import { RecentTrades } from "./components/RecentTrades";
 import { AccountsPanel } from "./components/AccountsPanel";
@@ -62,7 +62,19 @@ export default function TradeOverviewPage() {
     return { income, spend, net: income - spend, volume: income + spend, tradeCount };
   }, [pnl]);
 
-  const maxAbsNet = useMemo(() => Math.max(1, ...pnl.map((p) => Math.abs(p.net))), [pnl]);
+  const salesVsBuys = useMemo(
+    () => [...pnl]
+      .sort((a, b) => (b.income + b.spend) - (a.income + a.spend))
+      .slice(0, 10)
+      .map((p, i) => ({
+        key: p.ware ?? `row-${i}`,
+        label: p.ware_name ?? p.ware ?? "Unknown",
+        iconUrl: p.icon_url,
+        positive: p.income,
+        negative: p.spend,
+      })),
+    [pnl],
+  );
 
   const currentTime = useSaveTime();
 
@@ -155,9 +167,9 @@ export default function TradeOverviewPage() {
           subtitle={player?.name ? <span className="text-xs text-muted-foreground">{player.name}</span> : undefined}
         />
 
-        {/* P&L by commodity + Market pulse */}
+        {/* Trade by commodity + Market pulse */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <PnlByCommodity pnl={pnl} maxAbsNet={maxAbsNet} />
+          <FlowBarChart title="Trade by Commodity" data={salesVsBuys} emptyText="No external trades recorded." />
           <MarketPulse shortages={shortages} surpluses={surpluses} />
         </div>
 

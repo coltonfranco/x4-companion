@@ -12,6 +12,7 @@ import { DataTable } from "../../components/data-display/DataTable";
 import type { ColumnDef, RowGroup } from "../../components/data-display/DataTable";
 import { useColumnVisibility } from "../../lib/useColumnVisibility";
 import { apiGet } from "../../lib/api";
+import { VISIBLE_FACTIONS_PATH, VISIBLE_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import { useFactionMap } from "../../lib/useFactionMap";
 import { usePlayerLicences } from "../../lib/usePlayerLicences";
 import { DetailDialog } from "../../components/ui/detail-dialog";
@@ -50,7 +51,8 @@ export default function ModulesPage() {
   const [sortDesc, setSortDesc] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupByKey>("none");
   const [availabilityFilter, setAvailabilityFilter] = useState<string>("all");
-  const [obtainableOnly, setObtainableOnly] = useState(false);
+  const [obtainableOnly, setObtainableOnly] = useState(true);
+  const [ownedOnly, setOwnedOnly] = useState(false);
   const [selectedModule, setSelectedModule] = useState<ModuleSummary | null>(null);
   const [visibleColumns, setVisibleColumns] = useColumnVisibility(
     STORAGE_KEY,
@@ -67,8 +69,8 @@ export default function ModulesPage() {
   });
 
   const { data: factions = [] } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: VISIBLE_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(VISIBLE_FACTIONS_PATH),
     staleTime: Infinity,
   });
 
@@ -104,6 +106,12 @@ export default function ModulesPage() {
     return [...seen].sort();
   }, [modules]);
 
+  const isReadyToBuild = (m: ModuleSummary) => {
+    const licenceLocked = isModuleLicenceLocked(m.makerrace, m.restriction_licence, licenceSet, anyLicenceSet);
+    const isFreeDefault = !m.blueprint_price_avg && m.is_obtainable;
+    return m.is_obtainable && m.est_cost != null && !licenceLocked && (m.has_blueprint || isFreeDefault);
+  };
+
   const filtered = modules.filter((m) => {
     if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (selectedKind !== "all" && m.kind !== selectedKind) return false;
@@ -112,11 +120,11 @@ export default function ModulesPage() {
     if (selectedFactions.size > 0 && !selectedFactions.has(m.makerrace || "__none__"))
       return false;
     if (obtainableOnly && !m.is_obtainable) return false;
+    if (ownedOnly && !isReadyToBuild(m)) return false;
     if (availabilityFilter !== "all") {
       const licenceLocked = isModuleLicenceLocked(m.makerrace, m.restriction_licence, licenceSet, anyLicenceSet);
-      const isFreeDefault = !m.blueprint_price_avg && m.is_obtainable;
       if (availabilityFilter === "locked" && !licenceLocked) return false;
-      if (availabilityFilter === "ready" && (licenceLocked || (!m.has_blueprint && !isFreeDefault))) return false;
+      if (availabilityFilter === "ready" && !isReadyToBuild(m)) return false;
       if (availabilityFilter === "purchasable" && (licenceLocked || m.has_blueprint || !m.blueprint_price_avg)) return false;
       if (availabilityFilter === "unavailable" && (licenceLocked || m.has_blueprint || m.blueprint_price_avg || m.is_obtainable)) return false;
     }
@@ -158,6 +166,15 @@ export default function ModulesPage() {
       })),
     []
   );
+
+  const hasFilters =
+    search !== "" ||
+    selectedKind !== "all" ||
+    selectedSize !== "all" ||
+    selectedFactions.size > 0 ||
+    availabilityFilter !== "all" ||
+    !obtainableOnly ||
+    ownedOnly;
 
   // ── Row groups (when groupBy != "none") ──
   const rowGroups = useMemo((): RowGroup<ModuleSummary>[] | undefined => {
@@ -458,6 +475,17 @@ export default function ModulesPage() {
         availableFactions={availableFactions} factionMap={factionMap}
         availabilityFilter={availabilityFilter} setAvailabilityFilter={setAvailabilityFilter}
         obtainableOnly={obtainableOnly} setObtainableOnly={setObtainableOnly}
+        ownedOnly={ownedOnly} setOwnedOnly={setOwnedOnly}
+        hasFilters={hasFilters}
+        onClear={() => {
+          setSearch("");
+          setSelectedKind("all");
+          setSelectedSize("all");
+          setSelectedFactions(new Set());
+          setAvailabilityFilter("all");
+          setObtainableOnly(true);
+          setOwnedOnly(false);
+        }}
         columnOptions={columnOptions} visibleColumns={visibleColumns} setVisibleColumns={setVisibleColumns}
         groupBy={groupBy} setGroupBy={setGroupBy}
       />

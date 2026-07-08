@@ -1,8 +1,275 @@
 openapi: 3.1.0
 info:
   title: x4-api
-  version: 0.0.1
+  version: 0.0.0
 paths:
+  /api/v1/races:
+    get:
+      tags:
+      - races
+      summary: ' List'
+      operationId: _list_api_v1_races_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/RaceSummary'
+                type: array
+                title: Response  List Api V1 Races Get
+  /api/v1/races/{race_id}:
+    get:
+      tags:
+      - races
+      summary: ' Detail'
+      operationId: _detail_api_v1_races__race_id__get
+      parameters:
+      - name: race_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Race Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RaceDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/race-relations:
+    get:
+      tags:
+      - races
+      summary: List Race Relations
+      operationId: list_race_relations_api_v1_race_relations_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/RaceRelation'
+                type: array
+                title: Response List Race Relations Api V1 Race Relations Get
+  /api/v1/ware-groups:
+    get:
+      tags:
+      - ware-groups
+      summary: ' List'
+      operationId: _list_api_v1_ware_groups_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/WareGroup'
+                type: array
+                title: Response  List Api V1 Ware Groups Get
+  /api/v1/ware-groups/{group_id}:
+    get:
+      tags:
+      - ware-groups
+      summary: ' Detail'
+      operationId: _detail_api_v1_ware_groups__group_id__get
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Group Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WareGroup'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mission-groups/{group_id}:
+    get:
+      tags:
+      - mission-groups
+      summary: ' Detail'
+      operationId: _detail_api_v1_mission_groups__group_id__get
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Group Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionGroup'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mission-groups:
+    get:
+      tags:
+      - mission-groups
+      summary: List Mission Groups
+      description: List all mission group definitions, optionally filtered by faction
+        or story.
+      operationId: list_mission_groups_api_v1_mission_groups_get
+      parameters:
+      - name: faction
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by offering faction id
+          title: Faction
+        description: Filter by offering faction id
+      - name: story_only
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: Only story missions
+          title: Story Only
+        description: Only story missions
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MissionGroup'
+                title: Response List Mission Groups Api V1 Mission Groups Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/equipment-mods/{ware_id}:
+    get:
+      tags:
+      - equipment-mods
+      summary: ' Detail'
+      operationId: _detail_api_v1_equipment_mods__ware_id__get
+      parameters:
+      - name: ware_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ware Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipModDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/equipment-mods:
+    get:
+      tags:
+      - equipment-mods
+      summary: List Equip Mods
+      operationId: list_equip_mods_api_v1_equipment_mods_get
+      parameters:
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Filter by category: weapon, engine, shield, ship'
+          title: Category
+        description: 'Filter by category: weapon, engine, shield, ship'
+      - name: stat
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by stat type e.g. damage, cooling
+          title: Stat
+        description: Filter by stat type e.g. damage, cooling
+      - name: quality
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Filter by quality tier 1-3
+          title: Quality
+        description: Filter by quality tier 1-3
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 2000
+          minimum: 1
+          default: 500
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EquipModSummary'
+                title: Response List Equip Mods Api V1 Equipment Mods Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/health:
     get:
       tags:
@@ -16,19 +283,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
-  /api/v1/setup/discover:
-    get:
-      tags:
-      - setup
-      summary: Discover Paths
-      operationId: discover_paths_api_v1_setup_discover_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DiscoverPathsResponse'
   /api/v1/setup/status:
     get:
       tags:
@@ -101,6 +355,26 @@ paths:
       description: Start the static build in the background. Idempotent while one
         is running.
       operationId: initialize_api_v1_setup_initialize_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupStatus'
+  /api/v1/setup/reset:
+    post:
+      tags:
+      - setup
+      summary: Reset
+      description: 'Wipe game-derived data and rebuild from scratch. Idempotent while
+        running.
+
+
+        Used after a game patch, mod change, or folder relocation. Preserves user-authored
+
+        Station Builder designs (appdata.db); only game-derived data is cleared.'
+      operationId: reset_api_v1_setup_reset_post
       responses:
         '200':
           description: Successful Response
@@ -220,9 +494,9 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: "engine, shield, weapon, turret, thruster, missile, \u2026"
+          description: engine, shield, weapon, turret, thruster, missile, …
           title: Kind
-        description: "engine, shield, weapon, turret, thruster, missile, \u2026"
+        description: engine, shield, weapon, turret, thruster, missile, …
       - name: size
         in: query
         required: false
@@ -321,55 +595,113 @@ paths:
       description: Every faction-to-faction relation from the active save. Returns
         [] until a save is ingested.
       operationId: list_all_faction_relations_api_v1_faction_relations_get
+      parameters:
+      - name: include_hidden
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Include utility/hidden factions.
+          default: false
+          title: Include Hidden
+        description: Include utility/hidden factions.
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/AllFactionRelation'
-                type: array
                 title: Response List All Faction Relations Api V1 Faction Relations
                   Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/factions:
     get:
       tags:
       - factions
       summary: List Factions
-      description: List all factions in the game catalog.
+      description: 'List factions in the game catalog. Overrides the player faction
+        name with the
+
+        custom organisation name from the save when a save has been ingested.'
       operationId: list_factions_api_v1_factions_get
+      parameters:
+      - name: include_hidden
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Include utility/hidden factions.
+          default: false
+          title: Include Hidden
+        description: Include utility/hidden factions.
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/FactionSummary'
-                type: array
                 title: Response List Factions Api V1 Factions Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/factions/strength:
     get:
       tags:
       - factions
       summary: Faction Strength
-      description: "Relative strength metrics, normalized 0-100, computed from LIVE\
-        \ save state.\n\nEverything here is the *current* universe (dynamic ships/stations/relations)\
-        \ so the\nstandings reflect how the game has actually unfolded \u2014 seed/static\
-        \ is init state only\nand is not referenced once a save is loaded. The player\
-        \ is ranked alongside AI factions."
+      description: 'Relative strength metrics, normalized 0-100, computed from LIVE
+        save state.
+
+
+        Everything here is the *current* universe (dynamic ships/stations/relations)
+        so the
+
+        standings reflect how the game has actually unfolded — seed/static is init
+        state only
+
+        and is not referenced once a save is loaded. The player is ranked alongside
+        AI factions.'
       operationId: faction_strength_api_v1_factions_strength_get
+      parameters:
+      - name: include_hidden
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Include utility/hidden factions.
+          default: false
+          title: Include Hidden
+        description: Include utility/hidden factions.
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/FactionStrength'
-                type: array
                 title: Response Faction Strength Api V1 Factions Strength Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/factions/known:
     get:
       tags:
@@ -377,16 +709,32 @@ paths:
       summary: List Known Factions
       description: 'Return {faction_id: is_known} for every static faction.'
       operationId: list_known_factions_api_v1_factions_known_get
+      parameters:
+      - name: include_hidden
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Include utility/hidden factions.
+          default: false
+          title: Include Hidden
+        description: Include utility/hidden factions.
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: object
                 additionalProperties:
                   type: boolean
-                type: object
                 title: Response List Known Factions Api V1 Factions Known Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/factions/{faction_id}:
     get:
       tags:
@@ -429,6 +777,15 @@ paths:
         schema:
           type: string
           title: Faction Id
+      - name: include_hidden
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Include utility/hidden factions.
+          default: false
+          title: Include Hidden
+        description: Include utility/hidden factions.
       responses:
         '200':
           description: Successful Response
@@ -478,64 +835,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/races:
-    get:
-      tags:
-      - races
-      summary: List Races
-      operationId: list_races_api_v1_races_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/RaceSummary'
-                type: array
-                title: Response List Races Api V1 Races Get
-  /api/v1/races/{race_id}:
-    get:
-      tags:
-      - races
-      summary: Get Race
-      operationId: get_race_api_v1_races__race_id__get
-      parameters:
-      - name: race_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Race Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RaceDetail'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/race-relations:
-    get:
-      tags:
-      - races
-      summary: List Race Relations
-      operationId: list_race_relations_api_v1_race_relations_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/RaceRelation'
-                type: array
-                title: Response List Race Relations Api V1 Race Relations Get
   /api/v1/map/clusters:
     get:
       tags:
@@ -584,88 +883,103 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/map/sectors:
+  /api/v1/map/connections:
     get:
       tags:
       - map
-      summary: List Sectors
-      operationId: list_sectors_api_v1_map_sectors_get
-      parameters:
-      - name: cluster_id
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Cluster Id
-      - name: owner_faction
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Owner Faction
-      - name: limit
-        in: query
-        required: false
-        schema:
-          type: integer
-          maximum: 2000
-          minimum: 1
-          default: 500
-          title: Limit
-      - name: offset
-        in: query
-        required: false
-        schema:
-          type: integer
-          minimum: 0
-          default: 0
-          title: Offset
+      summary: List Cluster Connections
+      description: Return all cluster-to-cluster connections (gate and superhighway,
+        deduplicated).
+      operationId: list_cluster_connections_api_v1_map_connections_get
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: array
                 items:
-                  $ref: '#/components/schemas/SectorSummary'
-                title: Response List Sectors Api V1 Map Sectors Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/map/sectors/{sector_id}:
+                  $ref: '#/components/schemas/ClusterConnection'
+                type: array
+                title: Response List Cluster Connections Api V1 Map Connections Get
+  /api/v1/map/cluster-resources:
     get:
       tags:
       - map
-      summary: Get Sector
-      operationId: get_sector_api_v1_map_sectors__sector_id__get
-      parameters:
-      - name: sector_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Sector Id
+      summary: List Cluster Resources
+      description: Return best resource yield per ware per cluster, for map overlay
+        display.
+      operationId: list_cluster_resources_api_v1_map_cluster_resources_get
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SectorSummary'
-        '422':
-          description: Validation Error
+                items:
+                  $ref: '#/components/schemas/ClusterResourceEntry'
+                type: array
+                title: Response List Cluster Resources Api V1 Map Cluster Resources
+                  Get
+  /api/v1/map/forces:
+    get:
+      tags:
+      - map
+      summary: List Forces
+      description: Return total fighter counts per sector and breakdown by faction.
+      operationId: list_forces_api_v1_map_forces_get
+      responses:
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                items:
+                  $ref: '#/components/schemas/SectorForceEntry'
+                type: array
+                title: Response List Forces Api V1 Map Forces Get
+  /api/v1/map/conflicts:
+    get:
+      tags:
+      - map
+      summary: List Conflicts
+      description: 'Sectors with active fighter presence from mutually-hostile factions.
+
+
+        Returns one row per sector with a conflict score.  ``intensity`` is
+
+        0.0-1.0 normalized across all sectors; ``fighter_count`` is the raw
+
+        number of combat-class ships from the hostile factions in that sector.
+
+        Returns [] until a save is ingested.'
+      operationId: list_conflicts_api_v1_map_conflicts_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ConflictEntry'
+                type: array
+                title: Response List Conflicts Api V1 Map Conflicts Get
+  /api/v1/map/tensions:
+    get:
+      tags:
+      - map
+      summary: List Tensions
+      description: Sectors with amassing hostile forces on adjacent borders.
+      operationId: list_tensions_api_v1_map_tensions_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/BorderTensionEntry'
+                type: array
+                title: Response List Tensions Api V1 Map Tensions Get
   /api/v1/map/gates:
     get:
       tags:
@@ -706,21 +1020,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/map/zones:
+  /api/v1/map/superhighways:
     get:
       tags:
       - map
-      summary: List Zones
-      operationId: list_zones_api_v1_map_zones_get
+      summary: List Superhighways
+      operationId: list_superhighways_api_v1_map_superhighways_get
       parameters:
-      - name: sector_id
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Sector Id
       - name: limit
         in: query
         required: false
@@ -746,64 +1052,29 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ZoneSummary'
-                title: Response List Zones Api V1 Map Zones Get
+                  $ref: '#/components/schemas/SuperhighwaySummary'
+                title: Response List Superhighways Api V1 Map Superhighways Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/map/sectors/{sector_id}/zones:
+  /api/v1/map/regions:
     get:
       tags:
       - map
-      summary: Get Sector Zones
-      description: List all zones available in a specific sector.
-      operationId: get_sector_zones_api_v1_map_sectors__sector_id__zones_get
+      summary: List Regions
+      operationId: list_regions_api_v1_map_regions_get
       parameters:
-      - name: sector_id
-        in: path
-        required: true
+      - name: cluster_id
+        in: query
+        required: false
         schema:
-          type: string
-          title: Sector Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ZoneSummary'
-                title: Response Get Sector Zones Api V1 Map Sectors  Sector Id  Zones
-                  Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/map/stations:
-    get:
-      tags:
-      - map
-      summary: List Map Stations
-      description: 'Stations positioned within their sector, for the zoomed-in map
-        view.
-
-
-        Prefers live save stations; positions fall back live -> static zone centre,
-        so
-
-        placement is correct at zone granularity even before per-station offsets are
-
-        parsed. With no save ingested, returns gamestart npc placements (which already
-
-        carry coordinates). `category` is derived from gamestart function tags.'
-      operationId: list_map_stations_api_v1_map_stations_get
-      parameters:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cluster Id
       - name: sector_id
         in: query
         required: false
@@ -811,17 +1082,15 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: Filter by sector macro id
           title: Sector Id
-        description: Filter by sector macro id
       - name: limit
         in: query
         required: false
         schema:
           type: integer
-          maximum: 20000
+          maximum: 2000
           minimum: 1
-          default: 5000
+          default: 500
           title: Limit
       - name: offset
         in: query
@@ -839,8 +1108,8 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/MapStation'
-                title: Response List Map Stations Api V1 Map Stations Get
+                  $ref: '#/components/schemas/RegionSummary'
+                title: Response List Regions Api V1 Map Regions Get
         '422':
           description: Validation Error
           content:
@@ -1009,12 +1278,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/map/regions:
+  /api/v1/map/sectors:
     get:
       tags:
       - map
-      summary: List Regions
-      operationId: list_regions_api_v1_map_regions_get
+      summary: List Sectors
+      operationId: list_sectors_api_v1_map_sectors_get
       parameters:
       - name: cluster_id
         in: query
@@ -1024,14 +1293,14 @@ paths:
           - type: string
           - type: 'null'
           title: Cluster Id
-      - name: sector_id
+      - name: owner_faction
         in: query
         required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
-          title: Sector Id
+          title: Owner Faction
       - name: limit
         in: query
         required: false
@@ -1057,48 +1326,34 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/RegionSummary'
-                title: Response List Regions Api V1 Map Regions Get
+                  $ref: '#/components/schemas/SectorSummary'
+                title: Response List Sectors Api V1 Map Sectors Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/map/superhighways:
+  /api/v1/map/sectors/{sector_id}:
     get:
       tags:
       - map
-      summary: List Superhighways
-      operationId: list_superhighways_api_v1_map_superhighways_get
+      summary: Get Sector
+      operationId: get_sector_api_v1_map_sectors__sector_id__get
       parameters:
-      - name: limit
-        in: query
-        required: false
+      - name: sector_id
+        in: path
+        required: true
         schema:
-          type: integer
-          maximum: 10000
-          minimum: 1
-          default: 500
-          title: Limit
-      - name: offset
-        in: query
-        required: false
-        schema:
-          type: integer
-          minimum: 0
-          default: 0
-          title: Offset
+          type: string
+          title: Sector Id
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SuperhighwaySummary'
-                title: Response List Superhighways Api V1 Map Superhighways Get
+                $ref: '#/components/schemas/SectorSummary'
         '422':
           description: Validation Error
           content:
@@ -1124,98 +1379,163 @@ paths:
                 type: array
                 title: Response List Sector Connections Api V1 Map Sector Connections
                   Get
-  /api/v1/map/connections:
+  /api/v1/map/stations:
     get:
       tags:
       - map
-      summary: List Cluster Connections
-      description: Return all cluster-to-cluster connections (gate and superhighway,
-        deduplicated).
-      operationId: list_cluster_connections_api_v1_map_connections_get
+      summary: List Map Stations
+      description: 'Stations positioned within their sector, for the zoomed-in map
+        view.
+
+
+        Prefers live save stations; positions fall back live -> static zone centre,
+        so
+
+        placement is correct at zone granularity even before per-station offsets are
+
+        parsed. With no save ingested, returns gamestart npc placements (which already
+
+        carry coordinates). `category` is derived from gamestart function tags.
+
+
+        Zone centre prefers the station''s own save-recorded dynamic zone position
+
+        (`zone_dyn_*`) over the static catalog: `zone_id` is a macro, and procedurally-created
+
+        zones (e.g. `tempzone`) share that macro across every physically distinct
+        instance in
+
+        the galaxy — joining by macro alone would collapse unrelated zones onto one
+        static (or
+
+        absent) centre. Ordinary named zones never carry a dynamic position, so this
+        only
+
+        changes placement for the procedural ones.'
+      operationId: list_map_stations_api_v1_map_stations_get
+      parameters:
+      - name: sector_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by sector macro id
+          title: Sector Id
+        description: Filter by sector macro id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 20000
+          minimum: 1
+          default: 5000
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/ClusterConnection'
                 type: array
-                title: Response List Cluster Connections Api V1 Map Connections Get
-  /api/v1/map/cluster-resources:
+                items:
+                  $ref: '#/components/schemas/MapStation'
+                title: Response List Map Stations Api V1 Map Stations Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/map/zones:
     get:
       tags:
       - map
-      summary: List Cluster Resources
-      description: Return best resource yield per ware per cluster, for map overlay
-        display.
-      operationId: list_cluster_resources_api_v1_map_cluster_resources_get
+      summary: List Zones
+      operationId: list_zones_api_v1_map_zones_get
+      parameters:
+      - name: sector_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sector Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 10000
+          minimum: 1
+          default: 500
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/ClusterResourceEntry'
                 type: array
-                title: Response List Cluster Resources Api V1 Map Cluster Resources
+                items:
+                  $ref: '#/components/schemas/ZoneSummary'
+                title: Response List Zones Api V1 Map Zones Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/map/sectors/{sector_id}/zones:
+    get:
+      tags:
+      - map
+      summary: Get Sector Zones
+      description: List all zones available in a specific sector.
+      operationId: get_sector_zones_api_v1_map_sectors__sector_id__zones_get
+      parameters:
+      - name: sector_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Sector Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ZoneSummary'
+                title: Response Get Sector Zones Api V1 Map Sectors  Sector Id  Zones
                   Get
-  /api/v1/map/forces:
-    get:
-      tags:
-      - map
-      summary: List Forces
-      description: Return total fighter counts per sector and breakdown by faction.
-      operationId: list_forces_api_v1_map_forces_get
-      responses:
-        '200':
-          description: Successful Response
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/SectorForceEntry'
-                type: array
-                title: Response List Forces Api V1 Map Forces Get
-  /api/v1/map/conflicts:
-    get:
-      tags:
-      - map
-      summary: List Conflicts
-      description: "Sectors with active fighter presence from mutually-hostile factions.\n\
-        \nReturns one row per sector with a conflict score.  ``intensity`` is\n0.0\u2013\
-        1.0 normalized across all sectors; ``fighter_count`` is the raw\nnumber of\
-        \ combat-class ships from the hostile factions in that sector.\nReturns []\
-        \ until a save is ingested."
-      operationId: list_conflicts_api_v1_map_conflicts_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/ConflictEntry'
-                type: array
-                title: Response List Conflicts Api V1 Map Conflicts Get
-  /api/v1/map/tensions:
-    get:
-      tags:
-      - map
-      summary: List Tensions
-      description: Sectors with amassing hostile forces on adjacent borders.
-      operationId: list_tensions_api_v1_map_tensions_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/BorderTensionEntry'
-                type: array
-                title: Response List Tensions Api V1 Map Tensions Get
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/modules:
     get:
       tags:
@@ -1534,102 +1854,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/equipment-mods:
-    get:
-      tags:
-      - equipment-mods
-      summary: List Equip Mods
-      operationId: list_equip_mods_api_v1_equipment_mods_get
-      parameters:
-      - name: category
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: 'Filter by category: weapon, engine, shield, ship'
-          title: Category
-        description: 'Filter by category: weapon, engine, shield, ship'
-      - name: stat
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Filter by stat type e.g. damage, cooling
-          title: Stat
-        description: Filter by stat type e.g. damage, cooling
-      - name: quality
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          description: "Filter by quality tier 1\u20133"
-          title: Quality
-        description: "Filter by quality tier 1\u20133"
-      - name: limit
-        in: query
-        required: false
-        schema:
-          type: integer
-          maximum: 2000
-          minimum: 1
-          default: 500
-          title: Limit
-      - name: offset
-        in: query
-        required: false
-        schema:
-          type: integer
-          minimum: 0
-          default: 0
-          title: Offset
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/EquipModSummary'
-                title: Response List Equip Mods Api V1 Equipment Mods Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/equipment-mods/{ware_id}:
-    get:
-      tags:
-      - equipment-mods
-      summary: Get Equip Mod
-      operationId: get_equip_mod_api_v1_equipment_mods__ware_id__get
-      parameters:
-      - name: ware_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Ware Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EquipModDetail'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/terraform/stats:
     get:
       tags:
@@ -1715,120 +1939,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TerraformProjectDetail'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/ware-groups:
-    get:
-      tags:
-      - ware-groups
-      summary: List Ware Groups
-      description: List all ware groups with display metadata.
-      operationId: list_ware_groups_api_v1_ware_groups_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/WareGroup'
-                type: array
-                title: Response List Ware Groups Api V1 Ware Groups Get
-  /api/v1/ware-groups/{group_id}:
-    get:
-      tags:
-      - ware-groups
-      summary: Get Ware Group
-      operationId: get_ware_group_api_v1_ware_groups__group_id__get
-      parameters:
-      - name: group_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Group Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WareGroup'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/mission-groups:
-    get:
-      tags:
-      - mission-groups
-      summary: List Mission Groups
-      description: List all mission group definitions, optionally filtered by faction
-        or story.
-      operationId: list_mission_groups_api_v1_mission_groups_get
-      parameters:
-      - name: faction
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Filter by offering faction id
-          title: Faction
-        description: Filter by offering faction id
-      - name: story_only
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: boolean
-          - type: 'null'
-          description: Only story missions
-          title: Story Only
-        description: Only story missions
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MissionGroup'
-                title: Response List Mission Groups Api V1 Mission Groups Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/mission-groups/{group_id}:
-    get:
-      tags:
-      - mission-groups
-      summary: Get Mission Group
-      operationId: get_mission_group_api_v1_mission_groups__group_id__get
-      parameters:
-      - name: group_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Group Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MissionGroup'
         '422':
           description: Validation Error
           content:
@@ -2463,16 +2573,32 @@ paths:
       description: The player's current standing with every faction (best first),
         with gamestart drift.
       operationId: player_reputation_api_v1_player_reputation_get
+      parameters:
+      - name: include_hidden
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Include utility/hidden factions.
+          default: false
+          title: Include Hidden
+        description: Include utility/hidden factions.
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/PlayerRelation'
-                type: array
                 title: Response Player Reputation Api V1 Player Reputation Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/player/messages:
     get:
       tags:
@@ -2554,6 +2680,37 @@ paths:
                 items:
                   $ref: '#/components/schemas/LiveStation'
                 title: Response List Stations Api V1 Stations Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stations/{station_id}:
+    get:
+      tags:
+      - stations
+      summary: Get Station
+      description: 'Single station''s list-row rollup, for detail panels that only
+        have an id
+
+        (e.g. clicked from the map, which doesn''t carry the full overview). 404 if
+        unknown.'
+      operationId: get_station_api_v1_stations__station_id__get
+      parameters:
+      - name: station_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Station Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStation'
         '422':
           description: Validation Error
           content:
@@ -2663,10 +2820,14 @@ paths:
       tags:
       - stations
       summary: Station Layout
-      description: "The placed-module graph (identity + parent link + position) of\
-        \ a station's construction\nsequence \u2014 the source for importing an existing\
-        \ station into the builder. Empty list if the\nstation has no captured layout\
-        \ (e.g. ingested before this data existed); 404 if unknown."
+      description: 'The placed-module graph (identity + parent link + position) of
+        a station''s construction
+
+        sequence — the source for importing an existing station into the builder.
+        Empty list if the
+
+        station has no captured layout (e.g. ingested before this data existed); 404
+        if unknown.'
       operationId: station_layout_api_v1_stations__station_id__layout_get
       parameters:
       - name: station_id
@@ -2794,10 +2955,10 @@ paths:
         schema:
           type: integer
           minimum: 1
-          description: "Ship cargo capacity (m\xB3)"
+          description: Ship cargo capacity (m³)
           default: 8000
           title: Ship Cargo
-        description: "Ship cargo capacity (m\xB3)"
+        description: Ship cargo capacity (m³)
       - name: ship_speed
         in: query
         required: false
@@ -2848,11 +3009,13 @@ paths:
         required: false
         schema:
           anyOf:
-          - type: string
+          - type: array
+            items:
+              type: string
           - type: 'null'
-          description: Filter by category
+          description: Filter by category (repeatable)
           title: Category
-        description: Filter by category
+        description: Filter by category (repeatable)
       - name: q
         in: query
         required: false
@@ -2863,6 +3026,16 @@ paths:
           description: Search in title and text
           title: Q
         description: Search in title and text
+      - name: min_time
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Only entries at or after this in-game time (seconds)
+          title: Min Time
+        description: Only entries at or after this in-game time (seconds)
       - name: limit
         in: query
         required: false
@@ -2902,7 +3075,12 @@ paths:
       tags:
       - logbook
       summary: Logbook Categories
-      description: Distinct categories present in the logbook (for filter dropdowns).
+      description: 'All defined categories with subcategories, from the classification
+        rules.
+
+        Returns the full list even when the logbook is empty — the user can always
+
+        filter by any defined category.'
       operationId: logbook_categories_api_v1_logbook_categories_get
       responses:
         '200':
@@ -2911,7 +3089,7 @@ paths:
             application/json:
               schema:
                 items:
-                  type: string
+                  $ref: '#/components/schemas/CategoryInfo'
                 type: array
                 title: Response Logbook Categories Api V1 Logbook Categories Get
   /api/v1/npcs:
@@ -3113,8 +3291,8 @@ paths:
       tags:
       - economy
       summary: Ware Offer Breakdown
-      description: "Per-station offers for one ware \u2014 where it's demanded vs\
-        \ supplied (and hoarding)."
+      description: Per-station offers for one ware — where it's demanded vs supplied
+        (and hoarding).
       operationId: ware_offer_breakdown_api_v1_economy_wares__ware_id__stations_get
       parameters:
       - name: ware_id
@@ -3145,8 +3323,8 @@ paths:
       tags:
       - economy
       summary: List Accounts
-      description: "Tracked money accounts with their latest net worth \u2014 feeds\
-        \ the net-worth picker."
+      description: Tracked money accounts with their latest net worth — feeds the
+        net-worth picker.
       operationId: list_accounts_api_v1_economy_accounts_get
       parameters:
       - name: player_only
@@ -3241,23 +3419,64 @@ paths:
       description: Per-commodity profit/loss from the player's transactions, most
         profitable first.
       operationId: ware_pnl_api_v1_economy_pnl_get
+      parameters:
+      - name: owner
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          description: Scope to one or more ships/stations (buyer or seller)
+          title: Owner
+        description: Scope to one or more ships/stations (buyer or seller)
+      - name: ware
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          description: Scope to one or more ware_ids
+          title: Ware
+        description: Scope to one or more ware_ids
+      - name: since
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Only trades at or after this in-game time (seconds)
+          title: Since
+        description: Only trades at or after this in-game time (seconds)
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/WarePnlRow'
-                type: array
                 title: Response Ware Pnl Api V1 Economy Pnl Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/economy/trades:
     get:
       tags:
       - economy
       summary: List Trades
-      description: "Transaction ledger, most recent first \u2014 where credits are\
-        \ earned and spent."
+      description: Transaction ledger, most recent first — where credits are earned
+        and spent.
       operationId: list_trades_api_v1_economy_trades_get
       parameters:
       - name: ware
@@ -3265,21 +3484,25 @@ paths:
         required: false
         schema:
           anyOf:
-          - type: string
+          - type: array
+            items:
+              type: string
           - type: 'null'
-          description: Filter to one ware_id
+          description: Scope to one or more ware_ids
           title: Ware
-        description: Filter to one ware_id
+        description: Scope to one or more ware_ids
       - name: owner
         in: query
         required: false
         schema:
           anyOf:
-          - type: string
+          - type: array
+            items:
+              type: string
           - type: 'null'
-          description: Trades where this id is buyer or seller
+          description: Trades where any of these ids is buyer or seller
           title: Owner
-        description: Trades where this id is buyer or seller
+        description: Trades where any of these ids is buyer or seller
       - name: player_only
         in: query
         required: false
@@ -3289,6 +3512,16 @@ paths:
           default: false
           title: Player Only
         description: Only trades a player asset is party to
+      - name: since
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Only trades at or after this in-game time (seconds)
+          title: Since
+        description: Only trades at or after this in-game time (seconds)
       - name: limit
         in: query
         required: false
@@ -3455,40 +3688,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /favicon.ico:
-    get:
-      summary: ' Favicon'
-      operationId: _favicon_favicon_ico_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-  /{full_path}:
-    get:
-      summary: ' Spa Fallback'
-      description: Serve a static file from the dist root, or index.html for SPA routes.
-      operationId: _spa_fallback__full_path__get
-      parameters:
-      - name: full_path
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Full Path
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AccountRow:
@@ -3512,6 +3711,11 @@ components:
         is_player:
           type: boolean
           title: Is Player
+        ship_role:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ship Role
         net_worth:
           anyOf:
           - type: integer
@@ -3558,6 +3762,7 @@ components:
       - kind
       - faction
       - is_player
+      - ship_role
       - net_worth
       - net_worth_assets
       - live_cash
@@ -3910,6 +4115,28 @@ components:
       - created_at
       - updated_at
       title: BuilderStationSummary
+    CategoryInfo:
+      properties:
+        key:
+          type: string
+          title: Key
+        label:
+          type: string
+          title: Label
+        subcategories:
+          items:
+            additionalProperties:
+              type: string
+            type: object
+          type: array
+          title: Subcategories
+      additionalProperties: false
+      type: object
+      required:
+      - key
+      - label
+      - subcategories
+      title: CategoryInfo
     ChainInput:
       properties:
         ware_id:
@@ -3986,6 +4213,12 @@ components:
         range_max:
           type: number
           title: Range Max
+        crew_max:
+          type: integer
+          title: Crew Max
+        missile_max:
+          type: integer
+          title: Missile Max
       additionalProperties: false
       type: object
       required:
@@ -3999,6 +4232,8 @@ components:
       - cargo_volume
       - dps_max
       - range_max
+      - crew_max
+      - missile_max
       title: ClassMax
     ClusterConnection:
       properties:
@@ -4388,24 +4623,6 @@ components:
       - ware_id
       - faction_id
       title: DiploGift
-    DiscoverPathsResponse:
-      properties:
-        install_path:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Install Path
-        save_path:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Save Path
-      additionalProperties: false
-      type: object
-      required:
-      - install_path
-      - save_path
-      title: DiscoverPathsResponse
     DropEntry:
       properties:
         ware_id:
@@ -4885,6 +5102,10 @@ components:
           - type: string
           - type: 'null'
           title: Color Hex
+        is_hidden:
+          type: boolean
+          title: Is Hidden
+          default: false
         short_name:
           anyOf:
           - type: string
@@ -5046,6 +5267,14 @@ components:
         territory_score:
           type: number
           title: Territory Score
+        military:
+          $ref: '#/components/schemas/FactionStrengthBreakdown'
+        economic:
+          $ref: '#/components/schemas/FactionStrengthBreakdown'
+        territory:
+          $ref: '#/components/schemas/FactionStrengthBreakdown'
+        diplomacy:
+          $ref: '#/components/schemas/FactionStrengthBreakdown'
         fight_ship_count:
           type: integer
           title: Fight Ship Count
@@ -5080,6 +5309,10 @@ components:
       - economic_score
       - diplomatic_score
       - territory_score
+      - military
+      - economic
+      - territory
+      - diplomacy
       - fight_ship_count
       - trade_ship_count
       - mine_ship_count
@@ -5089,6 +5322,48 @@ components:
       - cluster_count
       - avg_relation
       title: FactionStrength
+    FactionStrengthBreakdown:
+      properties:
+        raw:
+          type: number
+          title: Raw
+        leader_raw:
+          type: number
+          title: Leader Raw
+        leader_ratio:
+          type: number
+          title: Leader Ratio
+        components:
+          items:
+            $ref: '#/components/schemas/FactionStrengthComponent'
+          type: array
+          title: Components
+      additionalProperties: false
+      type: object
+      required:
+      - raw
+      - leader_raw
+      - leader_ratio
+      - components
+      title: FactionStrengthBreakdown
+    FactionStrengthComponent:
+      properties:
+        label:
+          type: string
+          title: Label
+        value:
+          type: number
+          title: Value
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - label
+      - value
+      - detail
+      title: FactionStrengthComponent
     FactionSummary:
       properties:
         faction_id:
@@ -5102,6 +5377,10 @@ components:
           - type: string
           - type: 'null'
           title: Color Hex
+        is_hidden:
+          type: boolean
+          title: Is Hidden
+          default: false
         short_name:
           anyOf:
           - type: string
@@ -5222,6 +5501,11 @@ components:
         label:
           type: string
           title: Label
+        detail:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Detail
         progress:
           type: number
           title: Progress
@@ -5233,11 +5517,6 @@ components:
           - type: string
           - type: 'null'
           title: Error
-        detail:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Detail
       additionalProperties: false
       type: object
       required:
@@ -5246,7 +5525,6 @@ components:
       - progress
       - running
       - error
-      - detail
       title: InitStatus
     LicenceItem:
       properties:
@@ -5562,10 +5840,11 @@ components:
           type: string
           title: Text
         category:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Category
+        subcategory:
+          type: string
+          title: Subcategory
         faction:
           anyOf:
           - type: string
@@ -5594,6 +5873,7 @@ components:
       - title
       - text
       - category
+      - subcategory
       - faction
       - faction_name
       - faction_color
@@ -5852,7 +6132,6 @@ components:
             $ref: '#/components/schemas/MissionObjective'
           type: array
           title: Objectives
-          default: []
       additionalProperties: false
       type: object
       required:
@@ -7314,6 +7593,16 @@ components:
           - type: string
           - type: 'null'
           title: Zone Id
+        faction_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Faction Name
+        logo_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Logo Url
       additionalProperties: false
       type: object
       required:
@@ -8338,12 +8627,13 @@ components:
           type: string
           title: Install Path
         save_path:
-          type: string
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Save Path
       type: object
       required:
       - install_path
-      - save_path
       title: SetupConfigRequest
     SetupStatus:
       properties:
@@ -9384,11 +9674,17 @@ components:
       - pos_y
       - pos_z
       title: StationLayoutEntry
-      description: "One placed module of a station's construction sequence, with its\
-        \ parent link and\nstation-frame position \u2014 enough to reconstruct the\
-        \ station in the dashboard builder.\n`module_id` is the macro (joins s.modules);\
-        \ `name`/`kind` are convenience joins.\n`predecessor_index` references another\
-        \ entry's `entry_index` (None for the root)."
+      description: 'One placed module of a station''s construction sequence, with
+        its parent link and
+
+        station-frame position — enough to reconstruct the station in the dashboard
+        builder.
+
+        `module_id` is the macro (joins s.modules); `name`/`kind` are convenience
+        joins.
+
+        `predecessor_index` references another entry''s `entry_index` (None for the
+        root).'
     StationModule:
       properties:
         module_id:
@@ -9713,6 +10009,11 @@ components:
           - type: string
           - type: 'null'
           title: Ware Name
+        icon_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Icon Url
         price:
           anyOf:
           - type: integer
@@ -9755,6 +10056,7 @@ components:
       - time
       - ware
       - ware_name
+      - icon_url
       - price
       - quantity
       - buyer
@@ -10193,6 +10495,12 @@ components:
         buy_count:
           type: integer
           title: Buy Count
+        sell_qty:
+          type: integer
+          title: Sell Qty
+        buy_qty:
+          type: integer
+          title: Buy Qty
       additionalProperties: false
       type: object
       required:
@@ -10204,6 +10512,8 @@ components:
       - net
       - sell_count
       - buy_count
+      - sell_qty
+      - buy_qty
       title: WarePnlRow
     WareSummary:
       properties:

@@ -30,3 +30,18 @@ def disambiguate(
             d[name_col] = f"{d[name_col]} ({d[id_col]})"
         out.append(d)
     return out
+
+
+def visible_faction_where(alias: str = "") -> str:
+    """SQL predicate matching factions without the source XML ``hidden`` tag."""
+    prefix = f"{alias}." if alias else ""
+    return f"NOT (instr(' ' || COALESCE({prefix}tags, '') || ' ', ' hidden ') > 0)"
+
+
+def is_hidden_select(alias: str = "") -> str:
+    """SQL select expression exposing the source XML ``hidden`` tag as a boolean."""
+    prefix = f"{alias}." if alias else ""
+    return (
+        f"CASE WHEN instr(' ' || COALESCE({prefix}tags, '') || ' ', ' hidden ') > 0 "
+        "THEN 1 ELSE 0 END AS is_hidden"
+    )

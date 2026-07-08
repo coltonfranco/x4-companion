@@ -6,6 +6,9 @@ Probed structure (autosave_02.xml.gz):
     lastcontrolled="[0x..]" id="[0x..]">` — the player character entity.
   * Credits: the player faction's `<account amount="...">` at
     universe/factions/faction(id="player")/account.
+  * Custom faction name & logo: `<faction id="player"><custom><name name="..."/>
+    <image file="assets/textures/ui/player_logos/playerlogo_NN.tga"/></custom>` —
+    the player-set organisation name and selected logo index.
   * Blueprints: `<blueprints><blueprint ware="..."/>` (deeply nested under the player
     HQ component — matched by tag+parent at any depth).
   * Licences: `<faction id="X"><licences><licence type="T" factions="X player"/>` —
@@ -16,6 +19,7 @@ Tier: VOLATILE — credits and holdings change during play.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -28,6 +32,8 @@ from x4_extract.savefile.dispatch import Registration, Target
 
 _LICENCE_DEPTH = 6
 _ACCOUNT_DEPTH = 5
+_CUSTOM_CHILD_DEPTH = 6  # <name>/<image> under <custom>
+_LOGO_FILENAME_RE = re.compile(r"playerlogo_(\d+)")
 _MAPPED_CHAR_ATTRS = frozenset({"id", "name", "macro", "lastcontrolled", "owner", "class"})
 
 
@@ -36,6 +42,8 @@ class PlayerCollector:
     _char: dict[str, str] = field(default_factory=dict)
     _credits: int | None = None
     _current_ship: str | None = None
+    _faction_name: str | None = None
+    _logo_index: int | None = None
     blueprints: set[str] = field(default_factory=set)
     licences: set[tuple[str, str]] = field(default_factory=set)  # (licence_type, granting faction)
     inventory: dict[str, int] = field(default_factory=dict)
@@ -54,6 +62,14 @@ class PlayerCollector:
             ),
             Registration(
                 Target(tag="ware", depth=None, parent_tag="inventory"), self._on_inventory_ware
+            ),
+            Registration(
+                Target(tag="name", depth=_CUSTOM_CHILD_DEPTH, parent_tag="custom"),
+                self._on_custom_name,
+            ),
+            Registration(
+                Target(tag="image", depth=_CUSTOM_CHILD_DEPTH, parent_tag="custom"),
+                self._on_custom_image,
             ),
         ]
 
@@ -93,6 +109,30 @@ class PlayerCollector:
         for granter in (elem.get("factions") or "").split():
             self.licences.add((licence_type, granter))
 
+    def _on_custom_name(self, elem: etree._Element) -> None:
+        """Capture the player-set faction name from <custom>/<name name="...">."""
+        if not self._is_player_faction_custom(elem):
+            return
+        self._faction_name = elem.get("name") or None
+
+    def _on_custom_image(self, elem: etree._Element) -> None:
+        """Capture the player-selected logo from <custom>/<image file="...">."""
+        if not self._is_player_faction_custom(elem):
+            return
+        file_attr = elem.get("file") or ""
+        m = _LOGO_FILENAME_RE.search(file_attr)
+        if m:
+            self._logo_index = int(m.group(1))
+
+    @staticmethod
+    def _is_player_faction_custom(elem: etree._Element) -> bool:
+        """Check that `elem` is under <faction id="player"><custom>."""
+        custom = elem.getparent()
+        if custom is None or custom.tag != "custom":
+            return False
+        faction = custom.getparent()
+        return faction is not None and faction.get("id") == "player"
+
     def _on_inventory_ware(self, elem: etree._Element) -> None:
         ware_id = elem.get("ware")
         if not ware_id:
@@ -115,6 +155,8 @@ class PlayerCollector:
             "hq_station_id": None,
             "current_sector": None,
             "current_ship_id": self._char.get("lastcontrolled") or self._current_ship,
+            "faction_name": self._faction_name,
+            "logo_index": self._logo_index,
             "extra_json": extra_json_from_attrs(self._char, _MAPPED_CHAR_ATTRS),
         }
 
@@ -133,6 +175,8 @@ class PlayerCollector:
                 "name": row["name"],
                 "credits": row["credits"],
                 "current_ship_id": row["current_ship_id"],
+                "faction_name": row["faction_name"],
+                "logo_index": row["logo_index"],
             },
         )
 
@@ -163,9 +207,9 @@ class PlayerCollector:
                 """
                 INSERT OR REPLACE INTO player
                     (id, player_id, name, credits, hq_station_id, current_sector,
-                     current_ship_id, extra_json)
+                     current_ship_id, faction_name, logo_index, extra_json)
                 VALUES (:id, :player_id, :name, :credits, :hq_station_id, :current_sector,
-                        :current_ship_id, :extra_json)
+                        :current_ship_id, :faction_name, :logo_index, :extra_json)
                 """,
                 row,
             )

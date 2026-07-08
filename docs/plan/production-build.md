@@ -11,7 +11,7 @@ correctness gaps will surface the moment a real `tauri build` runs.
 
 `tauri build` already produces an installer, but the result is **not** self-contained: the
 Rust shell (`packages/x4-desktop/src-tauri/src/main.rs:24-44`) looks for an `x4c-server.exe`
-sidecar next to the binary and **falls back to `uv run x4c serve`** when it's missing. Nothing
+sidecar next to the binary and **falls back to plain `uv run`** when it's missing. Nothing
 bundles that sidecar yet (`tauri.conf.json` has no `externalBin`), so a shipped app would
 silently require `uv` + Python + the repo checkout. That's the core gap.
 
@@ -20,7 +20,7 @@ silently require `uv` + Python + the repo checkout. That's the core gap.
 ### 1. Bundle the Python server into a standalone exe (the big lift)
 
 The server has heavy native deps — `lxml`, `Pillow`, `texture2ddecoder`, `networkx`,
-`uvicorn[standard]`. Use **PyInstaller** (or Nuitka) to freeze `x4c serve` into
+`uvicorn[standard]`. Use **PyInstaller** (or Nuitka) to freeze the API server into
 `x4c-server.exe`:
 
 - Add `pyinstaller` as a dev dependency in `packages/x4-api`.

@@ -14,6 +14,7 @@ import type {
   Zone,
 } from "./types";
 import type { FactionSummary } from "../types";
+import { ALL_FACTIONS_PATH, ALL_FACTIONS_QUERY_KEY } from "../factionQueries";
 
 export function useMapData() {
   const clustersQuery = useQuery<Cluster[]>({
@@ -45,8 +46,8 @@ export function useMapData() {
     queryFn: () => apiGet<ClusterResourceEntry[]>("/api/v1/map/cluster-resources"),
   });
   const factionsQuery = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: ALL_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(ALL_FACTIONS_PATH),
   });
   const stationsQuery = useQuery<MapStation[]>({
     queryKey: ["map-stations"],

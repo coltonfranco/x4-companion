@@ -36,6 +36,7 @@ class Account:
     kind: str  # station | ship | account
     faction: str | None
     is_player: bool
+    ship_role: str | None  # ship class role (trade/fight/mine/...); NULL for stations/accounts
     net_worth: int | None  # latest baseline `v` (faction-level; NULL for most stations)
     net_worth_assets: int | None  # latest baseline `v2`
     live_cash: int | None  # exact cash balance from latest transaction event
@@ -77,6 +78,8 @@ class WarePnl:
     net: int  # income - spend
     sell_count: int
     buy_count: int
+    sell_qty: int  # units sold
+    buy_qty: int  # units bought
 
 
 @dataclass(slots=True)
@@ -84,6 +87,8 @@ class TradeRecord:
     time: float
     ware: str | None
     ware_name: str | None
+    icon_path: str | None
+    tags: str | None
     price: int | None
     quantity: int | None
     buyer: str | None
@@ -120,13 +125,14 @@ counts AS (
     SELECT owner, COUNT(*) AS n, MAX(time) AS last_time FROM economy_money GROUP BY owner
 )
 SELECT c.owner, b.v / 100 AS v, b.v2 / 100 AS v2, l.cash AS live_cash, b.time AS latest_time, c.n AS event_count,
-       ov.account_amount, ov.account_min, ov.account_max,
+       ov.account_amount, ov.account_min, ov.account_max, sc.role AS ship_role,
        {_RESOLVE.format(st="st", sh="sh", p="owner")}
 FROM counts c
 LEFT JOIN baseline b ON b.owner = c.owner AND b.rn = 1
 LEFT JOIN live_cash l ON l.owner = c.owner AND l.rn = 1
 LEFT JOIN stations st ON st.station_id = c.owner
 LEFT JOIN ships    sh ON sh.ship_id    = c.owner
+LEFT JOIN s.ships  sc ON sc.ship_id    = sh.macro
 LEFT JOIN station_overview ov ON ov.station_id = c.owner
 ORDER BY COALESCE(ov.account_amount, b.v / 100) DESC NULLS LAST, c.owner
 """
@@ -159,6 +165,7 @@ def accounts(conn: sqlite3.Connection, *, player_only: bool = False) -> list[Acc
             kind=r["owner_kind"],
             faction=r["owner_faction"],
             is_player=bool(r["owner_is_player"]),
+            ship_role=r["ship_role"],
             net_worth=r["v"],
             net_worth_assets=r["v2"],
             live_cash=r["live_cash"],
@@ -335,7 +342,7 @@ def net_worth_breakdown(conn: sqlite3.Connection) -> NetWorthBreakdown:
 
 _PNL_QUERY = """
 WITH t AS (
-    SELECT et.ware, (et.price * et.v) / 100 AS value,
+    SELECT et.ware, (et.price * et.v) / 100 AS value, et.v AS qty, et.buyer, et.seller,
            COALESCE(bst.is_player_owned, bsh.is_player_owned, 0) AS buyer_player,
            COALESCE(sst.is_player_owned, ssh.is_player_owned, 0) AS seller_player
     FROM economy_trade et
@@ -343,7 +350,7 @@ WITH t AS (
     LEFT JOIN ships    bsh ON bsh.ship_id    = et.buyer
     LEFT JOIN stations sst ON sst.station_id = et.seller
     LEFT JOIN ships    ssh ON ssh.ship_id    = et.seller
-    WHERE et.price IS NOT NULL AND et.v IS NOT NULL
+    WHERE et.price IS NOT NULL AND et.v IS NOT NULL {time_filter}
 )
 -- External P&L only: a player→player trade is an internal transfer, not profit/loss, so
 -- income requires a non-player buyer and spend a non-player seller. Internal transfers fall
@@ -351,20 +358,55 @@ WITH t AS (
 SELECT t.ware, w.name AS ware_name, w.icon_path, w.tags,
        SUM(CASE WHEN t.seller_player = 1 AND t.buyer_player  = 0 THEN t.value ELSE 0 END) AS income,
        SUM(CASE WHEN t.buyer_player  = 1 AND t.seller_player = 0 THEN t.value ELSE 0 END) AS spend,
+       SUM(CASE WHEN t.seller_player = 1 AND t.buyer_player  = 0 THEN t.qty ELSE 0 END) AS sell_qty,
+       SUM(CASE WHEN t.buyer_player  = 1 AND t.seller_player = 0 THEN t.qty ELSE 0 END) AS buy_qty,
        SUM(CASE WHEN t.seller_player = 1 AND t.buyer_player  = 0 THEN 1 ELSE 0 END) AS sell_count,
        SUM(CASE WHEN t.buyer_player  = 1 AND t.seller_player = 0 THEN 1 ELSE 0 END) AS buy_count
 FROM t
 LEFT JOIN s.wares w ON w.ware_id = t.ware
-WHERE t.buyer_player = 1 OR t.seller_player = 1
+WHERE (t.buyer_player = 1 OR t.seller_player = 1) {owner_filter} {ware_filter}
 GROUP BY t.ware
-HAVING income > 0 OR spend > 0
+HAVING income > 0 OR spend > 0 OR sell_qty > 0 OR buy_qty > 0
 ORDER BY (income - spend) DESC
 """
 
 
-def ware_pnl(conn: sqlite3.Connection) -> list[WarePnl]:
+def _in_clause(column: str, values: list[str]) -> tuple[str, list[object]]:
+    """`AND {column} IN (?, ?, ...)` plus its bound params, for an optional multi-value filter."""
+    placeholders = ", ".join(["?"] * len(values))
+    return f"AND {column} IN ({placeholders})", list(values)
+
+
+def ware_pnl(
+    conn: sqlite3.Connection,
+    *,
+    owner: list[str] | None = None,
+    ware: list[str] | None = None,
+    since: float | None = None,
+) -> list[WarePnl]:
     """Per-ware profit/loss from the player's trades — the income vs cost breakdown that
-    answers 'which commodities make me money?'. Ordered most-profitable first."""
+    answers 'which commodities make me money?'. Optionally scoped to one or more
+    ships/stations (buyer or seller), one or more wares, and/or a time window (`since`,
+    in-game seconds). Ordered most-profitable first."""
+    time_filter = ""
+    owner_filter = ""
+    ware_filter = ""
+    params: list[object] = []
+    if since is not None:
+        time_filter = "AND et.time >= ?"
+        params.append(since)
+    if owner:
+        placeholders = ", ".join(["?"] * len(owner))
+        owner_filter = f"AND (t.buyer IN ({placeholders}) OR t.seller IN ({placeholders}))"
+        params += list(owner) + list(owner)
+    if ware:
+        clause, ware_params = _in_clause("t.ware", ware)
+        ware_filter = clause
+        params += ware_params
+    rows = conn.execute(
+        _PNL_QUERY.format(time_filter=time_filter, owner_filter=owner_filter, ware_filter=ware_filter),
+        params,
+    ).fetchall()
     return [
         WarePnl(
             ware=r["ware"],
@@ -376,13 +418,15 @@ def ware_pnl(conn: sqlite3.Connection) -> list[WarePnl]:
             net=int((r["income"] or 0) - (r["spend"] or 0)),
             sell_count=r["sell_count"] or 0,
             buy_count=r["buy_count"] or 0,
+            sell_qty=r["sell_qty"] or 0,
+            buy_qty=r["buy_qty"] or 0,
         )
-        for r in conn.execute(_PNL_QUERY).fetchall()
+        for r in rows
     ]
 
 
 _TRADES_QUERY = f"""
-SELECT t.time, t.ware, w.name AS ware_name, t.price / 100 AS price, t.v AS quantity,
+SELECT t.time, t.ware, w.name AS ware_name, w.icon_path, w.tags, t.price / 100 AS price, t.v AS quantity,
        t.buyer, t.seller,
        {_RESOLVE.format(st="bst", sh="bsh", p="buyer")},
        {_RESOLVE.format(st="sst", sh="ssh", p="seller")}
@@ -401,22 +445,29 @@ LIMIT ? OFFSET ?
 def trades(
     conn: sqlite3.Connection,
     *,
-    ware: str | None = None,
-    owner: str | None = None,
+    ware: list[str] | None = None,
+    owner: list[str] | None = None,
     player_only: bool = False,
+    since: float | None = None,
     limit: int = 500,
     offset: int = 0,
 ) -> list[TradeRecord]:
     """Transaction ledger, most recent first. `owner` matches buyer OR seller; `player_only`
-    keeps trades where either party is a player asset."""
+    keeps trades where either party is a player asset; `since` keeps trades at or after that
+    in-game time (seconds). `ware`/`owner` accept one or more values."""
     filters = ""
     params: list[object] = []
-    if ware is not None:
-        filters += " AND t.ware = ?"
-        params.append(ware)
-    if owner is not None:
-        filters += " AND (t.buyer = ? OR t.seller = ?)"
-        params += [owner, owner]
+    if ware:
+        clause, ware_params = _in_clause("t.ware", ware)
+        filters += f" {clause}"
+        params += ware_params
+    if owner:
+        placeholders = ", ".join(["?"] * len(owner))
+        filters += f" AND (t.buyer IN ({placeholders}) OR t.seller IN ({placeholders}))"
+        params += list(owner) + list(owner)
+    if since is not None:
+        filters += " AND t.time >= ?"
+        params.append(since)
     if player_only:
         filters += (
             " AND (COALESCE(bst.is_player_owned, bsh.is_player_owned, 0) = 1"
@@ -428,6 +479,8 @@ def trades(
             time=r["time"],
             ware=r["ware"],
             ware_name=r["ware_name"],
+            icon_path=r["icon_path"],
+            tags=r["tags"],
             price=r["price"],
             quantity=r["quantity"],
             buyer=r["buyer"],

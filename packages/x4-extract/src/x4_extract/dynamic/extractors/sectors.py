@@ -1,9 +1,13 @@
-"""Extract dynamic sector state (e.g. player knowledge) from a streamed save.
+"""Extract dynamic sector state (e.g. player knowledge, ownership) from a streamed save.
 
 Sector components are found at depth 9:
     savegame(1) → universe(2) → component[galaxy](3) → connections(4) →
     connection(5) → component[cluster](6) → connections(7) → connection(8) →
     component[sector](9)
+
+The game records sector ownership changes directly on the sector component:
+    <component class=\"sector\" macro=\"cluster_409_sector001_macro\"
+               owner=\"freesplit\" contested=\"1\" knownto=\"player\"/>
 
 Tier: VOLATILE — player knowledge of sectors expands continuously during play.
 """
@@ -17,16 +21,25 @@ from dataclasses import dataclass, field
 from lxml import etree
 
 from x4_extract.dynamic.collector import Tier, fingerprint_for_tier, tables_for_tier
-from x4_extract.dynamic.extractors.component_helpers import known_to_player
+from x4_extract.dynamic.extractors.component_helpers import (
+    element_attrs,
+    extra_json_from_attrs,
+    known_to_player,
+)
 from x4_extract.savefile.dispatch import Registration, Target
 
 _SECTOR_DEPTH = 9
+
+# Sector component attrs promoted to columns; the rest go to extra_json.
+_MAPPED_SECTOR_ATTRS = frozenset({"macro", "owner", "contested", "knownto", "id", "class", "code"})
 
 
 @dataclass(slots=True)
 class SectorStateRow:
     sector_id: str
     known_to_player: int
+    owner_faction: str | None
+    contested: int
     extra_json: str | None
 
 
@@ -52,14 +65,13 @@ class SectorsCollector:
         if not sector_id:
             return
 
-        # We don't need to dump the rest of the attributes here since static map handles
-        # sector layout, but we could put them in extra_json if needed. Let's just track knownto.
-
         self.rows.append(
             SectorStateRow(
                 sector_id=sector_id,
                 known_to_player=known_to_player(elem),
-                extra_json=None,
+                owner_faction=elem.get("owner") or None,
+                contested=int(elem.get("contested", "0")),
+                extra_json=extra_json_from_attrs(element_attrs(elem), _MAPPED_SECTOR_ATTRS),
             )
         )
 
@@ -76,8 +88,8 @@ class SectorsCollector:
         conn.executemany(
             """
             INSERT OR REPLACE INTO sector_state
-                (sector_id, known_to_player, extra_json)
-            VALUES (:sector_id, :known_to_player, :extra_json)
+                (sector_id, known_to_player, owner_faction, contested, extra_json)
+            VALUES (:sector_id, :known_to_player, :owner_faction, :contested, :extra_json)
             """,
             [dataclasses.asdict(r) for r in self.rows],
         )

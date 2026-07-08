@@ -41,7 +41,9 @@ import { Switch } from "../../components/ui/switch";
 import { Plus, Settings, Undo, Redo, Save, FolderOpen, FilePlus2, Trash2, Loader2, DownloadCloud, Wand2, Route } from "lucide-react";
 import { useBlocker } from "@tanstack/react-router";
 import { Button } from "../../components/ui/button";
+import { ClearFiltersButton } from "../../components/ui/clear-filters-button";
 import { apiGet } from "../../lib/api";
+import { VISIBLE_FACTIONS_PATH, VISIBLE_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import { usePlayerLicences } from "../../lib/usePlayerLicences";
 import {
   serializeNodes,
@@ -104,8 +106,8 @@ function StationBuilderContent() {
   });
 
   const { data: factions = [] } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: VISIBLE_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(VISIBLE_FACTIONS_PATH),
     staleTime: 10 * 60_000,
   });
 
@@ -752,7 +754,9 @@ function StationBuilderContent() {
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <button className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2" onClick={() => { setFilterKind("all"); setFilterReady(false); setSearch(""); }}>Clear Filters</button>
+              {(filterKind !== "all" || filterReady || search !== "") && (
+                <ClearFiltersButton onClick={() => { setFilterKind("all"); setFilterReady(false); setSearch(""); }} />
+              )}
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-2">

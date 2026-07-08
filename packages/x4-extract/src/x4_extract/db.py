@@ -67,6 +67,22 @@ def _migrate_dynamic(conn: sqlite3.Connection) -> None:
             with suppress(sqlite3.OperationalError):
                 conn.execute(f"ALTER TABLE stations ADD COLUMN {col} REAL")
 
+    # player: faction_name / logo_index — custom player organisation (2026-07)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info('player')").fetchall()}
+    for col in ("faction_name", "logo_index"):
+        if col not in cols:
+            col_type = "TEXT" if col == "faction_name" else "INTEGER"
+            with suppress(sqlite3.OperationalError):
+                conn.execute(f"ALTER TABLE player ADD COLUMN {col} {col_type}")
+
+    # sector_state: owner_faction / contested — game-authoritative sector ownership (2026-07)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info('sector_state')").fetchall()}
+    for col in ("owner_faction", "contested"):
+        if col not in cols:
+            col_type = "TEXT" if col == "owner_faction" else "INTEGER"
+            with suppress(sqlite3.OperationalError):
+                conn.execute(f"ALTER TABLE sector_state ADD COLUMN {col} {col_type}")
+
     # logbook: subcategory (2026-07)
     cols = {r[1] for r in conn.execute("PRAGMA table_info('logbook')").fetchall()}
     if "subcategory" not in cols:

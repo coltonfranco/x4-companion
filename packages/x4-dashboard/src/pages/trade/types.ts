@@ -2,7 +2,7 @@
 
 export type Account = {
   owner: string; name: string | null; kind: "station" | "ship" | "account";
-  faction: string | null; is_player: boolean;
+  faction: string | null; is_player: boolean; ship_role: string | null;
   net_worth: number | null; net_worth_assets: number | null;
   live_cash: number | null;
   account_amount: number | null; account_min: number | null; account_max: number | null;
@@ -12,11 +12,12 @@ export type Account = {
 export type WarePnl = {
   ware: string | null; ware_name: string | null; icon_url: string | null;
   income: number; spend: number; net: number; sell_count: number; buy_count: number;
+  sell_qty: number; buy_qty: number;
 };
 
 export type Trade = {
-  time: number; ware: string | null; ware_name: string | null; price: number | null;
-  quantity: number | null; buyer_name: string | null; buyer_is_player: boolean;
+  time: number; ware: string | null; ware_name: string | null; icon_url: string | null;
+  price: number | null; quantity: number | null; buyer_name: string | null; buyer_is_player: boolean;
   seller_name: string | null; seller_is_player: boolean;
 };
 

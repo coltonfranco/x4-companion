@@ -1,5 +1,5 @@
-import { X } from "lucide-react";
 import { FilterBar } from "../../../components/layout/FilterBar";
+import { ClearFiltersButton } from "../../../components/ui/clear-filters-button";
 import { SearchInput } from "../../../components/ui/search-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { MultiSelect } from "../../../components/ui/multi-select";
@@ -59,16 +59,14 @@ export function CrewFilterBar({
       </div>
 
       {(search !== "" || roleFilter !== "all" || groupBy !== "none") && (
-        <button
+        <ClearFiltersButton
           onClick={() => {
             setSearch("");
             setRoleFilter("all");
             setGroupBy("none");
           }}
-          className="ml-2 text-[11px] font-medium text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-2 py-1.5 rounded-[4px] bg-muted/30 hover:bg-muted/50 transition-colors shrink-0"
-        >
-          <X className="w-3.5 h-3.5" /> Clear filters
-        </button>
+          className="ml-2"
+        />
       )}
 
       <div className="ml-auto flex items-center gap-4 shrink-0">

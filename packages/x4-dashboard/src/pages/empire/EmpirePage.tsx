@@ -5,10 +5,14 @@ import { Building2, ChevronDown, FileText, Handshake, Rocket, ScrollText, Ship, 
 import { Reputation } from "../../components/game/GameValues";
 import { Currency } from "../../components/game/Currency";
 import { FactionBadge } from "../../components/game/FactionBadge";
+import { FactionStrengthTooltip } from "../../components/game/FactionStrengthTooltip";
+import { LicenceTierBadge } from "../../components/game/LicenceTierBadge";
 import { getReputationScore } from "../../lib/formatters";
 import { prettyId } from "../../lib/wareFormat";
 import { useFactionMap } from "../../lib/useFactionMap";
 import { useLookupMap } from "../../lib/useLookupMap";
+import { useFactionLicences } from "../../lib/useFactionLicences";
+import { groupFactionLicences } from "../../lib/licenceTiers";
 import { usePlayerLicences } from "../../lib/usePlayerLicences";
 import { ShipDetailPanel } from "../../components/detail-panels/ShipDetailPanel";
 import { DetailDialog } from "../../components/ui/detail-dialog";
@@ -16,12 +20,22 @@ import { PageLoaderPreset } from "../../components/layout/PageLoader";
 import { PageSubtitle } from "../../components/ui/page-subtitle";
 import { useHasSave } from "../../lib/useHasSave";
 import { apiGet, apiGetOrNull } from "../../lib/api";
+import { VISIBLE_FACTIONS_PATH, VISIBLE_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { STATUS_COLORS } from "../../lib/map/constants";
+import {
+  computeRankings,
+  breakdownKey,
+  fieldTier,
+  findRank,
+  PLAYER_FACTION_ID,
+  useFactionRankBaseline,
+  type FactionStrength,
+} from "../../lib/factionStrength";
 import { CriticalAlertsWidget } from "./components/CriticalAlertsWidget";
 import { StatCard, Panel } from "./components/EmpireStatCard";
 
-type Player = { player_id: string | null; name: string | null; credits: number | null; current_ship_id: string | null };
+type Player = { player_id: string | null; name: string | null; credits: number | null; current_ship_id: string | null; faction_name: string | null; logo_url: string | null };
 type FleetShip = {
   ship_id: string;
   code: string | null;
@@ -35,13 +49,6 @@ type FleetShip = {
 };
 type Station = { station_id: string; code: string | null; name: string | null; sector_id: string | null; is_under_construction: boolean };
 type PlayerRelation = { faction_id: string; faction_name: string | null; color_hex: string | null; relation: number; initial_relation: number | null };
-type FactionStrength = {
-  faction_id: string;
-  military_score: number;
-  economic_score: number;
-  diplomatic_score: number;
-  territory_score: number;
-};
 
 type Health = {
   ok: boolean;
@@ -50,12 +57,6 @@ type Health = {
   game_version: string | null;
 };
 
-const STANDING_CATS = [
-  { key: "military_score", label: "Military", color: "var(--destructive)" },
-  { key: "economic_score", label: "Economic", color: "var(--success)" },
-  { key: "diplomatic_score", label: "Diplomatic", color: "var(--info)" },
-  { key: "territory_score", label: "Territory", color: "hsl(38 92% 50%)" },
-] as const;
 type Faction = { faction_id: string; name: string; color_hex: string | null; icon_url?: string | null };
 type Sector = { sector_id: string; name: string | null };
 
@@ -91,6 +92,7 @@ export default function EmpireOverviewPage() {
     queryKey: ["player-blueprints"], queryFn: () => apiGet<{ ware_id: string }[]>("/api/v1/player/blueprints"),
   });
   const { data: licences = [] } = usePlayerLicences();
+  const { data: licenceCatalog = [] } = useFactionLicences();
   const { data: fleet = [] } = useQuery<FleetShip[]>({
     queryKey: ["fleet-player"], queryFn: () => apiGet<FleetShip[]>("/api/v1/fleet?player_only=true&limit=2000"),
   });
@@ -98,26 +100,47 @@ export default function EmpireOverviewPage() {
     queryKey: ["stations-player"], queryFn: () => apiGet<Station[]>("/api/v1/stations?player_only=true&limit=2000"),
   });
   const { data: factions = [] } = useQuery<Faction[]>({
-    queryKey: ["factions"], queryFn: () => apiGet<Faction[]>("/api/v1/factions"),
+    queryKey: VISIBLE_FACTIONS_QUERY_KEY, queryFn: () => apiGet<Faction[]>(VISIBLE_FACTIONS_PATH),
   });
   const { data: reputation = [] } = useQuery<PlayerRelation[]>({
     queryKey: ["player-reputation"], queryFn: () => apiGet<PlayerRelation[]>("/api/v1/player/reputation"),
   });
   const { data: strength = [] } = useQuery<FactionStrength[]>({
-    queryKey: ["factions-strength"], queryFn: () => apiGet<FactionStrength[]>("/api/v1/factions/strength"), staleTime: 30_000,
+    queryKey: ["factions-strength", "visible"], queryFn: () => apiGet<FactionStrength[]>(`${VISIBLE_FACTIONS_PATH}/strength`), staleTime: 30_000,
   });
   const factionMap = useFactionMap(factions);
 
+  const rankings = useMemo(() => computeRankings(strength), [strength]);
+  const rankDelta = useFactionRankBaseline(rankings);
+
   const standing = useMemo(
     () =>
-      STANDING_CATS.map((c) => {
-        const sorted = [...strength].filter((f) => f[c.key] > 0).sort((a, b) => b[c.key] - a[c.key]);
-        const idx = sorted.findIndex((f) => f.faction_id === "player");
-        const me = strength.find((f) => f.faction_id === "player");
-        return { ...c, rank: idx >= 0 ? idx + 1 : null, total: sorted.length, score: me?.[c.key] ?? 0 };
+      rankings.map((r) => {
+        const found = findRank(r.ranked, PLAYER_FACTION_ID);
+        const me = strength.find((f) => f.faction_id === PLAYER_FACTION_ID);
+        return {
+          key: r.key,
+          label: r.label,
+          color: r.color,
+          rank: found?.rank ?? null,
+          total: found?.total ?? r.ranked.length,
+          score: me?.[r.key] ?? 0,
+          leaderRatio: me ? me[breakdownKey(r.key)].leader_ratio : 0,
+          faction: me ?? null,
+        };
       }),
-    [strength]
+    [rankings, strength]
   );
+
+  const bestStanding = useMemo(() => {
+    const ranked = standing.filter((c): c is typeof c & { rank: number } => c.rank != null);
+    if (ranked.length === 0) return null;
+    return ranked.reduce((best, c) => {
+      const pct = (c.rank - 1) / Math.max(1, c.total - 1);
+      const bestPct = (best.rank - 1) / Math.max(1, best.total - 1);
+      return pct < bestPct ? c : best;
+    });
+  }, [standing]);
   const { data: sectors = [] } = useQuery<Sector[]>({
     queryKey: ["map-sectors"], queryFn: () => apiGet<Sector[]>("/api/v1/map/sectors?limit=2000"), staleTime: 600_000,
   });
@@ -135,11 +158,30 @@ export default function EmpireOverviewPage() {
     return [...ROLE_ORDER, "other"].map((r) => ({ r, n: c.get(r) ?? 0 })).filter((x) => x.n > 0);
   }, [fleet]);
 
-  const licencesByFaction = useMemo(() => {
-    const m = new Map<string, string[]>();
-    for (const l of licences) m.set(l.faction_id, [...(m.get(l.faction_id) ?? []), l.licence_type]);
-    return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
+  const heldLicenceTypes = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const l of licences) {
+      if (!m.has(l.faction_id)) m.set(l.faction_id, new Set());
+      m.get(l.faction_id)!.add(l.licence_type);
+    }
+    return m;
   }, [licences]);
+
+  const licenceTiersByFaction = useMemo(() => {
+    const catalogByFaction = new Map<string, typeof licenceCatalog>();
+    for (const l of licenceCatalog) {
+      if (!catalogByFaction.has(l.faction_id)) catalogByFaction.set(l.faction_id, []);
+      catalogByFaction.get(l.faction_id)!.push(l);
+    }
+    return [...heldLicenceTypes.keys()]
+      .map((fid) => ({ fid, grouping: groupFactionLicences(catalogByFaction.get(fid) ?? []) }))
+      .filter(({ grouping }) => grouping.tiers.length > 0 || grouping.other.length > 0)
+      .sort((a, b) => {
+        const heldA = heldLicenceTypes.get(a.fid)!.size;
+        const heldB = heldLicenceTypes.get(b.fid)!.size;
+        return heldB - heldA;
+      });
+  }, [licenceCatalog, heldLicenceTypes]);
 
   if (isPlayerLoading) return <PageLoaderPreset preset="empire" />;
 
@@ -148,7 +190,7 @@ export default function EmpireOverviewPage() {
       <div className="px-6 pt-5 shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2 tracking-tight">
-            <User className="h-6 w-6 text-primary" /> {player?.name ?? "Pilot"}
+            <User className="h-6 w-6 text-primary" /> {player?.faction_name || player?.name || "Pilot"}
           </h1>
           <PageSubtitle>Your empire at a glance</PageSubtitle>
         </div>
@@ -295,28 +337,44 @@ export default function EmpireOverviewPage() {
                     )}
 
                     <Panel title={`Licences · ${licences.length}`} icon={ScrollText}>
-                      <p className="text-xs text-muted-foreground mb-3">Includes default trade licences granted by most factions.</p>
-                      {licencesByFaction.length === 0 ? (
+                      <p className="text-xs text-muted-foreground mb-3">Access tiers unlocked with each faction, plus one-off contracts like Envoy or Hyperion sale licences.</p>
+                      {licenceTiersByFaction.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No licences held.</p>
                       ) : (
                         <div className="space-y-3">
-                          {licencesByFaction.map(([fid, types]) => {
+                          {licenceTiersByFaction.map(({ fid, grouping }) => {
                             const f = factionMap.get(fid);
+                            const held = heldLicenceTypes.get(fid) ?? new Set<string>();
+                            const allItems = [...grouping.tiers.flatMap((t) => t.items), ...grouping.other];
+                            const heldCount = allItems.filter((i) => held.has(i.licence_type)).length;
                             return (
                               <div key={fid}>
                                 <div className="flex items-center gap-2 mb-1.5">
-                                  <Link to="/factions" search={{ faction: fid }} className="flex items-center gap-2 transition-opacity hover:opacity-80">
+                                  <Link to="/factions/list" search={{ faction: fid }} className="flex items-center gap-2 transition-opacity hover:opacity-80">
                                     <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: f?.color_hex ?? "#888" }} />
                                     <span className="text-sm font-semibold" style={{ color: f?.color_hex ?? undefined }}>{f?.name ?? prettyId(fid)}</span>
                                   </Link>
-                                  <span className="text-xs text-muted-foreground">{types.length}</span>
+                                  <span className="text-xs text-muted-foreground ml-auto tabular-nums">{heldCount}/{allItems.length}</span>
                                 </div>
                                 <div className="flex flex-wrap gap-1.5 pl-4">
-                                  {types.map((t) => (
-                                    <span key={t} className="rounded-full border border-border bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground">
-                                      {prettyId(t)}
+                                  {grouping.tiers.map((tier) => {
+                                    const gateUnlocked = tier.key === "__base__" || held.has(tier.key);
+                                    const score = tier.minRelation != null ? getReputationScore(tier.minRelation) : null;
+                                    return (
+                                      <LicenceTierBadge
+                                        key={tier.key}
+                                        unlocked={gateUnlocked}
+                                        label={tier.label}
+                                        className="rounded-full border border-border bg-muted/20 px-2 py-0.5 text-xs"
+                                        title={score != null ? `${tier.label} · ${score > 0 ? "+" : ""}${score} relation` : tier.label}
+                                      />
+                                    );
+                                  })}
+                                  {grouping.other.length > 0 && (
+                                    <span className="rounded-full border border-border bg-muted/20 px-2 py-0.5 text-xs text-muted-foreground">
+                                      +{grouping.other.length} special
                                     </span>
-                                  ))}
+                                  )}
                                 </div>
                               </div>
                             );
@@ -335,24 +393,91 @@ export default function EmpireOverviewPage() {
                     <CriticalAlertsWidget />
 
                     {strength.length > 0 && (
-                      <Panel title="Standing among factions" icon={Trophy}>
+                      <Panel
+                        title="Standing among factions"
+                        icon={Trophy}
+                        headerRight={
+                          bestStanding && (
+                            <span className="text-muted-foreground">
+                              Best · <span style={{ color: bestStanding.color }}>{bestStanding.label} #{bestStanding.rank}</span>
+                            </span>
+                          )
+                        }
+                      >
                         <div className="grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
                           {standing.map((c) => {
-                            const medal = c.rank === 1 ? "#FFD700" : c.rank === 2 ? "#C0C0C0" : c.rank === 3 ? "#CD7F32" : null;
-                            return (
-                              <div key={c.key} className="rounded-md border border-border bg-muted/10 p-3">
-                                <p className="text-xs text-muted-foreground">{c.label}</p>
-                                <div className="flex items-baseline gap-1.5">
-                                  <p className="text-2xl font-bold tabular-nums leading-none" style={{ color: c.rank != null ? (medal ?? c.color) : undefined }}>
-                                    {c.rank != null ? `#${c.rank}` : "—"}
+                            if (c.rank == null) {
+                              return (
+                                <div key={c.key} className="rounded-md border border-border bg-muted/10 p-3">
+                                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.color }} /> {c.label}
                                   </p>
-                                  {c.rank != null && <span className="text-xs text-muted-foreground tabular-nums">of {c.total}</span>}
+                                  <p className="text-sm text-muted-foreground mt-2">Not yet ranked</p>
                                 </div>
-                                <div className="h-1 bg-border rounded-full overflow-hidden mt-2">
-                                  <div className="h-full rounded-full" style={{ width: `${c.score}%`, backgroundColor: c.color }} />
+                              );
+                            }
+                            if (c.faction == null) {
+                              return (
+                                <div key={c.key} className="rounded-md border border-border bg-muted/10 p-3">
+                                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.color }} /> {c.label}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground mt-2">Not yet ranked</p>
                                 </div>
-                                <p className="text-xs text-muted-foreground tabular-nums mt-1">{c.score.toFixed(0)}/100</p>
-                              </div>
+                              );
+                            }
+                            const tier = fieldTier(c.rank, c.total);
+                            const delta = rankDelta(c.key, PLAYER_FACTION_ID, c.rank);
+                            return (
+                              <FactionStrengthTooltip
+                                key={c.key}
+                                faction={c.faction}
+                                metric={c}
+                                rank={{ rank: c.rank, total: c.total }}
+                                subjectLabel="You"
+                              >
+                                <div
+                                  className="relative rounded-md border bg-muted/10 p-3 overflow-hidden cursor-help transition-colors hover:bg-muted/20"
+                                  style={{
+                                    borderColor: tier.isPodium ? c.color : undefined,
+                                    boxShadow: tier.isPodium
+                                      ? `0 0 14px 1px color-mix(in srgb, ${c.color} 35%, transparent)`
+                                      : undefined,
+                                  }}
+                                >
+                                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.color }} /> {c.label}
+                                  </p>
+
+                                  <div className="flex items-baseline gap-1.5 mt-1">
+                                    <p className="text-2xl font-bold tabular-nums leading-none" style={{ color: c.color }}>
+                                      #{c.rank}
+                                    </p>
+                                    <span className="text-xs text-muted-foreground tabular-nums">of {c.total}</span>
+                                    {delta != null && delta !== 0 && (
+                                      <span
+                                        className={`ml-auto text-[10px] font-semibold tabular-nums ${
+                                          delta > 0 ? "text-success" : "text-danger"
+                                        }`}
+                                      >
+                                        {delta > 0 ? "▲" : "▼"}
+                                        {Math.abs(delta)}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="h-1.5 bg-border rounded-full overflow-hidden mt-2">
+                                    <div className="h-full rounded-full" style={{ width: `${c.leaderRatio}%`, backgroundColor: c.color }} />
+                                  </div>
+
+                                  <div className="flex items-center justify-between mt-1">
+                                    <span className="text-xs text-muted-foreground tabular-nums">
+                                      Score {c.score.toFixed(0)}/100
+                                    </span>
+                                    <span className="text-xs text-muted-foreground tabular-nums">{c.leaderRatio.toFixed(0)}% of leader</span>
+                                  </div>
+                                </div>
+                              </FactionStrengthTooltip>
                             );
                           })}
                         </div>
@@ -403,4 +528,3 @@ export default function EmpireOverviewPage() {
     </div>
   );
 }
-

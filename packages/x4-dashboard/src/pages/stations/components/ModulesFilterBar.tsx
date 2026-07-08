@@ -1,4 +1,5 @@
 import { FactionBadge } from "../../../components/game/FactionBadge";
+import { ClearFiltersButton } from "../../../components/ui/clear-filters-button";
 import { SizeBadge } from "../../../components/game/ShipBadges";
 import { MultiSelect } from "../../../components/ui/multi-select";
 import { Switch } from "../../../components/ui/switch";
@@ -27,6 +28,8 @@ export function ModulesFilterBar({
   selectedFactions, setSelectedFactions, availableFactions, factionMap,
   availabilityFilter, setAvailabilityFilter,
   obtainableOnly, setObtainableOnly,
+  ownedOnly, setOwnedOnly,
+  hasFilters, onClear,
   columnOptions, visibleColumns, setVisibleColumns,
   groupBy, setGroupBy,
 }: {
@@ -37,6 +40,8 @@ export function ModulesFilterBar({
   availableFactions: string[]; factionMap: Map<string, FactionSummary>;
   availabilityFilter: string; setAvailabilityFilter: (v: string) => void;
   obtainableOnly: boolean; setObtainableOnly: (v: boolean) => void;
+  ownedOnly: boolean; setOwnedOnly: (v: boolean) => void;
+  hasFilters: boolean; onClear: () => void;
   columnOptions: { value: string; label: string; group: string }[];
   visibleColumns: Set<string>; setVisibleColumns: (v: Set<string>) => void;
   groupBy: GroupByKey; setGroupBy: (v: GroupByKey) => void;
@@ -71,12 +76,27 @@ export function ModulesFilterBar({
       <MultiSelect
         options={[
           { value: "__none__", label: "None" },
-          ...availableFactions.map((f) => { const fac = factionMap.get(f); return { value: f, label: fac?.name ?? f, node: fac ? <FactionBadge name={fac.name} color_hex={fac.color_hex} icon_url={fac.icon_url} faction_id={fac.faction_id} /> : undefined }; }),
+          ...availableFactions.map((f) => {
+            const fac = factionMap.get(f);
+            return {
+              value: f,
+              label: fac?.name ?? f,
+              node: fac ? (
+                <FactionBadge
+                  name={fac.name}
+                  color_hex={fac.color_hex}
+                  icon_url={fac.icon_url}
+                  linked={false}
+                />
+              ) : undefined,
+            };
+          }),
         ]}
         selected={selectedFactions}
         onChange={setSelectedFactions}
         placeholder="Factions…"
         className="h-7 text-xs w-40"
+        searchable
       />
       <Select value={availabilityFilter} onValueChange={setAvailabilityFilter}>
         <SelectTrigger className="w-40 h-7 text-xs"><SelectValue placeholder="All modules" /></SelectTrigger>
@@ -92,6 +112,11 @@ export function ModulesFilterBar({
         <Switch id="obtainable-only" checked={obtainableOnly} onCheckedChange={setObtainableOnly} />
         <span className="text-xs text-muted-foreground whitespace-nowrap">Obtainable</span>
       </label>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <Switch id="module-owned-only" checked={ownedOnly} onCheckedChange={setOwnedOnly} />
+        <span className="text-xs text-muted-foreground whitespace-nowrap">Owned</span>
+      </label>
+      {hasFilters && <ClearFiltersButton onClick={onClear} />}
       {/* Right: column visibility + group-by */}
       <div className="ml-auto flex items-center gap-3">
         <div className="h-5 w-px bg-border/50" />

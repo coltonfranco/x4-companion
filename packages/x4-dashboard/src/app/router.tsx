@@ -70,7 +70,16 @@ const tradeOverviewRoute = createRoute({ getParentRoute: () => tradeRoute, path:
 const tradeCatalogRoute = createRoute({ getParentRoute: () => tradeRoute, path: "catalog", component: TradeCatalogPage });
 const tradeProductionRoute = createRoute({ getParentRoute: () => tradeRoute, path: "production", component: ProductionChainsPage });
 const tradeRoutesRoute = createRoute({ getParentRoute: () => tradeRoute, path: "routes", component: TradeRoutesPage });
-const tradeTransactionsRoute = createRoute({ getParentRoute: () => tradeRoute, path: "transactions", component: TransactionsPage });
+const tradeTransactionsRoute = createRoute({
+  getParentRoute: () => tradeRoute,
+  path: "transactions",
+  component: TransactionsPage,
+  // Deep-link from AccountsPanel: pre-filter to one ship/station or commodity.
+  validateSearch: (search: Record<string, unknown>): { owner?: string; ware?: string } => ({
+    owner: typeof search.owner === "string" ? search.owner : undefined,
+    ware: typeof search.ware === "string" ? search.ware : undefined,
+  }),
+});
 
 // Legacy paths kept as redirects into the trade hub.
 const routesRedirect = createRoute({

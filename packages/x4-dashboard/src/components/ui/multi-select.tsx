@@ -25,7 +25,7 @@ export function MultiSelect({
   className,
   searchable,
   hideClear,
-  closeOnSelect = true,
+  closeOnSelect = false,
 }: MultiSelectProps) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);

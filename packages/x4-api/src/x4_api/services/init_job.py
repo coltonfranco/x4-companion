@@ -74,8 +74,14 @@ def wipe_game_data(settings: Settings) -> None:
     """
     data_dir = settings.data_dir
 
-    for subdir in ("dynamic", "icons"):
+    for subdir in ("dynamic",):
         _remove_path(data_dir / subdir)
+
+    # Icons use per-file MD5 change detection (icons.py:155-158) — only modified or new
+    # icons are re-extracted, unchanged ones are skipped. Deleting the directory would
+    # defeat this, forcing a full re-extract every time. The icon pipeline cleans up
+    # removed icons on its own.
+    # `icons/` is intentionally NOT deleted here.
 
     # Each SQLite DB plus its -wal/-shm sidecars.
     for db in ("raw.db", "static.db", "catalog.db"):

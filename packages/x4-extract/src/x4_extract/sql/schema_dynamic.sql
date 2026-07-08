@@ -45,6 +45,8 @@ CREATE INDEX IF NOT EXISTS idx_events_priority ON events(priority);
 CREATE TABLE IF NOT EXISTS sector_state (
     sector_id       TEXT PRIMARY KEY,
     known_to_player INTEGER NOT NULL DEFAULT 0,
+    owner_faction   TEXT,               -- game-authoritative sector owner (from save)
+    contested       INTEGER NOT NULL DEFAULT 0,  -- 1 when sector ownership is contested
     extra_json      TEXT
 );
 
@@ -243,6 +245,8 @@ CREATE TABLE IF NOT EXISTS player (
     hq_station_id   TEXT,
     current_sector  TEXT,
     current_ship_id TEXT,
+    faction_name    TEXT,    -- player-set organisation name from <custom><name>
+    logo_index      INTEGER, -- player-selected logo number from <custom><image>
     extra_json      TEXT
 );
 

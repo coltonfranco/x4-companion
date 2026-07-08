@@ -63,6 +63,7 @@ export function MissionCard({ m, factionMap, nowSec, isSelected, onClick }: Prop
             factionMap={factionMap}
             size="sm"
             showFallback
+            linked={false}
           />
           {m.group_name && (
             <span

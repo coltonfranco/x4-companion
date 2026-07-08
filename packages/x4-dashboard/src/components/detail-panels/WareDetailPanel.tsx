@@ -12,6 +12,7 @@ import { getWareGroupColor, RACE_COLORS, methodLabel } from "../../lib/constants
 import { ArrowUp, ArrowDown } from "lucide-react";
 import type { FactionSummary } from "../../lib/types";
 import { apiGet } from "../../lib/api";
+import { ALL_FACTIONS_PATH, ALL_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import { useFactionMap } from "../../lib/useFactionMap";
 
 type ProductionInput = { ware_id: string; amount: number };
@@ -61,8 +62,8 @@ export function WareDetailPanel({ wareId }: { wareId: string }) {
   });
 
   const { data: factions = [] } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: ALL_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(ALL_FACTIONS_PATH),
     staleTime: Infinity,
   });
 

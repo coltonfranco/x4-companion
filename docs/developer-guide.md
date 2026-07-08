@@ -70,7 +70,8 @@ The hard part of the project: turning Egosoft's archives and save files into que
   **first-run setup flow** (`api/v1/setup.py`, `init_job.py`).
 - **Public contract:** everything under `/api/v1/` is versioned and treated as a published
   API (see `docs/openapi.yaml`). The dashboard calls the same endpoints any third party would.
-- **Entry points:** `x4c serve` (HTTP server), plus build/ingest commands (see §6).
+- **Entry points:** the `x4c` CLI's build/ingest commands (see §6); the HTTP server itself is
+  started by the desktop shell, not run standalone.
 - **Depends on** `x4-extract`.
 
 ### 2.3 `x4-dashboard` — the UI
@@ -86,10 +87,12 @@ The hard part of the project: turning Egosoft's archives and save files into que
 ### 2.4 `x4-desktop` — the native shell
 
 - Tauri v2. A small Rust program (`src-tauri/src/main.rs`) that:
-  1. spawns the API server as a child process (dev: `uv run x4c serve`; release: a bundled
-     `x4c-server` sidecar, falling back to `uv`),
+  1. spawns the API server as a child process (dev: `uv run` at the repo root; release: a
+     bundled `x4c-server` sidecar, falling back to `uv`),
   2. opens a WebView2 window pointed at the dashboard,
-  3. kills the server child when the window closes.
+  3. kills the server's process tree when the window closes — and in dev builds, also finds
+     and kills whatever's listening on the Vite port, since `tauri-cli`'s own `:5173` cleanup
+     is unreliable on Windows (see `packages/x4-desktop/README.md`).
 - Exposes the **native folder picker** to the wizard via the `dialog` plugin
   (`window.__TAURI__.dialog`); the wizard falls back to a typed path in a plain browser.
 - See [`packages/x4-desktop/README.md`](../packages/x4-desktop/README.md) for shell details.
@@ -151,9 +154,8 @@ npm --prefix packages/x4-desktop install
 
 ---
 
-## 5. Running it (three ways)
+## 5. Running it
 
-**A) Full desktop app** (what ships to users):
 ```powershell
 cd packages/x4-desktop
 npm run dev        # = tauri dev: starts Vite, opens the window, spawns the API
@@ -162,16 +164,8 @@ npm run dev        # = tauri dev: starts Vite, opens the window, spawns the API
 > on PATH that shadows the MSVC linker and breaks the Rust build.
 > ⚠️ Don't already have a separate Vite running on `:5173` — Tauri starts its own there.
 
-**B) Web only** (fastest iteration on the UI):
-```powershell
-uv run x4c serve                          # API on :8765, one terminal
-npm --prefix packages/x4-dashboard run dev   # Vite on :5173, another terminal → open it
-```
-
-**C) API / CLI only** (backend work):
-```powershell
-uv run x4c serve            # http://127.0.0.1:8765 ; docs at /api/docs
-```
+This is the only supported dev workflow — it starts Vite (`:5173`) and the API (`:8765`)
+together. There's no supported way to run the API standalone outside the desktop shell.
 
 ---
 
@@ -182,7 +176,6 @@ uv run x4c serve            # http://127.0.0.1:8765 ; docs at /api/docs
 | Command | What it does |
 |---|---|
 | `x4c doctor` | Verify install/save paths + data dir |
-| `x4c serve [--reload]` | Run the API server (`:8765`) |
 | `x4c rebuild-datalake` | Game archives → `raw.db` |
 | `x4c rebuild-static` | `raw.db` → `static.db` (+ icons) |
 | `x4c rebuild-icons` | DDS → PNG icons only |
@@ -281,8 +274,8 @@ Copy-Item -Recurse -Force packages/x4-dashboard/dist/* packages/x4-desktop/src-t
 npm --prefix packages/x4-desktop run build   # → src-tauri/target/release/bundle/
 ```
 
-A source build with no staged sidecar still works in dev: the shell falls back to
-`uv run x4c serve` (so `tauri dev` is unaffected).
+A source build with no staged sidecar still works in dev: the shell falls back to plain
+`uv run` at the repo root (so `tauri dev` is unaffected).
 
 ### 9.1 Over-the-air updates
 

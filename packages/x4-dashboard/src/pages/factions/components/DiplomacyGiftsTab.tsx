@@ -6,6 +6,7 @@ import { useFactionMap } from "../../../lib/useFactionMap";
 import type { FactionSummary } from "../../../lib/types";
 import { PageLoaderPreset } from "../../../components/layout/PageLoader";
 import { apiGet } from "../../../lib/api";
+import { VISIBLE_FACTIONS_PATH, VISIBLE_FACTIONS_QUERY_KEY } from "../../../lib/factionQueries";
 import type { DiploGift, WareSummary } from "../types";
 
 export function DiplomacyGiftsTab() {
@@ -15,8 +16,8 @@ export function DiplomacyGiftsTab() {
   });
 
   const { data: factions = [] } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: VISIBLE_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(VISIBLE_FACTIONS_PATH),
   });
 
   const { data: wares = [] } = useQuery<WareSummary[]>({

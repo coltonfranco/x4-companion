@@ -196,6 +196,30 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
         except Exception as e:
             logger.warning(f"Failed to process icon {logical_id} from {icon_entry.path}: {e}")
 
+    # Clean up icons that existed in the old manifest but are no longer in the
+    # current game data (removed by a patch / mod uninstall).
+    removed_count = 0
+    for old_id, old_entry in manifest.items():
+        if old_id not in new_manifest:
+            old_path = old_entry.get("path", "")
+            if old_path:
+                png_path = out_dir / old_path
+                try:
+                    png_path.unlink(missing_ok=True)
+                    removed_count += 1
+                except OSError:
+                    pass
+            # Also clean up empty category directories.
+            if old_path and "/" in old_path:
+                cat_dir = out_dir / old_path.rsplit("/", 1)[0]
+                try:
+                    next(cat_dir.iterdir())
+                except StopIteration:
+                    try:
+                        cat_dir.rmdir()
+                    except OSError:
+                        pass
+
     with manifest_path.open("w", encoding="utf-8") as f:
         json.dump(new_manifest, f, indent=2)
 
@@ -203,7 +227,9 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
         on_progress(f"Building icons ({total}/{total})...", 1.0)
 
     _log(
-        f"Icon generation complete: {processed_count} extracted (skipped {skipped_count} unchanged) in {time.monotonic() - t0:.1f}s"
+        f"Icon generation complete: {processed_count} extracted, "
+        f"{skipped_count} unchanged, {removed_count} removed "
+        f"in {time.monotonic() - t0:.1f}s"
     )
 
 

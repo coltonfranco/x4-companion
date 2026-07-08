@@ -126,11 +126,11 @@ function fmtValue(stat: PlayerStat): string {
 export function PlayerCard() {
   const { data: meta, isLoading: metaLoading } = useQuery<{
     player_name?: string; player_credits?: number;
-    game_version?: string;
+    game_version?: string; faction_name?: string | null;
   } | null>({
     queryKey: ["player-meta"],
     queryFn: () =>
-      apiGetOrNull<{ player_name?: string; player_credits?: number; game_version?: string }>(
+      apiGetOrNull<{ player_name?: string; player_credits?: number; game_version?: string; faction_name?: string | null }>(
         "/api/v1/player"
       ),
     staleTime: 60_000,
@@ -155,7 +155,7 @@ export function PlayerCard() {
     <div className="flex flex-col h-full">
       <div className="px-6 py-5 border-b border-border shrink-0">
         <h1 className="text-2xl font-bold tracking-tight">
-          {meta.player_name || "Player Stats"}
+          {meta.faction_name || meta.player_name || "Player Stats"}
         </h1>
         <PageSubtitle className="flex items-center gap-1.5 flex-wrap">
           <Activity className="h-3 w-3" /> Player Statistics

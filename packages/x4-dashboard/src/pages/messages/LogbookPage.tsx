@@ -4,6 +4,7 @@ import { BookOpen, Loader2, Search, X, ChevronDown, AlertTriangle, Settings } fr
 import { PageLoaderPreset } from "../../components/layout/PageLoader";
 import { PageSubtitle } from "../../components/ui/page-subtitle";
 import { Currency } from "../../components/game/Currency";
+import { ClearFiltersButton } from "../../components/ui/clear-filters-button";
 import { MultiSelect } from "../../components/ui/multi-select";
 import { cn } from "../../lib/utils";
 import { formatTimeAgo, cleanText } from "../../lib/formatters";
@@ -267,13 +268,7 @@ export default function LogbookPage() {
         </div>
 
         {hasAnyFilter && (
-          <button
-            onClick={clearAllFilters}
-            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-border/50 text-muted-foreground hover:text-foreground hover:border-border transition-colors shrink-0"
-          >
-            <X className="h-3 w-3" />
-            Clear filters
-          </button>
+          <ClearFiltersButton onClick={clearAllFilters} />
         )}
 
         <div className="flex-1" />

@@ -49,7 +49,7 @@ export function resolveFaction(
   factionNames: Record<string, string>,
 ): string {
   if (!ownerFaction) return "Unknown";
-  if (ownerFaction === "player") return "Player";
+  if (ownerFaction === "player") return factionNames["player"] || "Player";
   return factionNames[ownerFaction] || ownerFaction.charAt(0).toUpperCase() + ownerFaction.slice(1);
 }
 

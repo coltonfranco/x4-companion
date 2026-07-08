@@ -91,6 +91,7 @@ class AccountRow(PublicModel):
     kind: str  # station | ship | account (empire/faction-level)
     faction: str | None
     is_player: bool
+    ship_role: str | None  # ship class role (trade/fight/mine/...); NULL for stations/accounts
     net_worth: int | None  # latest baseline value (faction-level; NULL for most stations)
     net_worth_assets: int | None  # latest baseline secondary value
     live_cash: int | None  # exact cash balance from latest transaction event
@@ -171,11 +172,16 @@ class WarePnlRow(PublicModel):
     net: int
     sell_count: int
     buy_count: int
+    sell_qty: int
+    buy_qty: int
 
 
 @router.get("/economy/pnl", response_model=list[WarePnlRow])
 def ware_pnl(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    owner: list[str] | None = Query(None, description="Scope to one or more ships/stations (buyer or seller)"),
+    ware: list[str] | None = Query(None, description="Scope to one or more ware_ids"),
+    since: float | None = Query(None, description="Only trades at or after this in-game time (seconds)"),
 ) -> list[WarePnlRow]:
     """Per-commodity profit/loss from the player's transactions, most profitable first."""
     return [
@@ -188,8 +194,10 @@ def ware_pnl(
             net=p.net,
             sell_count=p.sell_count,
             buy_count=p.buy_count,
+            sell_qty=p.sell_qty,
+            buy_qty=p.buy_qty,
         )
-        for p in finance.ware_pnl(conn)
+        for p in finance.ware_pnl(conn, owner=owner, ware=ware, since=since)
     ]
 
 
@@ -197,6 +205,7 @@ class TradeRow(PublicModel):
     time: float
     ware: str | None
     ware_name: str | None
+    icon_url: str | None
     price: int | None
     quantity: int | None
     buyer: str | None
@@ -210,16 +219,31 @@ class TradeRow(PublicModel):
 @router.get("/economy/trades", response_model=list[TradeRow])
 def list_trades(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
-    ware: str | None = Query(None, description="Filter to one ware_id"),
-    owner: str | None = Query(None, description="Trades where this id is buyer or seller"),
+    ware: list[str] | None = Query(None, description="Scope to one or more ware_ids"),
+    owner: list[str] | None = Query(None, description="Trades where any of these ids is buyer or seller"),
     player_only: bool = Query(False, description="Only trades a player asset is party to"),
+    since: float | None = Query(None, description="Only trades at or after this in-game time (seconds)"),
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
 ) -> list[TradeRow]:
     """Transaction ledger, most recent first — where credits are earned and spent."""
     return [
-        TradeRow(**dataclasses.asdict(t))
+        TradeRow(
+            time=t.time,
+            ware=t.ware,
+            ware_name=t.ware_name,
+            icon_url=get_ware_icon_url(t.ware, t.icon_path, t.tags) if t.ware else None,
+            price=t.price,
+            quantity=t.quantity,
+            buyer=t.buyer,
+            buyer_name=t.buyer_name,
+            buyer_is_player=t.buyer_is_player,
+            seller=t.seller,
+            seller_name=t.seller_name,
+            seller_is_player=t.seller_is_player,
+        )
         for t in finance.trades(
-            conn, ware=ware, owner=owner, player_only=player_only, limit=limit, offset=offset
+            conn, ware=ware, owner=owner, player_only=player_only, since=since,
+            limit=limit, offset=offset,
         )
     ]

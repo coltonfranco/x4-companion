@@ -1,9 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useSettings } from "../../lib/settingsStore";
-import { FilterPill } from "../../components/ui/filter-pill";
-import { classFull, getClassColor } from "../../lib/formatters";
-import { cn } from "../../lib/utils";
+import { SizeFilterGroup } from "../../components/game/SizeFilterGroup";
 import { PageTabs, PageTab } from "../../components/ui/page-tabs";
 
 import { PageLoaderPreset } from "../../components/layout/PageLoader";
@@ -18,6 +16,7 @@ import { getWeaponType } from "../../lib/formatters";
 import type { FactionSummary } from "../../lib/types";
 import { DetailDialog } from "../../components/ui/detail-dialog";
 import { apiGet } from "../../lib/api";
+import { VISIBLE_FACTIONS_PATH, VISIBLE_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import { useKnownFactions } from "../../lib/useKnownFactions";
 import { usePlayerLicences } from "../../lib/usePlayerLicences";
 import { useGlobalLicences } from "../../lib/useGlobalLicences";
@@ -36,7 +35,7 @@ export default function EquipmentPage() {
   const [factionFilter, setFactionFilter] = useState("all");
   const [mkFilter, setMkFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [obtainableOnly, setObtainableOnly] = useState(false);
+  const [obtainableOnly, setObtainableOnly] = useState(true);
   const { settings } = useSettings();
 
   const { data: knownFactions = {} } = useKnownFactions();
@@ -67,8 +66,8 @@ export default function EquipmentPage() {
   }, [rawItems, knownFactions, settings.fogOfWar]);
 
   const { data: factions = [] } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: VISIBLE_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(VISIBLE_FACTIONS_PATH),
   });
 
   const globalLicences = useGlobalLicences(items);
@@ -240,28 +239,7 @@ export default function EquipmentPage() {
           className="w-48"
         />
         {sizes.length > 0 && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <FilterPill active={size === null} onClick={() => setSize(null)}>
-              All sizes
-            </FilterPill>
-            {sizes.map((s) => (
-              <FilterPill
-                key={s}
-                active={false}
-                onClick={() => setSize(s)}
-                className={cn(
-                  "border border-transparent",
-                  size === s
-                    ? cn(getClassColor(s), "border-current opacity-100 font-bold")
-                    : size === null
-                    ? "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    : "bg-muted/30 text-muted-foreground opacity-60 hover:opacity-100 hover:bg-muted"
-                )}
-              >
-                {classFull(s)}
-              </FilterPill>
-            ))}
-          </div>
+          <SizeFilterGroup values={sizes} selected={size} onChange={setSize} allLabel="All sizes" />
         )}
         {/* TODO: inline EquipmentFilterBar contents directly into FilterBar children */}
         <EquipmentFilterBar

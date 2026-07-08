@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Gauge, Shield, Cpu, MoveVertical, Wrench, X, Check } from "lucide-react";
+import { Gauge, Shield, Cpu, MoveVertical, Wrench, Check } from "lucide-react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useSettings } from "../../lib/settingsStore";
 import { PageLoaderPreset } from "../../components/layout/PageLoader";
@@ -9,11 +9,13 @@ import type { FactionSummary } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { ClearFiltersButton } from "../../components/ui/clear-filters-button";
 import { SizeBadge, EquipmentMkBadge } from "../../components/game/ShipBadges";
 import { FactionCombobox } from "../../components/game/FactionCombobox";
 import { ShipImage } from "../../components/game/ShipImage";
 import { Switch } from "../../components/ui/switch";
 import { apiGet } from "../../lib/api";
+import { VISIBLE_FACTIONS_PATH, VISIBLE_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import { useKnownFactions } from "../../lib/useKnownFactions";
 import { useFactionMap } from "../../lib/useFactionMap";
 import { usePlayerLicences } from "../../lib/usePlayerLicences";
@@ -94,7 +96,7 @@ export default function BuilderPage() {
     staleTime: 5 * 60_000,
   });
   const { data: factions = [] } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"], queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: VISIBLE_FACTIONS_QUERY_KEY, queryFn: () => apiGet<FactionSummary[]>(VISIBLE_FACTIONS_PATH),
   });
 
   const factionMap = useFactionMap(factions);
@@ -313,12 +315,9 @@ export default function BuilderPage() {
 
                 <div className="flex items-center gap-3">
                   {(factionFilter !== "all" || mkFilter !== "all" || typeFilter !== "all" || sortFilter !== "" || obtainableOnly) && (
-                    <button
+                    <ClearFiltersButton
                       onClick={() => { setFactionFilter("all"); setMkFilter("all"); setTypeFilter("all"); setSortFilter(""); setObtainableOnly(false); }}
-                      className="text-[11px] font-medium text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-2 py-1.5 rounded bg-muted/30 hover:bg-muted/50 transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5" /> Clear filters
-                    </button>
+                    />
                   )}
 
                   <div className="flex items-center gap-2 px-2 shrink-0">

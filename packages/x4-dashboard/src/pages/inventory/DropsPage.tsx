@@ -7,6 +7,7 @@ import { PageLoaderPreset } from "../../components/layout/PageLoader";
 import { PageSubtitle } from "../../components/ui/page-subtitle";
 import { HUDCard } from "../../components/layout/HUDCard";
 import { FilterBar } from "../../components/layout/FilterBar";
+import { ClearFiltersButton } from "../../components/ui/clear-filters-button";
 import { apiGet } from "../../lib/api";
 import { prettyId } from "../../lib/wareFormat";
 import type { DropList } from "./types";
@@ -114,9 +115,7 @@ export default function DropsPage() {
             );
           })}
           {selectedCategories.length > 0 && (
-            <button className="text-xs text-muted-foreground hover:text-foreground ml-2" onClick={() => setSelectedCategories([])}>
-              Clear filters
-            </button>
+            <ClearFiltersButton className="ml-2" onClick={() => setSelectedCategories([])} />
           )}
         </div>
       </FilterBar>

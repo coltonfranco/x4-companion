@@ -12,6 +12,7 @@ import { StandingsView } from "./components/StandingsView";
 import { MatrixView } from "./components/MatrixView";
 import type { AllFactionRelation } from "./components/MatrixView";
 import { apiGet } from "../../lib/api";
+import { VISIBLE_FACTIONS_PATH, VISIBLE_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import { useKnownFactions } from "../../lib/useKnownFactions";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -31,8 +32,8 @@ export default function FactionsPage() {
   const { data: knownFactions = {} } = useKnownFactions();
 
   const { data: factions = [], isLoading: factionsLoading } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: VISIBLE_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(VISIBLE_FACTIONS_PATH),
   });
 
   const visibleFactions = useMemo(() => {
@@ -41,7 +42,7 @@ export default function FactionsPage() {
   }, [factions, knownFactions, settings.fogOfWar]);
 
   const { data: relations = [], isLoading: relationsLoading } = useQuery<AllFactionRelation[]>({
-    queryKey: ["faction-relations"],
+    queryKey: ["faction-relations", "visible"],
     queryFn: () => apiGet<AllFactionRelation[]>("/api/v1/faction-relations"),
   });
 
@@ -70,22 +71,41 @@ export default function FactionsPage() {
               return (
                 <li
                   key={f.faction_id}
-                  className={`flex items-center gap-3 px-4 py-2 text-sm cursor-pointer transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 text-sm cursor-pointer transition-colors ${
                     isActive
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                   }`}
                   onClick={() => setSelectedFactionId(f.faction_id)}
                 >
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: "50%",
-                      backgroundColor: f.color_hex ?? "#888",
-                      flexShrink: 0,
-                    }}
-                  />
+                  {f.icon_url ? (
+                    <span
+                      style={{
+                        width: 14,
+                        height: 14,
+                        flexShrink: 0,
+                        backgroundColor: f.color_hex ?? "#888",
+                        WebkitMaskImage: `url(${f.icon_url})`,
+                        WebkitMaskSize: "contain",
+                        WebkitMaskRepeat: "no-repeat",
+                        WebkitMaskPosition: "center",
+                        maskImage: `url(${f.icon_url})`,
+                        maskSize: "contain",
+                        maskRepeat: "no-repeat",
+                        maskPosition: "center",
+                      }}
+                    />
+                  ) : (
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        backgroundColor: f.color_hex ?? "#888",
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
                   <span className="truncate">{f.name}</span>
                 </li>
               );
@@ -123,7 +143,7 @@ export default function FactionsPage() {
               </div>
 
               {view === "standings" ? (
-                <StandingsView onSelectFaction={setSelectedFactionId} hasSave={hasSave} />
+                <StandingsView onSelectFaction={setSelectedFactionId} hasSave={hasSave} factions={factions} />
               ) : (
                 <MatrixView
                   factions={visibleFactions}

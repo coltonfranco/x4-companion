@@ -63,6 +63,7 @@ export function OfferCard({ o, factionMap, isSelected, onClick }: Props) {
             factionMap={factionMap}
             size="sm"
             showFallback
+            linked={false}
           />
           {o.station_name && (
             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">

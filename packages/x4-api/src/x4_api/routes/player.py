@@ -7,11 +7,12 @@ empty: the account endpoint 404s, the list endpoints return [].
 import sqlite3
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from x4_api.deps import get_db
 from x4_api.routes._db import fetch_one_or_404, table_exists
-from x4_api.routes._factions import disambiguate
+from x4_api.routes._factions import disambiguate, visible_faction_where
+from x4_api.routes._icons import get_icon_url
 from x4_api.schemas import PublicModel
 
 router = APIRouter()
@@ -26,6 +27,8 @@ class PlayerAccount(PublicModel):
     current_ship_id: str | None
     sector_id: str | None = None
     zone_id: str | None = None
+    faction_name: str | None = None
+    logo_url: str | None = None
 
 
 class BlueprintItem(PublicModel):
@@ -61,14 +64,18 @@ def get_player(conn: Annotated[sqlite3.Connection, Depends(get_db)]) -> PlayerAc
         conn,
         "SELECT p.player_id, p.name, p.credits, p.hq_station_id, "
         "COALESCE(sh.sector_id, p.current_sector) AS current_sector, "
-        "p.current_ship_id, sh.sector_id, sh.zone_id "
+        "p.current_ship_id, sh.sector_id, sh.zone_id, "
+        "p.faction_name, p.logo_index "
         "FROM player p "
         "LEFT JOIN ships sh ON sh.ship_id = p.current_ship_id "
         "WHERE p.id = 1",
         {},
         "No player data — ingest a save first.",
     )
-    return PlayerAccount(**dict(row))
+    d = dict(row)
+    logo_index = d.pop("logo_index", None)
+    d["logo_url"] = get_icon_url(f"playerlogo_{logo_index:02d}") if logo_index is not None else None
+    return PlayerAccount(**d)
 
 
 @router.get("/player/blueprints", response_model=list[BlueprintItem])
@@ -104,9 +111,12 @@ def player_stats(conn: Annotated[sqlite3.Connection, Depends(get_db)]) -> list[P
 
 
 @router.get("/player/reputation", response_model=list[PlayerRelation])
-def player_reputation(conn: Annotated[sqlite3.Connection, Depends(get_db)]) -> list[PlayerRelation]:
+def player_reputation(
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    include_hidden: bool = Query(False, description="Include utility/hidden factions."),
+) -> list[PlayerRelation]:
     """The player's current standing with every faction (best first), with gamestart drift."""
-    rows = conn.execute(
+    sql = [
         """
         SELECT f.faction_id, f.name AS faction_name, f.color_hex,
                COALESCE(c.relation, 0.0) AS relation,
@@ -115,9 +125,14 @@ def player_reputation(conn: Annotated[sqlite3.Connection, Depends(get_db)]) -> l
         LEFT JOIN faction_relations_current c 
                ON c.faction_id = 'player' AND c.other_faction_id = f.faction_id
         WHERE f.is_legacy = 0
-        ORDER BY COALESCE(c.relation, 0.0) DESC
-        """
-    ).fetchall()
+          AND f.faction_id != 'player'
+        """,
+    ]
+    if not include_hidden:
+        sql.append(f"AND {visible_faction_where('f')}")
+    sql.append("ORDER BY COALESCE(c.relation, 0.0) DESC")
+
+    rows = conn.execute(" ".join(sql)).fetchall()
 
     return [
         PlayerRelation(**d) for d in disambiguate([dict(r) for r in rows], name_col="faction_name")

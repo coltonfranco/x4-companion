@@ -1,8 +1,8 @@
-import { X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
+import { ClearFiltersButton } from "../../../components/ui/clear-filters-button";
 import { FactionCombobox } from "../../../components/game/FactionCombobox";
 import { EquipmentMkBadge } from "../../../components/game/ShipBadges";
-import { cn } from "../../../lib/utils";
+import { Switch } from "../../../components/ui/switch";
 
 export interface SortOption {
   id: string;
@@ -47,22 +47,10 @@ export function EquipmentFilterBar({
   showObtainableOnly, obtainableOnly, setObtainableOnly,
   showSort, sortFilter, setSortFilter, sortOptions, baseSorts, defaultSortId
 }: EquipmentFilterBarProps) {
-  const hasFilters = factionFilter !== "all" || mkFilter !== "all" || typeFilter !== "all" || (showSort && sortFilter !== "") || (showObtainableOnly && obtainableOnly);
+  const hasFilters = factionFilter !== "all" || mkFilter !== "all" || typeFilter !== "all" || (showSort && sortFilter !== "") || (showObtainableOnly && !obtainableOnly);
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {showObtainableOnly && setObtainableOnly && (
-        <button
-          onClick={() => setObtainableOnly(!obtainableOnly)}
-          className={cn(
-            "text-xs font-medium px-3 h-7 rounded-[4px] transition-colors flex items-center shrink-0 border",
-            obtainableOnly ? "bg-primary text-primary-foreground border-primary" : "bg-transparent text-foreground border-input hover:bg-accent hover:text-accent-foreground"
-          )}
-        >
-          Obtainable Only
-        </button>
-      )}
-
       {showSort && setSortFilter && sortOptions && baseSorts && (
         <Select value={sortFilter || defaultSortId} onValueChange={setSortFilter}>
           <SelectTrigger className="w-[180px] h-7 text-xs rounded-[4px]">
@@ -117,18 +105,22 @@ export function EquipmentFilterBar({
         className="w-[180px]"
         disabled={availableFactions.length === 0}
       />
+
+      {showObtainableOnly && setObtainableOnly && (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <Switch id="equipment-obtainable-only" checked={!!obtainableOnly} onCheckedChange={setObtainableOnly} />
+          <span className="text-xs text-muted-foreground whitespace-nowrap">Obtainable</span>
+        </label>
+      )}
       
       {hasFilters && (
-        <button
+        <ClearFiltersButton
           onClick={() => { 
             setFactionFilter("all"); setMkFilter("all"); setTypeFilter("all"); 
             if (setSortFilter) setSortFilter(""); 
-            if (setObtainableOnly) setObtainableOnly(false); 
+            if (setObtainableOnly) setObtainableOnly(true);
           }}
-          className="text-[11px] font-medium text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-2 py-1.5 rounded-[4px] bg-muted/30 hover:bg-muted/50 transition-colors"
-        >
-          <X className="w-3.5 h-3.5" /> Clear filters
-        </button>
+        />
       )}
     </div>
   );

@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { MultiSelect } from "../../../components/ui/multi-select";
 import { FactionBadge } from "../../../components/game/FactionBadge";
-import { Button } from "../../../components/ui/button";
+import { SizeFilterGroup } from "../../../components/game/SizeFilterGroup";
+import { ClearFiltersButton } from "../../../components/ui/clear-filters-button";
 import { Switch } from "../../../components/ui/switch";
 import {
   Select,
@@ -12,7 +13,7 @@ import {
 } from "../../../components/ui/select";
 import { FilterBar } from "../../../components/layout/FilterBar";
 import { SearchInput } from "../../../components/ui/search-input";
-import { getClassColor, getTypeColor, formatDlc } from "../../../lib/formatters";
+import { getTypeColor, formatDlc } from "../../../lib/formatters";
 import { cn } from "../../../lib/utils";
 import type { FactionSummary } from "../../../lib/types";
 import { ALL_COLUMNS, CLASSES, type GroupByKey, type ShipSummary } from "../lib/shipsColumns";
@@ -46,10 +47,6 @@ export function ShipsFilterBar({
   visibleColumns: Set<string>; setVisibleColumns: (v: Set<string>) => void;
   groupBy: GroupByKey; setGroupBy: (v: GroupByKey) => void;
 }) {
-  const toggleClass = (cls: string) => {
-    setSelectedClass(selectedClass === cls ? null : cls);
-  };
-
   const availableSubTypes = useMemo(
     () =>
       selectedTypes.size > 0
@@ -104,44 +101,7 @@ export function ShipsFilterBar({
         className="w-48"
       />
 
-      {/* Class pills */}
-      <div className="flex items-center gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSelectedClass(null)}
-          className={cn(
-            "h-7 px-3 text-xs rounded-[4px] font-medium transition-colors",
-            selectedClass === null
-              ? "bg-accent text-accent-foreground border-accent"
-              : "bg-transparent text-muted-foreground hover:bg-muted/50 border-input"
-          )}
-        >
-          All
-        </Button>
-        {CLASSES.map((cls) => {
-          const isSelected = selectedClass === cls;
-          const baseColor = getClassColor(`ship_${cls.toLowerCase()}`);
-          const textColor = baseColor.split(" ").find((c) => c.startsWith("text-"));
-          return (
-            <Button
-              key={cls}
-              variant="outline"
-              size="sm"
-              onClick={() => toggleClass(cls)}
-              className={cn(
-                "h-7 px-2.5 text-xs flex items-center gap-1.5 rounded-[4px] font-medium transition-colors",
-                isSelected
-                  ? cn(baseColor)
-                  : "bg-transparent text-muted-foreground hover:bg-muted/50 border-input"
-              )}
-            >
-              <div className={cn("w-1.5 h-1.5 rounded-[2px] bg-current", textColor)} />
-              {cls}
-            </Button>
-          );
-        })}
-      </div>
+      <SizeFilterGroup values={CLASSES} selected={selectedClass} onChange={setSelectedClass} />
 
       {/* Factions */}
       <MultiSelect
@@ -162,6 +122,7 @@ export function ShipsFilterBar({
         onChange={setSelectedFactions}
         placeholder="Factions..."
         className="h-7 text-xs text-muted-foreground bg-transparent w-36"
+        searchable
       />
 
       {/* Roles */}
@@ -230,14 +191,7 @@ export function ShipsFilterBar({
 
       {/* Clear */}
       {hasFilters && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClear}
-          className="h-7 text-xs text-muted-foreground"
-        >
-          Clear
-        </Button>
+        <ClearFiltersButton onClick={onClear} />
       )}
 
       {/* Right: column visibility + group-by */}

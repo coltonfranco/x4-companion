@@ -4,6 +4,162 @@
  */
 
 export interface paths {
+    "/api/v1/races": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List */
+        get: operations["_list_api_v1_races_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/races/{race_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["_detail_api_v1_races__race_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/race-relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Race Relations */
+        get: operations["list_race_relations_api_v1_race_relations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ware-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List */
+        get: operations["_list_api_v1_ware_groups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ware-groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["_detail_api_v1_ware_groups__group_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mission-groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["_detail_api_v1_mission_groups__group_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mission-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Mission Groups
+         * @description List all mission group definitions, optionally filtered by faction or story.
+         */
+        get: operations["list_mission_groups_api_v1_mission_groups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/equipment-mods/{ware_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["_detail_api_v1_equipment_mods__ware_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/equipment-mods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Equip Mods */
+        get: operations["list_equip_mods_api_v1_equipment_mods_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -13,23 +169,6 @@ export interface paths {
         };
         /** Health */
         get: operations["health_api_v1_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/setup/discover": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Discover Paths */
-        get: operations["discover_paths_api_v1_setup_discover_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -106,6 +245,29 @@ export interface paths {
          * @description Start the static build in the background. Idempotent while one is running.
          */
         post: operations["initialize_api_v1_setup_initialize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/setup/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset
+         * @description Wipe game-derived data and rebuild from scratch. Idempotent while running.
+         *
+         *     Used after a game patch, mod change, or folder relocation. Preserves user-authored
+         *     Station Builder designs (appdata.db); only game-derived data is cleared.
+         */
+        post: operations["reset_api_v1_setup_reset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -216,7 +378,8 @@ export interface paths {
         };
         /**
          * List Factions
-         * @description List all factions in the game catalog.
+         * @description List factions in the game catalog. Overrides the player faction name with the
+         *     custom organisation name from the save when a save has been ingested.
          */
         get: operations["list_factions_api_v1_factions_get"];
         put?: never;
@@ -331,57 +494,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/races": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Races */
-        get: operations["list_races_api_v1_races_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/races/{race_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Race */
-        get: operations["get_race_api_v1_races__race_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/race-relations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Race Relations */
-        get: operations["list_race_relations_api_v1_race_relations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/map/clusters": {
         parameters: {
             query?: never;
@@ -391,236 +503,6 @@ export interface paths {
         };
         /** List Clusters */
         get: operations["list_clusters_api_v1_map_clusters_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/sectors": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Sectors */
-        get: operations["list_sectors_api_v1_map_sectors_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/sectors/{sector_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Sector */
-        get: operations["get_sector_api_v1_map_sectors__sector_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/gates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Gates */
-        get: operations["list_gates_api_v1_map_gates_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/zones": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Zones */
-        get: operations["list_zones_api_v1_map_zones_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/sectors/{sector_id}/zones": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Sector Zones
-         * @description List all zones available in a specific sector.
-         */
-        get: operations["get_sector_zones_api_v1_map_sectors__sector_id__zones_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/stations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Map Stations
-         * @description Stations positioned within their sector, for the zoomed-in map view.
-         *
-         *     Prefers live save stations; positions fall back live -> static zone centre, so
-         *     placement is correct at zone granularity even before per-station offsets are
-         *     parsed. With no save ingested, returns gamestart npc placements (which already
-         *     carry coordinates). `category` is derived from gamestart function tags.
-         */
-        get: operations["list_map_stations_api_v1_map_stations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/resources": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Resources
-         * @description List resource region entries. Filter by ware to find where a resource spawns.
-         */
-        get: operations["list_resources_api_v1_map_resources_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/sectors/{sector_id}/resources": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Sector Resources
-         * @description List all resources available in a specific sector.
-         */
-        get: operations["get_sector_resources_api_v1_map_sectors__sector_id__resources_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/resources/live": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Live Resources
-         * @description Live, depleting mineable resources per sector, from the active save.
-         *
-         *     Returns [] until a save with resource data is ingested (the dashboard's mining
-         *     heatmap falls back to the static /map/resources in that case).
-         */
-        get: operations["list_live_resources_api_v1_map_resources_live_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/regions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Regions */
-        get: operations["list_regions_api_v1_map_regions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/superhighways": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Superhighways */
-        get: operations["list_superhighways_api_v1_map_superhighways_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/map/sector-connections": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Sector Connections
-         * @description Return all sector-to-sector connections (gate and superhighway, deduplicated).
-         */
-        get: operations["list_sector_connections_api_v1_map_sector_connections_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -701,7 +583,7 @@ export interface paths {
          * @description Sectors with active fighter presence from mutually-hostile factions.
          *
          *     Returns one row per sector with a conflict score.  ``intensity`` is
-         *     0.0–1.0 normalized across all sectors; ``fighter_count`` is the raw
+         *     0.0-1.0 normalized across all sectors; ``fighter_count`` is the raw
          *     number of combat-class ships from the hostile factions in that sector.
          *     Returns [] until a save is ingested.
          */
@@ -726,6 +608,243 @@ export interface paths {
          * @description Sectors with amassing hostile forces on adjacent borders.
          */
         get: operations["list_tensions_api_v1_map_tensions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/gates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Gates */
+        get: operations["list_gates_api_v1_map_gates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/superhighways": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Superhighways */
+        get: operations["list_superhighways_api_v1_map_superhighways_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Regions */
+        get: operations["list_regions_api_v1_map_regions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Resources
+         * @description List resource region entries. Filter by ware to find where a resource spawns.
+         */
+        get: operations["list_resources_api_v1_map_resources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/sectors/{sector_id}/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sector Resources
+         * @description List all resources available in a specific sector.
+         */
+        get: operations["get_sector_resources_api_v1_map_sectors__sector_id__resources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/resources/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Live Resources
+         * @description Live, depleting mineable resources per sector, from the active save.
+         *
+         *     Returns [] until a save with resource data is ingested (the dashboard's mining
+         *     heatmap falls back to the static /map/resources in that case).
+         */
+        get: operations["list_live_resources_api_v1_map_resources_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/sectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sectors */
+        get: operations["list_sectors_api_v1_map_sectors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/sectors/{sector_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sector */
+        get: operations["get_sector_api_v1_map_sectors__sector_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/sector-connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sector Connections
+         * @description Return all sector-to-sector connections (gate and superhighway, deduplicated).
+         */
+        get: operations["list_sector_connections_api_v1_map_sector_connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/stations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Map Stations
+         * @description Stations positioned within their sector, for the zoomed-in map view.
+         *
+         *     Prefers live save stations; positions fall back live -> static zone centre, so
+         *     placement is correct at zone granularity even before per-station offsets are
+         *     parsed. With no save ingested, returns gamestart npc placements (which already
+         *     carry coordinates). `category` is derived from gamestart function tags.
+         *
+         *     Zone centre prefers the station's own save-recorded dynamic zone position
+         *     (`zone_dyn_*`) over the static catalog: `zone_id` is a macro, and procedurally-created
+         *     zones (e.g. `tempzone`) share that macro across every physically distinct instance in
+         *     the galaxy — joining by macro alone would collapse unrelated zones onto one static (or
+         *     absent) centre. Ordinary named zones never carry a dynamic position, so this only
+         *     changes placement for the procedural ones.
+         */
+        get: operations["list_map_stations_api_v1_map_stations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Zones */
+        get: operations["list_zones_api_v1_map_zones_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/map/sectors/{sector_id}/zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sector Zones
+         * @description List all zones available in a specific sector.
+         */
+        get: operations["get_sector_zones_api_v1_map_sectors__sector_id__zones_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -888,40 +1007,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/equipment-mods": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Equip Mods */
-        get: operations["list_equip_mods_api_v1_equipment_mods_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/equipment-mods/{ware_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Equip Mod */
-        get: operations["get_equip_mod_api_v1_equipment_mods__ware_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/terraform/stats": {
         parameters: {
             query?: never;
@@ -982,80 +1067,6 @@ export interface paths {
         };
         /** Get Terraform Project */
         get: operations["get_terraform_project_api_v1_terraform_projects__project_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/ware-groups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Ware Groups
-         * @description List all ware groups with display metadata.
-         */
-        get: operations["list_ware_groups_api_v1_ware_groups_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/ware-groups/{group_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Ware Group */
-        get: operations["get_ware_group_api_v1_ware_groups__group_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/mission-groups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Mission Groups
-         * @description List all mission group definitions, optionally filtered by faction or story.
-         */
-        get: operations["list_mission_groups_api_v1_mission_groups_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/mission-groups/{group_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Mission Group */
-        get: operations["get_mission_group_api_v1_mission_groups__group_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1550,6 +1561,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stations/{station_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Station
+         * @description Single station's list-row rollup, for detail panels that only have an id
+         *     (e.g. clicked from the map, which doesn't carry the full overview). 404 if unknown.
+         */
+        get: operations["get_station_api_v1_stations__station_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stations/{station_id}/offers": {
         parameters: {
             query?: never;
@@ -1725,7 +1757,9 @@ export interface paths {
         };
         /**
          * Logbook Categories
-         * @description Distinct categories present in the logbook (for filter dropdowns).
+         * @description All defined categories with subcategories, from the classification rules.
+         *     Returns the full list even when the logbook is empty — the user can always
+         *     filter by any defined category.
          */
         get: operations["logbook_categories_api_v1_logbook_categories_get"];
         put?: never;
@@ -1967,43 +2001,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/favicon.ico": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Favicon */
-        get: operations["_favicon_favicon_ico_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/{full_path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Spa Fallback
-         * @description Serve a static file from the dist root, or index.html for SPA routes.
-         */
-        get: operations["_spa_fallback__full_path__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2020,6 +2017,8 @@ export interface components {
             faction: string | null;
             /** Is Player */
             is_player: boolean;
+            /** Ship Role */
+            ship_role: string | null;
             /** Net Worth */
             net_worth: number | null;
             /** Net Worth Assets */
@@ -2200,6 +2199,17 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
+        /** CategoryInfo */
+        CategoryInfo: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Subcategories */
+            subcategories: {
+                [key: string]: string;
+            }[];
+        };
         /** ChainInput */
         ChainInput: {
             /** Ware Id */
@@ -2242,6 +2252,10 @@ export interface components {
             dps_max: number;
             /** Range Max */
             range_max: number;
+            /** Crew Max */
+            crew_max: number;
+            /** Missile Max */
+            missile_max: number;
         };
         /** ClusterConnection */
         ClusterConnection: {
@@ -2423,13 +2437,6 @@ export interface components {
             ware_id: string;
             /** Faction Id */
             faction_id: string;
-        };
-        /** DiscoverPathsResponse */
-        DiscoverPathsResponse: {
-            /** Install Path */
-            install_path: string | null;
-            /** Save Path */
-            save_path: string | null;
         };
         /** DropEntry */
         DropEntry: {
@@ -2615,6 +2622,11 @@ export interface components {
             name: string;
             /** Color Hex */
             color_hex: string | null;
+            /**
+             * Is Hidden
+             * @default false
+             */
+            is_hidden: boolean;
             /** Short Name */
             short_name?: string | null;
             /** Prefix Name */
@@ -2686,6 +2698,10 @@ export interface components {
             diplomatic_score: number;
             /** Territory Score */
             territory_score: number;
+            military: components["schemas"]["FactionStrengthBreakdown"];
+            economic: components["schemas"]["FactionStrengthBreakdown"];
+            territory: components["schemas"]["FactionStrengthBreakdown"];
+            diplomacy: components["schemas"]["FactionStrengthBreakdown"];
             /** Fight Ship Count */
             fight_ship_count: number;
             /** Trade Ship Count */
@@ -2703,6 +2719,26 @@ export interface components {
             /** Avg Relation */
             avg_relation: number;
         };
+        /** FactionStrengthBreakdown */
+        FactionStrengthBreakdown: {
+            /** Raw */
+            raw: number;
+            /** Leader Raw */
+            leader_raw: number;
+            /** Leader Ratio */
+            leader_ratio: number;
+            /** Components */
+            components: components["schemas"]["FactionStrengthComponent"][];
+        };
+        /** FactionStrengthComponent */
+        FactionStrengthComponent: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+            /** Detail */
+            detail: string;
+        };
         /** FactionSummary */
         FactionSummary: {
             /** Faction Id */
@@ -2711,6 +2747,11 @@ export interface components {
             name: string;
             /** Color Hex */
             color_hex: string | null;
+            /**
+             * Is Hidden
+             * @default false
+             */
+            is_hidden: boolean;
             /** Short Name */
             short_name?: string | null;
             /** Prefix Name */
@@ -2763,14 +2804,14 @@ export interface components {
             stage: string;
             /** Label */
             label: string;
+            /** Detail */
+            detail?: string | null;
             /** Progress */
             progress: number;
             /** Running */
             running: boolean;
             /** Error */
             error: string | null;
-            /** Detail */
-            detail: string | null;
         };
         /** LicenceItem */
         LicenceItem: {
@@ -2902,7 +2943,9 @@ export interface components {
             /** Text */
             text: string;
             /** Category */
-            category: string | null;
+            category: string;
+            /** Subcategory */
+            subcategory: string;
             /** Faction */
             faction: string | null;
             /** Faction Name */
@@ -3028,11 +3071,8 @@ export interface components {
             activation?: string | null;
             /** Alert */
             alert?: string | null;
-            /**
-             * Objectives
-             * @default []
-             */
-            objectives: components["schemas"]["MissionObjective"][];
+            /** Objectives */
+            objectives?: components["schemas"]["MissionObjective"][];
         };
         /** MissionGroup */
         MissionGroup: {
@@ -3729,6 +3769,10 @@ export interface components {
             sector_id?: string | null;
             /** Zone Id */
             zone_id?: string | null;
+            /** Faction Name */
+            faction_name?: string | null;
+            /** Logo Url */
+            logo_url?: string | null;
         };
         /** PlayerMessage */
         PlayerMessage: {
@@ -4173,7 +4217,7 @@ export interface components {
             /** Install Path */
             install_path: string;
             /** Save Path */
-            save_path: string;
+            save_path?: string | null;
         };
         /** SetupStatus */
         SetupStatus: {
@@ -4887,6 +4931,8 @@ export interface components {
             ware: string | null;
             /** Ware Name */
             ware_name: string | null;
+            /** Icon Url */
+            icon_url: string | null;
             /** Price */
             price: number | null;
             /** Quantity */
@@ -5085,6 +5131,10 @@ export interface components {
             sell_count: number;
             /** Buy Count */
             buy_count: number;
+            /** Sell Qty */
+            sell_qty: number;
+            /** Buy Qty */
+            buy_qty: number;
         };
         /** WareSummary */
         WareSummary: {
@@ -5231,6 +5281,262 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    _list_api_v1_races_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RaceSummary"][];
+                };
+            };
+        };
+    };
+    _detail_api_v1_races__race_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                race_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RaceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_race_relations_api_v1_race_relations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RaceRelation"][];
+                };
+            };
+        };
+    };
+    _list_api_v1_ware_groups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WareGroup"][];
+                };
+            };
+        };
+    };
+    _detail_api_v1_ware_groups__group_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WareGroup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _detail_api_v1_mission_groups__group_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionGroup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_mission_groups_api_v1_mission_groups_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by offering faction id */
+                faction?: string | null;
+                /** @description Only story missions */
+                story_only?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionGroup"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _detail_api_v1_equipment_mods__ware_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ware_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EquipModDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_equip_mods_api_v1_equipment_mods_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by category: weapon, engine, shield, ship */
+                category?: string | null;
+                /** @description Filter by stat type e.g. damage, cooling */
+                stat?: string | null;
+                /** @description Filter by quality tier 1-3 */
+                quality?: number | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EquipModSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -5247,26 +5553,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-        };
-    };
-    discover_paths_api_v1_setup_discover_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DiscoverPathsResponse"];
                 };
             };
         };
@@ -5358,6 +5644,26 @@ export interface operations {
         };
     };
     initialize_api_v1_setup_initialize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupStatus"];
+                };
+            };
+        };
+    };
+    reset_api_v1_setup_reset_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5517,7 +5823,10 @@ export interface operations {
     };
     list_all_faction_relations_api_v1_faction_relations_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Include utility/hidden factions. */
+                include_hidden?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5533,11 +5842,23 @@ export interface operations {
                     "application/json": components["schemas"]["AllFactionRelation"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     list_factions_api_v1_factions_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Include utility/hidden factions. */
+                include_hidden?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5553,11 +5874,23 @@ export interface operations {
                     "application/json": components["schemas"]["FactionSummary"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     faction_strength_api_v1_factions_strength_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Include utility/hidden factions. */
+                include_hidden?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5573,11 +5906,23 @@ export interface operations {
                     "application/json": components["schemas"]["FactionStrength"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     list_known_factions_api_v1_factions_known_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Include utility/hidden factions. */
+                include_hidden?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5593,6 +5938,15 @@ export interface operations {
                     "application/json": {
                         [key: string]: boolean;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5630,7 +5984,10 @@ export interface operations {
     };
     list_faction_relations_api_v1_factions__faction_id__relations_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Include utility/hidden factions. */
+                include_hidden?: boolean;
+            };
             header?: never;
             path: {
                 faction_id: string;
@@ -5690,77 +6047,6 @@ export interface operations {
             };
         };
     };
-    list_races_api_v1_races_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RaceSummary"][];
-                };
-            };
-        };
-    };
-    get_race_api_v1_races__race_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                race_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RaceDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_race_relations_api_v1_race_relations_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RaceRelation"][];
-                };
-            };
-        };
-    };
     list_clusters_api_v1_map_clusters_get: {
         parameters: {
             query?: {
@@ -5794,14 +6080,9 @@ export interface operations {
             };
         };
     };
-    list_sectors_api_v1_map_sectors_get: {
+    list_cluster_connections_api_v1_map_connections_get: {
         parameters: {
-            query?: {
-                cluster_id?: string | null;
-                owner_faction?: string | null;
-                limit?: number;
-                offset?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -5814,27 +6095,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SectorSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ClusterConnection"][];
                 };
             };
         };
     };
-    get_sector_api_v1_map_sectors__sector_id__get: {
+    list_cluster_resources_api_v1_map_cluster_resources_get: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                sector_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -5845,16 +6115,67 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SectorSummary"];
+                    "application/json": components["schemas"]["ClusterResourceEntry"][];
                 };
             };
-            /** @description Validation Error */
-            422: {
+        };
+    };
+    list_forces_api_v1_map_forces_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["SectorForceEntry"][];
+                };
+            };
+        };
+    };
+    list_conflicts_api_v1_map_conflicts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictEntry"][];
+                };
+            };
+        };
+    };
+    list_tensions_api_v1_map_tensions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BorderTensionEntry"][];
                 };
             };
         };
@@ -5891,9 +6212,42 @@ export interface operations {
             };
         };
     };
-    list_zones_api_v1_map_zones_get: {
+    list_superhighways_api_v1_map_superhighways_get: {
         parameters: {
             query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuperhighwaySummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_regions_api_v1_map_regions_get: {
+        parameters: {
+            query?: {
+                cluster_id?: string | null;
                 sector_id?: string | null;
                 limit?: number;
                 offset?: number;
@@ -5910,72 +6264,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ZoneSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_sector_zones_api_v1_map_sectors__sector_id__zones_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sector_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ZoneSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_map_stations_api_v1_map_stations_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by sector macro id */
-                sector_id?: string | null;
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MapStation"][];
+                    "application/json": components["schemas"]["RegionSummary"][];
                 };
             };
             /** @description Validation Error */
@@ -6092,11 +6381,11 @@ export interface operations {
             };
         };
     };
-    list_regions_api_v1_map_regions_get: {
+    list_sectors_api_v1_map_sectors_get: {
         parameters: {
             query?: {
                 cluster_id?: string | null;
-                sector_id?: string | null;
+                owner_faction?: string | null;
                 limit?: number;
                 offset?: number;
             };
@@ -6112,7 +6401,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegionSummary"][];
+                    "application/json": components["schemas"]["SectorSummary"][];
                 };
             };
             /** @description Validation Error */
@@ -6126,14 +6415,13 @@ export interface operations {
             };
         };
     };
-    list_superhighways_api_v1_map_superhighways_get: {
+    get_sector_api_v1_map_sectors__sector_id__get: {
         parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-            };
+            query?: never;
             header?: never;
-            path?: never;
+            path: {
+                sector_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -6144,7 +6432,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuperhighwaySummary"][];
+                    "application/json": components["schemas"]["SectorSummary"];
                 };
             };
             /** @description Validation Error */
@@ -6178,9 +6466,14 @@ export interface operations {
             };
         };
     };
-    list_cluster_connections_api_v1_map_connections_get: {
+    list_map_stations_api_v1_map_stations_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Filter by sector macro id */
+                sector_id?: string | null;
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6193,14 +6486,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClusterConnection"][];
+                    "application/json": components["schemas"]["MapStation"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    list_cluster_resources_api_v1_map_cluster_resources_get: {
+    list_zones_api_v1_map_zones_get: {
         parameters: {
-            query?: never;
+            query?: {
+                sector_id?: string | null;
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6213,16 +6519,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClusterResourceEntry"][];
+                    "application/json": components["schemas"]["ZoneSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    list_forces_api_v1_map_forces_get: {
+    get_sector_zones_api_v1_map_sectors__sector_id__zones_get: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                sector_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -6233,47 +6550,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SectorForceEntry"][];
+                    "application/json": components["schemas"]["ZoneSummary"][];
                 };
             };
-        };
-    };
-    list_conflicts_api_v1_map_conflicts_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ConflictEntry"][];
-                };
-            };
-        };
-    };
-    list_tensions_api_v1_map_tensions_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BorderTensionEntry"][];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -6539,75 +6825,6 @@ export interface operations {
             };
         };
     };
-    list_equip_mods_api_v1_equipment_mods_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by category: weapon, engine, shield, ship */
-                category?: string | null;
-                /** @description Filter by stat type e.g. damage, cooling */
-                stat?: string | null;
-                /** @description Filter by quality tier 1–3 */
-                quality?: number | null;
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EquipModSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_equip_mod_api_v1_equipment_mods__ware_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ware_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EquipModDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_terraform_stats_api_v1_terraform_stats_get: {
         parameters: {
             query?: never;
@@ -6697,122 +6914,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TerraformProjectDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_ware_groups_api_v1_ware_groups_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WareGroup"][];
-                };
-            };
-        };
-    };
-    get_ware_group_api_v1_ware_groups__group_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                group_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WareGroup"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_mission_groups_api_v1_mission_groups_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by offering faction id */
-                faction?: string | null;
-                /** @description Only story missions */
-                story_only?: boolean | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MissionGroup"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_mission_group_api_v1_mission_groups__group_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                group_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MissionGroup"];
                 };
             };
             /** @description Validation Error */
@@ -7421,7 +7522,10 @@ export interface operations {
     };
     player_reputation_api_v1_player_reputation_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Include utility/hidden factions. */
+                include_hidden?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -7435,6 +7539,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlayerRelation"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7484,6 +7597,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LiveStation"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_station_api_v1_stations__station_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                station_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveStation"];
                 };
             };
             /** @description Validation Error */
@@ -7717,10 +7861,12 @@ export interface operations {
     list_logbook_api_v1_logbook_get: {
         parameters: {
             query?: {
-                /** @description Filter by category */
-                category?: string | null;
+                /** @description Filter by category (repeatable) */
+                category?: string[] | null;
                 /** @description Search in title and text */
                 q?: string | null;
+                /** @description Only entries at or after this in-game time (seconds) */
+                min_time?: number | null;
                 /** @description Max entries */
                 limit?: number;
                 /** @description Skip first N */
@@ -7767,7 +7913,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string[];
+                    "application/json": components["schemas"]["CategoryInfo"][];
                 };
             };
         };
@@ -8001,7 +8147,14 @@ export interface operations {
     };
     ware_pnl_api_v1_economy_pnl_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Scope to one or more ships/stations (buyer or seller) */
+                owner?: string[] | null;
+                /** @description Scope to one or more ware_ids */
+                ware?: string[] | null;
+                /** @description Only trades at or after this in-game time (seconds) */
+                since?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -8017,17 +8170,28 @@ export interface operations {
                     "application/json": components["schemas"]["WarePnlRow"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     list_trades_api_v1_economy_trades_get: {
         parameters: {
             query?: {
-                /** @description Filter to one ware_id */
-                ware?: string | null;
-                /** @description Trades where this id is buyer or seller */
-                owner?: string | null;
+                /** @description Scope to one or more ware_ids */
+                ware?: string[] | null;
+                /** @description Trades where any of these ids is buyer or seller */
+                owner?: string[] | null;
                 /** @description Only trades a player asset is party to */
                 player_only?: boolean;
+                /** @description Only trades at or after this in-game time (seconds) */
+                since?: number | null;
                 limit?: number;
                 offset?: number;
             };
@@ -8213,57 +8377,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    _favicon_favicon_ico_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    _spa_fallback__full_path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                full_path: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
             };
             /** @description Validation Error */
             422: {

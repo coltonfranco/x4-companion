@@ -6,10 +6,11 @@ from typing import Annotated
 from fastapi import Depends, Query
 
 from x4_api.deps import get_db
+from x4_api.routes._db import table_exists
 from x4_api.routes.map import router
 from x4_api.schemas import PublicModel
 
-from ._common import _OWNERSHIP_CLAIM_SQL, _first_wins_by
+from ._common import _first_wins_by
 
 
 class ClusterSummary(PublicModel):
@@ -39,18 +40,22 @@ def list_clusters(
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
 ) -> list[ClusterSummary]:
-    # Build cluster ownership map from live stations (most-stations-wins per cluster).
-    owner_rows = conn.execute(
-        "SELECT sec.cluster_id, st.owner_faction, COUNT(*) AS cnt "
-        "FROM stations st "
-        "JOIN s.sectors sec ON LOWER(sec.sector_id) = LOWER(st.sector_id) "
-        "LEFT JOIN s.station_types stype ON stype.station_id = st.macro "
-        f"WHERE st.owner_faction IS NOT NULL AND {_OWNERSHIP_CLAIM_SQL} "
-        "GROUP BY sec.cluster_id, st.owner_faction "
-        "ORDER BY cnt DESC"
-    ).fetchall()
-    winners = _first_wins_by(owner_rows, "cluster_id")
-    live_owner = {cid: r["owner_faction"] for cid, r in winners.items()}
+    # Build cluster ownership from the game's own sector ownership records,
+    # aggregated per-cluster (most-sectors-wins within each cluster).
+    live_owner: dict[str, str] = {}
+    if table_exists(conn, "sector_state"):
+        save_rows = conn.execute(
+            "SELECT sec.cluster_id, ss.owner_faction, COUNT(*) AS cnt "
+            "FROM sector_state ss "
+            "JOIN s.sectors sec ON LOWER(sec.sector_id) = LOWER(ss.sector_id) "
+            "WHERE ss.owner_faction IS NOT NULL "
+            "GROUP BY sec.cluster_id, ss.owner_faction "
+            "ORDER BY cnt DESC"
+        ).fetchall()
+        live_owner = {
+            r["cluster_id"]: r["owner_faction"]
+            for r in _first_wins_by(save_rows, "cluster_id").values()
+        }
 
     rows = conn.execute(
         "SELECT c.cluster_id, c.name AS macro_id, c.dlc, c.name_id AS name, c.description_id AS description, "

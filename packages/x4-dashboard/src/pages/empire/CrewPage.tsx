@@ -13,6 +13,7 @@ import { EntityIcon } from "../../components/game/EntityIcon";
 import { ShipDetailPanel } from "../../components/detail-panels/ShipDetailPanel";
 import { DetailDialog } from "../../components/ui/detail-dialog";
 import { apiGet } from "../../lib/api";
+import { ALL_FACTIONS_PATH, ALL_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import type { EnrichedNPC, NPCEntry, RoleMeta } from "./types";
 import { COLUMN_GROUPS, DEFAULT_VISIBLE, ROLE_META, STORAGE_KEY, type GroupByKey } from "./lib/crewColumns";
 import { formatMacro, getRoleSkill, locationLabel, resolveFaction, resolveGender, resolveLocationType, roleBadge } from "./lib/crewFormat";
@@ -40,8 +41,8 @@ export default function CrewPage() {
 
   // Static lookup tables — fetched once, cached indefinitely.
   const { data: factions = [] } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: ALL_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(ALL_FACTIONS_PATH),
     staleTime: Infinity,
   });
 

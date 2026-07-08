@@ -4,6 +4,7 @@ import { apiGet } from "../../lib/api";
 import { useSectorPanZoom, type SectorBounds } from "../../lib/map/useSectorPanZoom";
 import type { MapStation, Sector, Zone, Gate, Highway } from "../../lib/map/types";
 import type { FactionSummary } from "../../lib/types";
+import { ALL_FACTIONS_PATH, ALL_FACTIONS_QUERY_KEY } from "../../lib/factionQueries";
 import { sectorDisplayName } from "../../lib/map/names";
 import { stationCategoryLabel, stationDisplayName } from "../../lib/map/stations";
 import { hexPoints } from "../../lib/map/geometry";
@@ -53,8 +54,8 @@ export function SectorMap({ sectorId }: { sectorId: string }) {
   });
 
   const { data: factions } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: ALL_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(ALL_FACTIONS_PATH),
   });
 
   const factionMap = useMemo(() => {

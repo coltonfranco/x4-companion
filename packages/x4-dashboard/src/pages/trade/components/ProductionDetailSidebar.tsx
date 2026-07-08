@@ -13,6 +13,7 @@ import { ModuleDetailPanel, type ModuleSummary } from "../../../components/detai
 import { WareDetailPanel } from "../../../components/detail-panels/WareDetailPanel";
 import { DetailDialog } from "../../../components/ui/detail-dialog";
 import { apiGet, apiGetArray } from "../../../lib/api";
+import { ALL_FACTIONS_PATH, ALL_FACTIONS_QUERY_KEY } from "../../../lib/factionQueries";
 import type { ChainNode, Overlay, SectorRow, WareOfferRow } from "../lib/productionChainTypes";
 import { DEPTH_LABEL, balanceColor, fmt, groupHex, hexA, overlayValue, tierHex } from "../lib/productionChainLayout";
 
@@ -167,8 +168,8 @@ export function ProductionDetailSidebar({
   });
   // Faction + sector lookups resolve the offer rows' ids to display names.
   const { data: factions = [] } = useQuery<FactionSummary[]>({
-    queryKey: ["factions"],
-    queryFn: () => apiGet<FactionSummary[]>("/api/v1/factions"),
+    queryKey: ALL_FACTIONS_QUERY_KEY,
+    queryFn: () => apiGet<FactionSummary[]>(ALL_FACTIONS_PATH),
     staleTime: Infinity,
   });
   const { data: sectors = [] } = useQuery<SectorRow[]>({

@@ -404,7 +404,7 @@ fast.include_router(factions.router, prefix="/api/v1", tags=["factions"])
 After adding endpoints, regenerate the OpenAPI schema:
 
 ```powershell
-uv run x4c serve            # one shell
+# start the app (npm run dev in packages/x4-desktop) so the API is up on :8765, then:
 Invoke-WebRequest http://127.0.0.1:8765/api/openapi.json | `
   ConvertFrom-Json | ConvertTo-Yaml | Set-Content docs/openapi.yaml
 ```

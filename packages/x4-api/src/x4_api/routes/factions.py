@@ -1,13 +1,15 @@
 """REST endpoints for game factions."""
 
+import dataclasses
 import sqlite3
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from x4_api.deps import get_db
+from x4_api.domain.faction_strength import FactionIdentity, compute_faction_strength
 from x4_api.routes._db import fetch_one_or_404, table_exists
-from x4_api.routes._factions import disambiguate
+from x4_api.routes._factions import disambiguate, is_hidden_select, visible_faction_where
 from x4_api.routes._icons import get_icon_url
 from x4_api.schemas import PublicModel
 
@@ -18,6 +20,7 @@ class FactionSummary(PublicModel):
     faction_id: str
     name: str
     color_hex: str | None
+    is_hidden: bool = False
     short_name: str | None = None
     prefix_name: str | None = None
     space_name: str | None = None
@@ -61,31 +64,73 @@ class FactionLicence(PublicModel):
     min_relation: float | None = None
 
 
+class FactionStrengthComponent(PublicModel):
+    label: str
+    value: float
+    detail: str
+
+
+class FactionStrengthBreakdown(PublicModel):
+    raw: float
+    leader_raw: float
+    leader_ratio: float
+    components: list[FactionStrengthComponent]
+
+
 @router.get("/faction-relations", response_model=list[AllFactionRelation])
 def list_all_faction_relations(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    include_hidden: bool = Query(False, description="Include utility/hidden factions."),
 ) -> list[AllFactionRelation]:
     """Every faction-to-faction relation from the active save. Returns [] until a save is ingested."""
-    rows = conn.execute(
-        "SELECT c.faction_id, c.other_faction_id, c.relation AS initial_relation, "
-        "       c.relation AS current_relation "
-        "FROM faction_relations_current c "
-        "ORDER BY c.faction_id, c.other_faction_id"
-    ).fetchall()
+    sql = [
+        "SELECT c.faction_id, c.other_faction_id, c.relation AS initial_relation,",
+        "       c.relation AS current_relation",
+        "FROM faction_relations_current c",
+        "LEFT JOIN s.factions f ON f.faction_id = c.faction_id",
+        "LEFT JOIN s.factions other ON other.faction_id = c.other_faction_id",
+        "WHERE 1=1",
+    ]
+    if not include_hidden:
+        sql.append(f"AND (f.faction_id IS NULL OR {visible_faction_where('f')})")
+        sql.append(f"AND (other.faction_id IS NULL OR {visible_faction_where('other')})")
+    sql.append("ORDER BY c.faction_id, c.other_faction_id")
+
+    rows = conn.execute(" ".join(sql)).fetchall()
     return [AllFactionRelation(**dict(r)) for r in rows]
 
 
 @router.get("/factions", response_model=list[FactionSummary])
-def list_factions(conn: Annotated[sqlite3.Connection, Depends(get_db)]) -> list[FactionSummary]:
-    """List all factions in the game catalog."""
-    rows = conn.execute(
-        "SELECT faction_id, name, color_hex, short_name, prefix_name, space_name, home_space_name, "
-        "police_faction, primary_race, icon_active, icon_inactive, icon_banner FROM s.factions "
-        "WHERE faction_id NOT IN ('ownerless', 'visitor') "
-        "ORDER BY name"
-    ).fetchall()
+def list_factions(
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    include_hidden: bool = Query(False, description="Include utility/hidden factions."),
+) -> list[FactionSummary]:
+    """List factions in the game catalog. Overrides the player faction name with the
+    custom organisation name from the save when a save has been ingested."""
+    sql = [
+        "SELECT f.faction_id, "
+        "COALESCE(p.faction_name, f.name) AS name, "
+        "f.color_hex,",
+        is_hidden_select("f"),
+        ", CASE WHEN f.faction_id = 'player' THEN NULL ELSE f.short_name END AS short_name",
+        ", f.prefix_name, f.space_name, f.home_space_name,",
+        "f.police_faction, f.primary_race, ",
+        "CASE WHEN f.faction_id = 'player' AND p.logo_index IS NOT NULL "
+        "     THEN 'playerlogo_' || printf('%02d', p.logo_index) "
+        "     ELSE f.icon_active "
+        "END AS icon_active,",
+        "f.icon_inactive, f.icon_banner",
+        "FROM s.factions f",
+        "LEFT JOIN player p ON p.id = 1 AND f.faction_id = 'player'",
+        "WHERE f.is_legacy = 0",
+    ]
+    if not include_hidden:
+        sql.append(f"AND {visible_faction_where('f')}")
+    sql.append("ORDER BY name")
 
-    out: list[dict[str, Any]] = disambiguate([dict(r) for r in rows])
+    rows = conn.execute(" ".join(sql)).fetchall()
+
+    out: list[dict[str, Any]] = disambiguate([dict(r) for r in rows], name_col="name")
     for d in out:
         d["icon_url"] = get_icon_url(d.get("icon_active"))
     return [FactionSummary(**d) for d in out]
@@ -98,8 +143,12 @@ class FactionStrength(PublicModel):
     # Normalized 0-100 scores (best faction in each category = 100)
     military_score: float
     economic_score: float
-    diplomatic_score: float  # absolute: avg_relation mapped -1..1 → 0..100
+    diplomatic_score: float  # relation-tier average mapped -2..2 → 0..100
     territory_score: float
+    military: FactionStrengthBreakdown
+    economic: FactionStrengthBreakdown
+    territory: FactionStrengthBreakdown
+    diplomacy: FactionStrengthBreakdown
     # Raw detail fields
     fight_ship_count: int
     trade_ship_count: int
@@ -111,15 +160,10 @@ class FactionStrength(PublicModel):
     avg_relation: float  # game-scale -30..30
 
 
-# Player is included so it ranks alongside AI factions; only structural placeholders skipped.
-_SKIP_FACTIONS = frozenset({"visitor", "ownerless"})
-_CLASS_MULT = {"s": 1, "m": 2, "l": 4, "xl": 8, "xs": 1}
-_ECON_MULT = {"s": 1, "m": 2, "l": 3, "xl": 4, "xs": 1}
-
-
 @router.get("/factions/strength", response_model=list[FactionStrength])
 def faction_strength(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    include_hidden: bool = Query(False, description="Include utility/hidden factions."),
 ) -> list[FactionStrength]:
     """Relative strength metrics, normalized 0-100, computed from LIVE save state.
 
@@ -127,132 +171,38 @@ def faction_strength(
     standings reflect how the game has actually unfolded — seed/static is init state only
     and is not referenced once a save is loaded. The player is ranked alongside AI factions.
     """
-    factions_q_raw = conn.execute(
-        "SELECT faction_id, name, color_hex FROM s.factions WHERE is_legacy = 0 ORDER BY name"
-    ).fetchall()
-    factions_q = disambiguate([dict(r) for r in factions_q_raw])
-
-    # Military: live combat ships, class-weighted (role/class come from the catalog via macro).
-    mil_rows = conn.execute("""
-        SELECT sh.owner_faction AS faction_id, c.class_id, COUNT(*) AS cnt
-        FROM ships sh JOIN s.ships c ON c.ship_id = sh.macro
-        WHERE c.role = 'fight' AND sh.owner_faction IS NOT NULL
-        GROUP BY sh.owner_faction, c.class_id
-    """).fetchall()
-
-    # Economic ships: live trade/mine/build/auxiliary, class-weighted.
-    econ_ship_rows = conn.execute("""
-        SELECT sh.owner_faction AS faction_id, c.role, c.class_id, COUNT(*) AS cnt
-        FROM ships sh JOIN s.ships c ON c.ship_id = sh.macro
-        WHERE c.role IN ('trade','mine','build','auxiliary') AND sh.owner_faction IS NOT NULL
-        GROUP BY sh.owner_faction, c.role, c.class_id
-    """).fetchall()
-
-    # Live stations owned + territory (distinct sectors/clusters with an owned station).
-    territory_rows = conn.execute("""
-        SELECT st.owner_faction AS faction_id,
-               COUNT(*) AS stations,
-               COUNT(DISTINCT st.sector_id) AS sectors,
-               COUNT(DISTINCT sec.cluster_id) AS clusters,
-               COALESCE(AVG(sec.economy), 0.5) AS avg_econ
-        FROM stations st
-        LEFT JOIN s.sectors sec ON LOWER(sec.sector_id) = LOWER(st.sector_id)
-        WHERE st.owner_faction IS NOT NULL
-        GROUP BY st.owner_faction
-    """).fetchall()
-
-    # Diplomatic: live current relations.
-    relation_rows = conn.execute("""
-        SELECT faction_id, AVG(relation) AS avg_rel
-        FROM faction_relations_current GROUP BY faction_id
-    """).fetchall()
-
-    mil_weighted: dict[str, float] = {}
-    fight_counts: dict[str, int] = {}
-    for r in mil_rows:
-        mult = _CLASS_MULT.get(r["class_id"] or "", 1)
-        fid = r["faction_id"]
-        mil_weighted[fid] = mil_weighted.get(fid, 0.0) + r["cnt"] * mult
-        fight_counts[fid] = fight_counts.get(fid, 0) + r["cnt"]
-
-    econ_ship_weighted: dict[str, float] = {}
-    trade_counts: dict[str, int] = {}
-    mine_counts: dict[str, int] = {}
-    for r in econ_ship_rows:
-        mult = _ECON_MULT.get(r["class_id"] or "", 1)
-        fid = r["faction_id"]
-        econ_ship_weighted[fid] = econ_ship_weighted.get(fid, 0.0) + r["cnt"] * mult
-        if r["role"] == "trade":
-            trade_counts[fid] = trade_counts.get(fid, 0) + r["cnt"]
-        elif r["role"] == "mine":
-            mine_counts[fid] = mine_counts.get(fid, 0) + r["cnt"]
-
-    territory: dict[str, Any] = {r["faction_id"]: dict(r) for r in territory_rows}
-    relations: dict[str, float] = {r["faction_id"]: float(r["avg_rel"]) for r in relation_rows}
-
-    rows: list[dict[str, Any]] = []
-    for f in factions_q:
-        fid = f["faction_id"]
-        if fid in _SKIP_FACTIONS:
-            continue
-
-        terr = territory.get(fid, {})
-        sec_cnt = int(terr.get("sectors", 0) or 0)
-        clus_cnt = int(terr.get("clusters", 0) or 0)
-        station_cnt = int(terr.get("stations", 0) or 0)
-        avg_econ = float(terr.get("avg_econ", 0.5) or 0.5)
-        avg_rel = relations.get(fid, -1.0)
-
-        # Military: live combat ships, class-weighted (s=1, m=2, l=4, xl=8).
-        mil_raw = mil_weighted.get(fid, 0.0)
-        # Economic: econ ships (x0.8) + live stations (3 pts) + sector economy rating.
-        econ_raw = (
-            station_cnt * 3.0 + sec_cnt * avg_econ * 5.0 + econ_ship_weighted.get(fid, 0.0) * 0.8
+    faction_sql = [
+        "SELECT f.faction_id, COALESCE(p.faction_name, f.name) AS name, f.color_hex "
+        "FROM s.factions f "
+        "LEFT JOIN player p ON p.id = 1 AND f.faction_id = 'player' "
+        "WHERE f.is_legacy = 0"
+    ]
+    if not include_hidden:
+        faction_sql.append(f"AND {visible_faction_where('f')}")
+    faction_sql.append("ORDER BY name")
+    factions_q_raw = conn.execute(" ".join(faction_sql)).fetchall()
+    faction_dicts = disambiguate([dict(r) for r in factions_q_raw])
+    factions = [
+        FactionIdentity(
+            faction_id=f["faction_id"],
+            name=f["name"],
+            color_hex=f["color_hex"],
         )
-        territory_raw = float(sec_cnt + clus_cnt * 2)
-        diplo_score = round((avg_rel + 1.0) / 2.0 * 100.0, 1)
-
-        rows.append(
-            {
-                "faction_id": fid,
-                "name": f["name"],
-                "color_hex": f["color_hex"],
-                "military_raw": mil_raw,
-                "economic_raw": econ_raw,
-                "territory_raw": territory_raw,
-                "diplomatic_score": diplo_score,
-                "fight_ship_count": fight_counts.get(fid, 0),
-                "trade_ship_count": trade_counts.get(fid, 0),
-                "mine_ship_count": mine_counts.get(fid, 0),
-                "military_station_count": 0,  # live station type-classification is a fast-follow
-                "economic_station_count": station_cnt,
-                "sector_count": sec_cnt,
-                "cluster_count": clus_cnt,
-                "avg_relation": round(avg_rel * 30.0, 1),  # game-scale -30..30
-            }
-        )
-
-    # Normalize military, economic, territory relative to the strongest faction
-    for metric in ("military_raw", "economic_raw", "territory_raw"):
-        max_val = max((r[metric] for r in rows), default=1.0) or 1.0
-        score_key = metric.replace("_raw", "_score")
-        for r in rows:
-            r[score_key] = round(r[metric] / max_val * 100.0, 1)
-
-    return [FactionStrength(**{k: v for k, v in r.items() if not k.endswith("_raw")}) for r in rows]
+        for f in faction_dicts
+    ]
+    return [FactionStrength(**dataclasses.asdict(row)) for row in compute_faction_strength(conn, factions)]
 
 
 @router.get("/factions/known", response_model=dict[str, bool])
 def list_known_factions(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    include_hidden: bool = Query(False, description="Include utility/hidden factions."),
 ) -> dict[str, bool]:
     """Return {faction_id: is_known} for every static faction."""
-    all_factions = {
-        r["faction_id"]
-        for r in conn.execute(
-            "SELECT faction_id FROM s.factions WHERE faction_id NOT IN ('ownerless', 'visitor')"
-        ).fetchall()
-    }
+    faction_sql = ["SELECT faction_id FROM s.factions WHERE is_legacy = 0"]
+    if not include_hidden:
+        faction_sql.append(f"AND {visible_faction_where()}")
+    all_factions = {r["faction_id"] for r in conn.execute(" ".join(faction_sql)).fetchall()}
     known: set[str] = {"player"}
 
     if table_exists(conn, "faction_relations_current"):
@@ -293,10 +243,23 @@ def get_faction(
     """Get detailed information for a specific faction."""
     row = fetch_one_or_404(
         conn,
-        "SELECT faction_id, name, color_hex, primary_race, short_name, prefix_name, "
-        "space_name, home_space_name, police_faction, icon_active, icon_inactive, icon_banner, "
-        "description, behaviour_set, tags "
-        "FROM s.factions WHERE faction_id = :id",
+        "SELECT f.faction_id, "
+        "COALESCE(p.faction_name, f.name) AS name, "
+        "f.color_hex, "
+        f"{is_hidden_select('f')}, "
+        "f.primary_race, "
+        "CASE WHEN f.faction_id = 'player' THEN NULL ELSE f.short_name END AS short_name, "
+        "f.prefix_name, "
+        "f.space_name, f.home_space_name, f.police_faction, "
+        "CASE WHEN f.faction_id = 'player' AND p.logo_index IS NOT NULL "
+        "     THEN 'playerlogo_' || printf('%02d', p.logo_index) "
+        "     ELSE f.icon_active "
+        "END AS icon_active, "
+        "f.icon_inactive, f.icon_banner, "
+        "f.description, f.behaviour_set, f.tags "
+        "FROM s.factions f "
+        "LEFT JOIN player p ON p.id = 1 AND f.faction_id = 'player' "
+        "WHERE f.faction_id = :id",
         {"id": faction_id},
         f"Unknown faction_id: {faction_id}",
     )
@@ -316,6 +279,7 @@ def get_faction(
 def list_faction_relations(
     faction_id: str,
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    include_hidden: bool = Query(False, description="Include utility/hidden factions."),
 ) -> list[FactionRelation]:
     """Diplomatic relations for a faction from the active save. Returns [] until a save is ingested."""
     fetch_one_or_404(
@@ -324,12 +288,16 @@ def list_faction_relations(
         {"id": faction_id},
         f"Unknown faction_id: {faction_id}",
     )
-    rows = conn.execute(
-        "SELECT c.other_faction_id, c.relation AS initial_relation, c.relation AS current_relation "
-        "FROM faction_relations_current c "
-        "WHERE c.faction_id = :id ORDER BY c.other_faction_id",
-        {"id": faction_id},
-    ).fetchall()
+    sql = [
+        "SELECT c.other_faction_id, c.relation AS initial_relation, c.relation AS current_relation",
+        "FROM faction_relations_current c",
+        "LEFT JOIN s.factions other ON other.faction_id = c.other_faction_id",
+        "WHERE c.faction_id = :id",
+    ]
+    if not include_hidden:
+        sql.append(f"AND (other.faction_id IS NULL OR {visible_faction_where('other')})")
+    sql.append("ORDER BY c.other_faction_id")
+    rows = conn.execute(" ".join(sql), {"id": faction_id}).fetchall()
     return [FactionRelation(**dict(r)) for r in rows]
 
 

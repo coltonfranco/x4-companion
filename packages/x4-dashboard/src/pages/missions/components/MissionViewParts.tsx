@@ -441,12 +441,14 @@ export function MissionFactionCluster({
   factionMap,
   size,
   showFallback = false,
+  linked = true,
 }: {
   faction: string | null | undefined;
   opposingFaction: string | null | undefined;
   factionMap: Map<string, FactionSummary>;
   size: "sm" | "md";
   showFallback?: boolean;
+  linked?: boolean;
 }) {
   const factionObj = faction ? factionMap.get(faction) : undefined;
   const opposingObj = opposingFaction ? factionMap.get(opposingFaction) : undefined;
@@ -459,6 +461,7 @@ export function MissionFactionCluster({
       icon_url={factionObj.icon_url}
       faction_id={factionObj.faction_id}
       size={size}
+      linked={linked}
     />
   );
 
@@ -480,6 +483,7 @@ export function MissionFactionCluster({
               icon_url={opposingObj.icon_url}
               faction_id={opposingObj.faction_id}
               size={size}
+              linked={linked}
             />
           ) : (
             <span className="font-semibold" style={{ color: opposingObj.color_hex ?? "#f87171" }}>

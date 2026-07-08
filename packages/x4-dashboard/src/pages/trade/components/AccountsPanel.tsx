@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { Landmark, Building2, Rocket } from "lucide-react";
 import { HUDCard } from "../../../components/layout/HUDCard";
 import { Currency } from "../../../components/game/Currency";
@@ -48,7 +49,18 @@ function AccountGroupRenderer({ title, accounts, valueTooltip }: { title: string
           return (
             <div key={a.owner} className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-muted/10 transition-colors relative">
               <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="flex-1 truncate">{a.name ?? a.owner}</span>
+              {a.kind === "account" ? (
+                <span className="flex-1 truncate">{a.name ?? a.owner}</span>
+              ) : (
+                <Link
+                  to="/trade/transactions"
+                  search={{ owner: a.owner }}
+                  className="flex-1 truncate hover:text-primary hover:underline underline-offset-2 transition-colors"
+                  title={`View transactions for ${a.name ?? a.owner}`}
+                >
+                  {a.name ?? a.owner}
+                </Link>
+              )}
 
               <div className="w-14 flex justify-center shrink-0">
                 <TooltipProvider>
