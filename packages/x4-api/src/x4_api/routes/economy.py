@@ -211,9 +211,17 @@ class TradeRow(PublicModel):
     buyer: str | None
     buyer_name: str | None
     buyer_is_player: bool
+    buyer_faction: str | None
+    buyer_kind: str | None
+    buyer_class_id: str | None
+    buyer_role: str | None
     seller: str | None
     seller_name: str | None
     seller_is_player: bool
+    seller_faction: str | None
+    seller_kind: str | None
+    seller_class_id: str | None
+    seller_role: str | None
 
 
 @router.get("/economy/trades", response_model=list[TradeRow])
@@ -238,9 +246,17 @@ def list_trades(
             buyer=t.buyer,
             buyer_name=t.buyer_name,
             buyer_is_player=t.buyer_is_player,
+            buyer_faction=t.buyer_faction,
+            buyer_kind=t.buyer_kind,
+            buyer_class_id=t.buyer_class_id,
+            buyer_role=t.buyer_role,
             seller=t.seller,
             seller_name=t.seller_name,
             seller_is_player=t.seller_is_player,
+            seller_faction=t.seller_faction,
+            seller_kind=t.seller_kind,
+            seller_class_id=t.seller_class_id,
+            seller_role=t.seller_role,
         )
         for t in finance.trades(
             conn, ware=ware, owner=owner, player_only=player_only, since=since,

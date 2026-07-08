@@ -4943,12 +4943,28 @@ export interface components {
             buyer_name: string | null;
             /** Buyer Is Player */
             buyer_is_player: boolean;
+            /** Buyer Faction */
+            buyer_faction: string | null;
+            /** Buyer Kind */
+            buyer_kind: string | null;
+            /** Buyer Class Id */
+            buyer_class_id: string | null;
+            /** Buyer Role */
+            buyer_role: string | null;
             /** Seller */
             seller: string | null;
             /** Seller Name */
             seller_name: string | null;
             /** Seller Is Player */
             seller_is_player: boolean;
+            /** Seller Faction */
+            seller_faction: string | null;
+            /** Seller Kind */
+            seller_kind: string | null;
+            /** Seller Class Id */
+            seller_class_id: string | null;
+            /** Seller Role */
+            seller_role: string | null;
         };
         /** ValidatePathRequest */
         ValidatePathRequest: {

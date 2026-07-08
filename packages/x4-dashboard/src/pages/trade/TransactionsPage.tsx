@@ -6,15 +6,22 @@ import {
 } from "lucide-react";
 import { Currency } from "../../components/game/Currency";
 import { EntityIcon } from "../../components/game/EntityIcon";
+import { FactionBadge } from "../../components/game/FactionBadge";
+import { Badge } from "../../components/ui/badge";
 import { PageLoaderPreset } from "../../components/layout/PageLoader";
 import { PageSubtitle } from "../../components/ui/page-subtitle";
 import { FilterBar } from "../../components/layout/FilterBar";
 import { MultiSelect } from "../../components/ui/multi-select";
 import { ClearFiltersButton } from "../../components/ui/clear-filters-button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { formatTimeAgo } from "../../lib/formatters";
+import { DetailDialog } from "../../components/ui/detail-dialog";
+import { WareDetailPanel } from "../../components/detail-panels/WareDetailPanel";
+import { classShort, formatTimeAgo } from "../../lib/formatters";
 import { useSaveTime } from "../../lib/useSaveTime";
 import { useJson } from "../../lib/useJson";
+import { useFactionMap } from "../../lib/useFactionMap";
+import { ALL_FACTIONS_PATH } from "../../lib/factionQueries";
+import type { FactionSummary } from "../../lib/types";
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
 import { FlowBarChart } from "./components/FlowBarChart";
 import type { FlowBarDatum } from "./components/FlowBarChart";
@@ -30,10 +37,41 @@ function ownerGroup(a: Account): (typeof SHIP_GROUP_ORDER)[number] {
   return a.ship_role === "trade" ? "Trade Ships" : "Other Ships";
 }
 
+/** Faction badge + name (+ size/type for ships) for one side of a trade. */
+function PartyCell({
+  name, isPlayer, factionId, kind, classId, role, factionMap,
+}: {
+  name: string | null;
+  isPlayer: boolean;
+  factionId: string | null;
+  kind: string | null;
+  classId: string | null;
+  role: string | null;
+  factionMap: Map<string, FactionSummary>;
+}) {
+  const faction = factionId ? factionMap.get(factionId) : undefined;
+  const tag = kind === "ship" && (classId || role)
+    ? [classId ? classShort(classId) : null, role ? role.charAt(0).toUpperCase() + role.slice(1) : null]
+        .filter(Boolean).join(" · ")
+    : null;
+  return (
+    <div className="flex items-center gap-1.5 min-w-0">
+      {faction ? (
+        <FactionBadge name={faction.name} color_hex={faction.color_hex} icon_url={faction.icon_url} faction_id={faction.faction_id} size="sm" />
+      ) : isPlayer ? (
+        <Badge variant="outline" className="px-1.5 py-0 text-xs whitespace-nowrap shrink-0">You</Badge>
+      ) : null}
+      <span className="truncate">{name ?? "—"}</span>
+      {tag && <span className="shrink-0 text-[10px] text-muted-foreground font-mono">{tag}</span>}
+    </div>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────────
 
 export default function TransactionsPage() {
   const search = useSearch({ strict: false }) as { owner?: string; ware?: string };
+  const [selectedWareId, setSelectedWareId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [owner, setOwner] = useState<Set<string>>(() => new Set(search.owner ? [search.owner] : []));
   const [ware, setWare] = useState<Set<string>>(() => new Set(search.ware ? [search.ware] : []));
@@ -41,6 +79,9 @@ export default function TransactionsPage() {
   const [timeRange, setTimeRange] = useState<number>(Infinity);
 
   useEffect(() => setPage(0), [owner, ware, timeRange]);
+
+  const { data: factions = [] } = useJson<FactionSummary[]>("factions-all", ALL_FACTIONS_PATH);
+  const factionMap = useFactionMap(factions);
 
   const currentTime = useSaveTime();
   const since = useMemo(
@@ -115,17 +156,15 @@ export default function TransactionsPage() {
   const { data: chartPnl = [] } = useJson<WarePnl[]>(`transactions-pnl-${ownerKey}-${wareKey}-${since ?? ""}`, chartUrl);
 
   const chartData: FlowBarDatum[] = useMemo(
-    () => [...chartPnl]
-      .sort((a, b) => (Math.abs(b.sell_qty) + Math.abs(b.buy_qty)) - (Math.abs(a.sell_qty) + Math.abs(a.buy_qty)))
-      .map((p, i) => ({
-        key: p.ware ?? `row-${i}`,
-        label: p.ware_name ?? p.ware ?? "Unknown",
-        iconUrl: p.icon_url,
-        positive: p.income,
-        negative: p.spend,
-        positiveQty: p.sell_qty,
-        negativeQty: p.buy_qty,
-      })),
+    () => chartPnl.map((p, i) => ({
+      key: p.ware ?? `row-${i}`,
+      label: p.ware_name ?? p.ware ?? "Unknown",
+      iconUrl: p.icon_url,
+      positive: p.income,
+      negative: p.spend,
+      positiveQty: p.sell_qty,
+      negativeQty: p.buy_qty,
+    })),
     [chartPnl],
   );
 
@@ -198,6 +237,7 @@ export default function TransactionsPage() {
             data={chartData}
             defaultMode="gross"
             emptyText={hasFilters ? "No trades match these filters." : "No external trades recorded."}
+            onRowClick={setSelectedWareId}
           />
         </div>
 
@@ -214,7 +254,8 @@ export default function TransactionsPage() {
                 <th className="text-right px-2 py-2 w-[1%] whitespace-nowrap">Price</th>
                 <th className="text-right px-2 py-2 w-[1%] whitespace-nowrap">Qty</th>
                 <th className="text-right px-2 py-2 w-[1%] whitespace-nowrap">Total</th>
-                <th className="text-left px-2 py-2">Counterparty</th>
+                <th className="text-left px-2 py-2">From</th>
+                <th className="text-left px-2 py-2">To</th>
                 <th className="text-right px-4 py-2 w-[1%] whitespace-nowrap">When</th>
               </tr>
             </thead>
@@ -224,7 +265,6 @@ export default function TransactionsPage() {
                 const buy = t.buyer_is_player && !t.seller_is_player;
                 const internal = t.seller_is_player && t.buyer_is_player;
                 const total = (t.price ?? 0) * (t.quantity ?? 0);
-                const counterparty = t.seller_is_player ? t.buyer_name : t.seller_name;
 
                 return (
                   <tr key={i} className="hover:bg-muted/10 transition-colors">
@@ -240,28 +280,54 @@ export default function TransactionsPage() {
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="text-xs font-normal">
-                            {internal ? "Internal transfer" : sell ? `Sold to ${counterparty ?? "NPC"}` : `Bought from ${counterparty ?? "NPC"}`}
+                            {internal
+                              ? `Moved from ${t.seller_name ?? "?"} to ${t.buyer_name ?? "?"}`
+                              : sell ? `Sold to ${t.buyer_name ?? "NPC"}` : `Bought from ${t.seller_name ?? "NPC"}`}
                           </TooltipContent>
                         </UiTooltip>
                       </TooltipProvider>
                     </td>
                     <td className="px-2 py-1.5">
-                      <div className="flex items-center gap-2 truncate max-w-[200px]">
+                      <button
+                        type="button"
+                        onClick={() => t.ware && setSelectedWareId(t.ware)}
+                        disabled={!t.ware}
+                        className="flex items-center gap-2 truncate max-w-[200px] hover:text-primary hover:underline underline-offset-2 transition-colors disabled:hover:no-underline disabled:hover:text-inherit disabled:cursor-default"
+                      >
                         <EntityIcon src={t.icon_url} alt="" size={20} />
                         <span className="truncate">{t.ware_name ?? t.ware ?? "—"}</span>
-                      </div>
+                      </button>
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums">
-                      <Currency value={t.price} icon={false} />
+                      <Currency value={t.price} />
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums text-xs">
                       {(t.quantity ?? 0).toLocaleString()}
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums">
-                      <Currency value={internal ? null : sell ? total : -total} dynamicColor icon={false} />
+                      <Currency value={internal ? null : sell ? total : -total} dynamicColor />
                     </td>
-                    <td className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[180px]">
-                      {counterparty ?? "—"}
+                    <td className="px-2 py-1.5 text-xs text-muted-foreground max-w-[180px]">
+                      <PartyCell
+                        name={t.seller_name}
+                        isPlayer={t.seller_is_player}
+                        factionId={t.seller_faction}
+                        kind={t.seller_kind}
+                        classId={t.seller_class_id}
+                        role={t.seller_role}
+                        factionMap={factionMap}
+                      />
+                    </td>
+                    <td className="px-2 py-1.5 text-xs text-muted-foreground max-w-[180px]">
+                      <PartyCell
+                        name={t.buyer_name}
+                        isPlayer={t.buyer_is_player}
+                        factionId={t.buyer_faction}
+                        kind={t.buyer_kind}
+                        classId={t.buyer_class_id}
+                        role={t.buyer_role}
+                        factionMap={factionMap}
+                      />
                     </td>
                     <td className="px-4 py-1.5 text-right tabular-nums text-xs text-muted-foreground whitespace-nowrap">
                       {formatTimeAgo(t.time, currentTime)}
@@ -299,6 +365,16 @@ export default function TransactionsPage() {
           </div>
         </div>
       )}
+
+      <DetailDialog
+        open={selectedWareId !== null}
+        onOpenChange={(open) => { if (!open) setSelectedWareId(null); }}
+        title="Commodity Details"
+        description="Detailed view of the selected commodity"
+        contentClassName="sm:max-w-2xl md:max-w-4xl min-h-[60vh] max-h-[90vh] overflow-y-auto"
+      >
+        {selectedWareId && <WareDetailPanel wareId={selectedWareId} />}
+      </DetailDialog>
     </div>
   );
 }

@@ -36,6 +36,9 @@ export interface FlowBarChartProps {
   emptyText?: string;
   className?: string;
   defaultMode?: Mode;
+  /** Called with the row's `key` (e.g. a ware id) when a row is clicked — wire
+   *  this up to open a detail view. Rows aren't clickable when omitted. */
+  onRowClick?: (key: string) => void;
 }
 
 const GRID_STEPS = [-1, -0.5, 0, 0.5, 1];
@@ -67,6 +70,7 @@ export function FlowBarChart({
   emptyText = "No trade data recorded.",
   className,
   defaultMode = "net",
+  onRowClick,
 }: FlowBarChartProps) {
   const [mode, setMode] = useState<Mode>(defaultMode);
   const [metric, setMetric] = useState<Metric>("credits");
@@ -77,11 +81,15 @@ export function FlowBarChart({
   const format = useQty ? formatQty : formatValue;
 
   const rows = useMemo(
-    () => data.map((d) => ({
-      ...d,
-      pos: useQty ? d.positiveQty! : d.positive,
-      neg: useQty ? d.negativeQty! : d.negative,
-    })),
+    () => data
+      .map((d) => ({
+        ...d,
+        pos: useQty ? d.positiveQty! : d.positive,
+        neg: useQty ? d.negativeQty! : d.negative,
+      }))
+      // Ranked by total volume in the metric currently on screen (credits or
+      // quantity), independent of the net/gross display mode.
+      .sort((a, b) => (Math.abs(b.pos) + Math.abs(b.neg)) - (Math.abs(a.pos) + Math.abs(a.neg))),
     [data, useQty],
   );
 
@@ -124,7 +132,11 @@ export function FlowBarChart({
             const negPct = (d.neg / max) * 50;
             const netPct = (Math.abs(net) / max) * 50;
             return (
-              <div key={d.key} className={`${ROW_GRID} px-4 py-2.5 hover:bg-muted/10 transition-colors`}>
+              <div
+                key={d.key}
+                className={`${ROW_GRID} px-4 py-2.5 hover:bg-muted/10 transition-colors ${onRowClick ? "cursor-pointer" : ""}`}
+                onClick={onRowClick ? () => onRowClick(d.key) : undefined}
+              >
                 <EntityIcon src={d.iconUrl} alt={d.label} size={24} />
                 <div className="truncate text-sm">{d.label}</div>
                 <div className="relative h-5">

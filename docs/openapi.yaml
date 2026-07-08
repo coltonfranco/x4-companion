@@ -10037,6 +10037,26 @@ components:
         buyer_is_player:
           type: boolean
           title: Buyer Is Player
+        buyer_faction:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Buyer Faction
+        buyer_kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Buyer Kind
+        buyer_class_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Buyer Class Id
+        buyer_role:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Buyer Role
         seller:
           anyOf:
           - type: string
@@ -10050,6 +10070,26 @@ components:
         seller_is_player:
           type: boolean
           title: Seller Is Player
+        seller_faction:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Seller Faction
+        seller_kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Seller Kind
+        seller_class_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Seller Class Id
+        seller_role:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Seller Role
       additionalProperties: false
       type: object
       required:
@@ -10062,9 +10102,17 @@ components:
       - buyer
       - buyer_name
       - buyer_is_player
+      - buyer_faction
+      - buyer_kind
+      - buyer_class_id
+      - buyer_role
       - seller
       - seller_name
       - seller_is_player
+      - seller_faction
+      - seller_kind
+      - seller_class_id
+      - seller_role
       title: TradeRow
     ValidatePathRequest:
       properties:

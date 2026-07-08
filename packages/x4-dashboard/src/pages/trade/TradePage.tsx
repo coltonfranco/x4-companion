@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { TrendingUp, AlertTriangle, RefreshCw } from "lucide-react";
 import { PageLoaderPreset } from "../../components/layout/PageLoader";
 import { PageSubtitle } from "../../components/ui/page-subtitle";
+import { DetailDialog } from "../../components/ui/detail-dialog";
+import { WareDetailPanel } from "../../components/detail-panels/WareDetailPanel";
 import { NetWorthChart } from "./components/NetWorthChart";
 import type { NetWorthPoint } from "./components/NetWorthChart";
 import { useSaveTime } from "../../lib/useSaveTime";
@@ -16,6 +18,7 @@ import { AccountsPanel } from "./components/AccountsPanel";
 // ── Page ─────────────────────────────────────────────────────────────────────────
 
 export default function TradeOverviewPage() {
+  const [selectedWareId, setSelectedWareId] = useState<string | null>(null);
   const { data: player, isLoading: playerLoading } = useJson<Player>("player-credits", "/api/v1/player");
   const { data: accounts = [], isLoading: acctLoading, isError: acctErr, error: acctErrMsg, refetch: refetchAcct } = useJson<Account[]>("economy-accounts", "/api/v1/economy/accounts?player_only=true");
   const { data: networth = [], isLoading: nwLoading, isError: nwErr, error: nwErrMsg, refetch: refetchNw } = useJson<NetWorthPoint[]>("economy-networth", "/api/v1/economy/networth?player_only=true");
@@ -63,16 +66,13 @@ export default function TradeOverviewPage() {
   }, [pnl]);
 
   const salesVsBuys = useMemo(
-    () => [...pnl]
-      .sort((a, b) => (b.income + b.spend) - (a.income + a.spend))
-      .slice(0, 10)
-      .map((p, i) => ({
-        key: p.ware ?? `row-${i}`,
-        label: p.ware_name ?? p.ware ?? "Unknown",
-        iconUrl: p.icon_url,
-        positive: p.income,
-        negative: p.spend,
-      })),
+    () => pnl.map((p, i) => ({
+      key: p.ware ?? `row-${i}`,
+      label: p.ware_name ?? p.ware ?? "Unknown",
+      iconUrl: p.icon_url,
+      positive: p.income,
+      negative: p.spend,
+    })),
     [pnl],
   );
 
@@ -169,7 +169,12 @@ export default function TradeOverviewPage() {
 
         {/* Trade by commodity + Market pulse */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <FlowBarChart title="Trade by Commodity" data={salesVsBuys} emptyText="No external trades recorded." />
+          <FlowBarChart
+            title="Trade by Commodity"
+            data={salesVsBuys}
+            emptyText="No external trades recorded."
+            onRowClick={setSelectedWareId}
+          />
           <MarketPulse shortages={shortages} surpluses={surpluses} />
         </div>
 
@@ -184,6 +189,16 @@ export default function TradeOverviewPage() {
           />
         </div>
       </div>
+
+      <DetailDialog
+        open={selectedWareId !== null}
+        onOpenChange={(open) => { if (!open) setSelectedWareId(null); }}
+        title="Commodity Details"
+        description="Detailed view of the selected commodity"
+        contentClassName="sm:max-w-2xl md:max-w-4xl min-h-[60vh] max-h-[90vh] overflow-y-auto"
+      >
+        {selectedWareId && <WareDetailPanel wareId={selectedWareId} />}
+      </DetailDialog>
     </div>
   );
 }

@@ -17,8 +17,11 @@ export type WarePnl = {
 
 export type Trade = {
   time: number; ware: string | null; ware_name: string | null; icon_url: string | null;
-  price: number | null; quantity: number | null; buyer_name: string | null; buyer_is_player: boolean;
-  seller_name: string | null; seller_is_player: boolean;
+  price: number | null; quantity: number | null;
+  buyer_name: string | null; buyer_is_player: boolean; buyer_faction: string | null;
+  buyer_kind: string | null; buyer_class_id: string | null; buyer_role: string | null;
+  seller_name: string | null; seller_is_player: boolean; seller_faction: string | null;
+  seller_kind: string | null; seller_class_id: string | null; seller_role: string | null;
 };
 
 export type WareMarket = {

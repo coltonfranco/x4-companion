@@ -94,9 +94,17 @@ class TradeRecord:
     buyer: str | None
     buyer_name: str | None
     buyer_is_player: bool
+    buyer_faction: str | None
+    buyer_kind: str | None  # station | ship | account
+    buyer_class_id: str | None  # ship size class; NULL for stations/accounts
+    buyer_role: str | None  # ship class role (trade/fight/mine/...); NULL for stations/accounts
     seller: str | None
     seller_name: str | None
     seller_is_player: bool
+    seller_faction: str | None
+    seller_kind: str | None
+    seller_class_id: str | None
+    seller_role: str | None
 
 
 @dataclass(slots=True)
@@ -428,14 +436,18 @@ def ware_pnl(
 _TRADES_QUERY = f"""
 SELECT t.time, t.ware, w.name AS ware_name, w.icon_path, w.tags, t.price / 100 AS price, t.v AS quantity,
        t.buyer, t.seller,
+       bsh.class_id AS buyer_class_id, bsc.role AS buyer_role,
+       ssh.class_id AS seller_class_id, ssc.role AS seller_role,
        {_RESOLVE.format(st="bst", sh="bsh", p="buyer")},
        {_RESOLVE.format(st="sst", sh="ssh", p="seller")}
 FROM economy_trade t
 LEFT JOIN s.wares  w   ON w.ware_id    = t.ware
 LEFT JOIN stations bst ON bst.station_id = t.buyer
 LEFT JOIN ships    bsh ON bsh.ship_id    = t.buyer
+LEFT JOIN s.ships  bsc ON bsc.ship_id    = bsh.macro
 LEFT JOIN stations sst ON sst.station_id = t.seller
 LEFT JOIN ships    ssh ON ssh.ship_id    = t.seller
+LEFT JOIN s.ships  ssc ON ssc.ship_id    = ssh.macro
 WHERE 1=1 {{filters}}
 ORDER BY t.time DESC
 LIMIT ? OFFSET ?
@@ -486,9 +498,17 @@ def trades(
             buyer=r["buyer"],
             buyer_name=r["buyer_name"] or r["buyer"],
             buyer_is_player=bool(r["buyer_is_player"]),
+            buyer_faction=r["buyer_faction"],
+            buyer_kind=r["buyer_kind"],
+            buyer_class_id=r["buyer_class_id"],
+            buyer_role=r["buyer_role"],
             seller=r["seller"],
             seller_name=r["seller_name"] or r["seller"],
             seller_is_player=bool(r["seller_is_player"]),
+            seller_faction=r["seller_faction"],
+            seller_kind=r["seller_kind"],
+            seller_class_id=r["seller_class_id"],
+            seller_role=r["seller_role"],
         )
         for r in conn.execute(_TRADES_QUERY.format(filters=filters), params).fetchall()
     ]
