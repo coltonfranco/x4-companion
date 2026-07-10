@@ -16,7 +16,7 @@ import { SearchInput } from "../../../components/ui/search-input";
 import { getTypeColor, formatDlc } from "../../../lib/formatters";
 import { cn } from "../../../lib/utils";
 import type { FactionSummary } from "../../../lib/types";
-import { ALL_COLUMNS, CLASSES, type GroupByKey, type ShipSummary } from "../lib/shipsColumns";
+import { ALL_COLUMNS, CLASSES, COLUMN_GROUPS, type GroupByKey, type ShipSummary } from "../lib/shipsColumns";
 
 export function ShipsFilterBar({
   ships,
@@ -29,6 +29,8 @@ export function ShipsFilterBar({
   selectedDlcs, setSelectedDlcs,
   ownedOnly, setOwnedOnly,
   obtainableOnly, setObtainableOnly,
+  buyableOnly, setBuyableOnly,
+  buildableOnly, setBuildableOnly,
   hasFilters, onClear,
   visibleColumns, setVisibleColumns,
   groupBy, setGroupBy,
@@ -43,6 +45,8 @@ export function ShipsFilterBar({
   selectedDlcs: Set<string>; setSelectedDlcs: (v: Set<string>) => void;
   ownedOnly: boolean; setOwnedOnly: (v: boolean) => void;
   obtainableOnly: boolean; setObtainableOnly: (v: boolean) => void;
+  buyableOnly: boolean; setBuyableOnly: (v: boolean) => void;
+  buildableOnly: boolean; setBuildableOnly: (v: boolean) => void;
   hasFilters: boolean; onClear: () => void;
   visibleColumns: Set<string>; setVisibleColumns: (v: Set<string>) => void;
   groupBy: GroupByKey; setGroupBy: (v: GroupByKey) => void;
@@ -178,13 +182,25 @@ export function ShipsFilterBar({
         <div className="flex items-center gap-2">
           <Switch id="owned-only" checked={ownedOnly} onCheckedChange={setOwnedOnly} />
           <label htmlFor="owned-only" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
-            Owned Only
+            Owned
           </label>
         </div>
         <div className="flex items-center gap-2">
           <Switch id="obtainable-only" checked={obtainableOnly} onCheckedChange={setObtainableOnly} />
           <label htmlFor="obtainable-only" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
             Obtainable
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="buyable-only" checked={buyableOnly} onCheckedChange={setBuyableOnly} />
+          <label htmlFor="buyable-only" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+            Buyable
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="buildable-only" checked={buildableOnly} onCheckedChange={setBuildableOnly} />
+          <label htmlFor="buildable-only" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+            Buildable
           </label>
         </div>
       </div>
@@ -201,7 +217,9 @@ export function ShipsFilterBar({
           options={ALL_COLUMNS.map((c) => ({
             value: c.key,
             label: c.label,
-            group: c.groupId,
+            group: c.groupId
+              ? (COLUMN_GROUPS.find((g) => g.id === c.groupId)?.label ?? c.groupId)
+              : undefined,
           }))}
           selected={visibleColumns}
           onChange={setVisibleColumns}

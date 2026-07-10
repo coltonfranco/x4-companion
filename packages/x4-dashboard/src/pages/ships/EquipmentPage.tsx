@@ -13,6 +13,8 @@ import { EquipmentFilterBar } from "./components/EquipmentFilterBar";
 import { EquipmentTable } from "./components/EquipmentTable";
 import { CATEGORIES, SIZE_ORDER } from "./lib/equipmentCategories";
 import { getWeaponType } from "../../lib/formatters";
+import { BASE_SORTS, CATEGORY_SORTS } from "./lib/builderHelpers";
+import type { SortOption } from "./lib/builderTypes";
 import type { FactionSummary } from "../../lib/types";
 import { DetailDialog } from "../../components/ui/detail-dialog";
 import { apiGet } from "../../lib/api";
@@ -36,6 +38,8 @@ export default function EquipmentPage() {
   const [mkFilter, setMkFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [obtainableOnly, setObtainableOnly] = useState(true);
+  const [buyableOnly, setBuyableOnly] = useState(false);
+  const [buildableOnly, setBuildableOnly] = useState(false);
   const { settings } = useSettings();
 
   const { data: knownFactions = {} } = useKnownFactions();
@@ -61,7 +65,7 @@ export default function EquipmentPage() {
   const items = useMemo(() => {
     if (!settings.fogOfWar) return rawItems;
     return rawItems.filter(
-      (e) => e.faction_id == null || knownFactions[e.faction_id] !== false
+      (e) => e.owner_factions?.length === 0 || e.owner_factions?.some((fid) => knownFactions[fid] !== false)
     );
   }, [rawItems, knownFactions, settings.fogOfWar]);
 
@@ -80,6 +84,26 @@ export default function EquipmentPage() {
   }, [items]);
 
   const category = CATEGORIES.find((c) => c.id === catId) ?? CATEGORIES[0];
+  const sortOptions = useMemo<SortOption[]>(() => {
+    const builderOptions = CATEGORY_SORTS[category.id] ?? [];
+    const shipDependentSortIds = new Set(["speed_desc", "travel_speed_desc", "boost_speed_desc"]);
+    if (builderOptions.length > 0) {
+      return builderOptions.filter((option) => !shipDependentSortIds.has(option.id));
+    }
+    return category.metrics.map((metric) => ({
+      id: `${metric.key}_desc`,
+      label: metric.label,
+      eval: (item) => metric.get(item as Equipment),
+      desc: true,
+    }));
+  }, [category]);
+  const defaultSortId = ["weapon", "turret"].includes(category.id)
+    ? "type_asc"
+    : (sortOptions[0]?.id ?? "price_asc");
+  const activeSort = useMemo(
+    () => [...sortOptions, ...BASE_SORTS].find((option) => option.id === defaultSortId),
+    [sortOptions, defaultSortId],
+  );
   const inCategory = useMemo(
     () => items.filter((e) => category.match(e.kind)),
     [items, category]
@@ -118,29 +142,14 @@ export default function EquipmentPage() {
     [inCategory]
   );
 
-  const shortToFullFaction = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const f of factions) {
-      if (f.short_name) map.set(f.short_name.toLowerCase(), f.faction_id);
-      map.set(f.faction_id.substring(0, 3), f.faction_id);
-      map.set(f.faction_id, f.faction_id);
-    }
-    return map;
-  }, [factions]);
-
   const availableFactions = useMemo(() => {
     const scoped = inCategory.filter((e) => (size ? e.size === size : true));
-    const set = new Set(
-      scoped
-        .map((i) =>
-          i.faction_id
-            ? (shortToFullFaction.get(i.faction_id) ?? i.faction_id)
-            : null
-        )
-        .filter(Boolean) as string[]
-    );
+    const set = new Set<string>();
+    for (const i of scoped) {
+      for (const fid of i.owner_factions) set.add(fid);
+    }
     return Array.from(set).sort();
-  }, [inCategory, size, shortToFullFaction]);
+  }, [inCategory, size]);
 
   const availableMks = useMemo(() => {
     const scoped = inCategory.filter((e) => (size ? e.size === size : true));
@@ -161,31 +170,37 @@ export default function EquipmentPage() {
       if (size && e.size !== size) return false;
       if (needle && !e.name.toLowerCase().includes(needle)) return false;
       if (factionFilter !== "all") {
-        const resolved = e.faction_id
-          ? (shortToFullFaction.get(e.faction_id) ?? e.faction_id)
-          : null;
-        if (resolved !== factionFilter) return false;
+        if (!e.owner_factions?.includes(factionFilter)) return false;
       }
       if (mkFilter !== "all" && e.mk?.toString() !== mkFilter) return false;
       if (typeFilter !== "all" && ["weapon", "turret"].includes(category.id)) {
         if (getWeaponType(e.name) !== typeFilter) return false;
       }
       if (obtainableOnly) {
-        const resolvedId = e.faction_id
-          ? (shortToFullFaction.get(e.faction_id) ?? e.faction_id)
-          : null;
         const isGen =
           e.restriction_licence === "generaluseequipment" ||
           e.restriction_licence === "generaluseship";
-        if (
-          !(
-            !e.restriction_licence ||
-            isGen ||
-            (resolvedId && playerLicenceSet.has(`${resolvedId}:${e.restriction_licence}`))
-          )
-        )
-          return false;
+        const hasLicence =
+          !e.restriction_licence ||
+          isGen ||
+          e.owner_factions?.some((fid) =>
+            playerLicenceSet.has(`${fid}:${e.restriction_licence}`)
+          );
+        if (!hasLicence) return false;
       }
+      if (buyableOnly) {
+        if (e.price_avg == null) return false;
+        const lic = e.restriction_licence;
+        const restricted = lic && lic !== "generaluseship" && lic !== "generaluseequipment";
+        if (restricted) {
+          const licOK =
+            e.owner_factions?.some((fid) =>
+              playerLicenceSet.has(`${fid}:${lic}`)
+            );
+          if (!licOK) return false;
+        }
+      }
+      if (buildableOnly) return false; // equipment blueprints not tracked yet
       return true;
     });
   }, [
@@ -196,8 +211,9 @@ export default function EquipmentPage() {
     mkFilter,
     typeFilter,
     category.id,
-    shortToFullFaction,
     obtainableOnly,
+    buyableOnly,
+    buildableOnly,
     playerLicenceSet,
   ]);
 
@@ -257,7 +273,10 @@ export default function EquipmentPage() {
           showObtainableOnly={true}
           obtainableOnly={obtainableOnly}
           setObtainableOnly={setObtainableOnly}
-          showSort={false}
+          buyableOnly={buyableOnly}
+          setBuyableOnly={setBuyableOnly}
+          buildableOnly={buildableOnly}
+          setBuildableOnly={setBuildableOnly}
         />
       </FilterBar>
 
@@ -274,12 +293,16 @@ export default function EquipmentPage() {
               <EquipmentTable
                 category={category}
                 items={shown}
+                key={`${category.id}:${defaultSortId}`}
                 factions={factions}
                 onSelect={setSelectedEquipment}
                 globalMaxima={globalMaxima}
                 perSizeMaxima={perSizeMaxima}
                 isLinear={isLinear}
                 globalLicences={globalLicences}
+                initialSortId={defaultSortId}
+                initialSortDir={activeSort?.desc ? "desc" : "asc"}
+                sortOptions={[...sortOptions, ...BASE_SORTS]}
               />
             )}
           </div>

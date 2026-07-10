@@ -437,6 +437,52 @@ CREATE TABLE IF NOT EXISTS ship_loadouts (
 );
 CREATE INDEX IF NOT EXISTS idx_loadouts_ship ON ship_loadouts(ship_id);
 
+-- Named equipment loadouts the player saved in-game (Equipment menu "Save Loadout"),
+-- read from the profile's `loadouts.xml` (a sibling of the save/ folder — not inside
+-- the save itself, so it's shared across every save under that profile). Same shape
+-- as static `loadouts`/`loadout_equipment` (both parsed with the same extract() —
+-- see x4_extract/dynamic/custom_loadouts.py) but keyed per-profile, not per-patch, so
+-- it lives here rather than in static.db.
+CREATE TABLE IF NOT EXISTS player_loadouts (
+    loadout_id  TEXT PRIMARY KEY,
+    ship_macro  TEXT NOT NULL,
+    name        TEXT,
+    description TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_player_loadouts_ship ON player_loadouts(ship_macro);
+
+CREATE TABLE IF NOT EXISTS player_loadout_equipment (
+    loadout_id  TEXT NOT NULL REFERENCES player_loadouts(loadout_id),
+    slot_path   TEXT,
+    macro       TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    optional    INTEGER NOT NULL DEFAULT 0,
+    quantity    INTEGER,
+    weaponmode  TEXT,
+    ammunition  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_player_loadout_equipment_loadout ON player_loadout_equipment(loadout_id);
+
+-- Named station construction plans the player saved in-game, read from the profile's
+-- `constructionplans.xml` (a sibling of the save/ folder — same convention as
+-- player_loadouts above; see x4_extract/dynamic/custom_construction_plans.py). Same
+-- shape as static `construction_plans`/`construction_plan_entries`.
+CREATE TABLE IF NOT EXISTS player_construction_plans (
+    plan_id     TEXT PRIMARY KEY,
+    name        TEXT,
+    description TEXT
+);
+
+CREATE TABLE IF NOT EXISTS player_construction_plan_entries (
+    entry_id          TEXT PRIMARY KEY,
+    plan_id           TEXT NOT NULL REFERENCES player_construction_plans(plan_id),
+    entry_index       INTEGER NOT NULL,
+    predecessor_index INTEGER,
+    macro             TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_player_construction_plan_entries_plan
+    ON player_construction_plan_entries(plan_id);
+
 -- Player/AI deployables: satellites, resource probes, nav beacons, mines, lockboxes.
 -- `known_to_player` indicates fog-of-war visibility. Location walks ancestors to zone.
 CREATE TABLE IF NOT EXISTS deployables (

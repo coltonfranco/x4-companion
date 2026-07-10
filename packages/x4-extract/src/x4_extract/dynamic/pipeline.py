@@ -24,7 +24,7 @@ from pathlib import Path
 from x4_extract.config import ExtractSettings, save_key
 from x4_extract.constants import DEFAULT_LANGUAGE_CODE
 from x4_extract.db import apply_schema, open_db, open_readonly
-from x4_extract.dynamic import delta
+from x4_extract.dynamic import custom_construction_plans, custom_loadouts, delta
 from x4_extract.dynamic.collector import TIERS, Collector, Tier, combined_fingerprint
 from x4_extract.dynamic.distance import build_sector_distance
 from x4_extract.dynamic.extractors.deployables import DeployablesCollector
@@ -53,7 +53,7 @@ _FINGERPRINT_BLOCK = 1 << 16  # 64 KiB head+tail sample is enough to detect a re
 # that differs forces a full re-ingest even when the save file itself is unchanged —
 # otherwise a newly-added table (e.g. sector_resources) would never be populated for
 # saves already ingested under the old pipeline.
-_PIPELINE_VERSION = "19"
+_PIPELINE_VERSION = "21"
 
 # Delta entity types tracked in row_state but kept out of the events feed — high-churn,
 # low-signal data (player stats tick constantly and aren't worth alerting on).
@@ -114,6 +114,13 @@ def run(
     st = save_path.stat()
     conn = open_db(settings.data_dir, dynamic_db=db_path)
     try:
+        # Independent of the save-stat gate below: a plain file, never the save X4 has
+        # locked, so it's always safe to check regardless of whether the save changed.
+        # save_path is the *file* (e.g. .../<profile>/save/save_001.xml.gz); its
+        # grandparent is the profile directory loadouts.xml/constructionplans.xml live in.
+        custom_loadouts.sync(conn, save_path.parent.parent)
+        custom_construction_plans.sync(conn, save_path.parent.parent)
+
         state = _read_ingest_state(conn)
         version_ok = state.get("pipeline_version") == _PIPELINE_VERSION
         # Cheapest possible gate: a pure stat() (mtime + size) — no file open. The common

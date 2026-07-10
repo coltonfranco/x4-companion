@@ -6,30 +6,29 @@ import { StatBar } from "../../../components/data-display/StatBar";
 import { SizeBadge } from "../../../components/game/ShipBadges";
 import { getMkGradientClass, formatLicence } from "../../../lib/formatters";
 import { cn } from "../../../lib/utils";
-import type { EquipmentItem, SlotDef } from "../lib/builderTypes";
+import type { EquipmentEvalContext, EquipmentItem, SlotDef } from "../lib/builderTypes";
 import { getEquipmentStats, playerHasLicence } from "../lib/builderHelpers";
 
 export function EquipmentCard({
-  item, slots, cart, onAdd, onRemove, factionMap, shortToFullFaction, playerLicenceSet, shipFactionId, maxima
+  item, slots, cart, onAdd, onRemove, factionMap, playerLicenceSet, shipFactionId, maxima, evalContext
 }: {
   item: EquipmentItem; slots: SlotDef[]; cart: Record<string, EquipmentItem | null>;
   onAdd: (k: string, i: EquipmentItem) => void; onRemove: (k: string) => void;
   factionMap: Map<string, any>;
-  shortToFullFaction: Map<string, string>;
   playerLicenceSet: Set<string>;
   shipFactionId: string | null;
   maxima?: Record<string, number>;
+  evalContext?: EquipmentEvalContext;
 }) {
   const equippedSlots = slots.filter(s => cart[s.key]?.ware_id === item.ware_id);
   const isEquipped = equippedSlots.length > 0;
   const emptySlots = slots.filter(s => s.kind === item.kind && s.size === item.size && cart[s.key] === null);
 
-  const resolvedFactionId = item.faction_id ? (shortToFullFaction.get(item.faction_id) ?? item.faction_id) : null;
   const isGeneral = item.restriction_licence === 'generaluseequipment' || item.restriction_licence === 'generaluseship';
-  const isObtainable = !item.restriction_licence || isGeneral || playerHasLicence(playerLicenceSet, item.restriction_licence, shipFactionId ?? resolvedFactionId);
+  const isObtainable = !item.restriction_licence || isGeneral || playerHasLicence(playerLicenceSet, item.restriction_licence, shipFactionId);
 
   const canAdd = emptySlots.length > 0 && isObtainable;
-  const { bars, texts } = getEquipmentStats(item, maxima);
+  const { bars, texts } = getEquipmentStats(item, maxima, evalContext);
 
   return (
     <Card
@@ -78,9 +77,11 @@ export function EquipmentCard({
         </div>
       )}
       <div className="p-3 pb-2 flex flex-col items-center gap-2">
-        <div className={cn("w-14 h-14 flex items-center justify-center rounded-lg p-1 border group-hover:scale-105 transition-transform", getMkGradientClass(item.mk))}>
-          <EntityIcon src={item.icon_url} alt={item.name} size={48} className="drop-shadow-[0_0_8px_rgba(0,0,0,0.4)]" />
-        </div>
+        {item.icon_url && (
+          <div className={cn("w-14 h-14 flex items-center justify-center rounded-lg p-1 border group-hover:scale-105 transition-transform", getMkGradientClass(item.mk))}>
+            <EntityIcon src={item.icon_url} alt={item.name} size={48} className="drop-shadow-[0_0_8px_rgba(0,0,0,0.4)]" />
+          </div>
+        )}
         <p className="text-sm font-medium text-center leading-tight line-clamp-2 h-8 flex items-center">
           {item.name}
           {item.compat_tags && (
@@ -95,10 +96,13 @@ export function EquipmentCard({
 
         <div className="flex items-center gap-2 flex-wrap justify-center w-full">
           {item.size && <SizeBadge size={item.size} className="text-[11px]" />}
-          {item.faction_id && shortToFullFaction && (
+          {item.owner_factions?.length > 0 && (
             (() => {
-              const resolvedFactionId = shortToFullFaction.get(item.faction_id) ?? item.faction_id;
-              const itemFaction = factionMap.get(resolvedFactionId);
+              // "player" is a real faction_id (drop/terraforming drones use it — no NPC
+              // sells them), but it resolves to the player's own custom empire name, which
+              // reads as "you manufacture this." Never show it as a manufacturer badge.
+              const ownerId = item.owner_factions?.find((fid) => fid !== "player");
+              const itemFaction = ownerId ? factionMap.get(ownerId) : undefined;
               if (!itemFaction) return null;
               return (
                 <div className={cn("flex items-center gap-1", !isObtainable && "opacity-50")}>

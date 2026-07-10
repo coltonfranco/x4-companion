@@ -55,6 +55,8 @@ import {
   useBuilderStationMutations,
   usePlayerStations,
   fetchStationLayout,
+  useConstructionPlans,
+  fetchConstructionPlanLayout,
   layoutToDesign,
   autoLayoutGraph,
   autoRouteHandles,
@@ -129,7 +131,7 @@ function StationBuilderContent() {
       if (filterKind !== "all" && m.kind !== filterKind) return false;
       if (filterReady) {
         const licenceLocked = isModuleLicenceLocked(m.makerrace, m.restriction_licence, licenceSet, anyLicenceSet);
-        const isFreeDefault = !m.blueprint_price_avg && m.is_obtainable;
+        const isFreeDefault = !m.blueprint_price_max && m.is_obtainable;
         if (licenceLocked || (!m.has_blueprint && !isFreeDefault)) return false;
       }
       return true;
@@ -180,6 +182,7 @@ function StationBuilderContent() {
 
   const stationList = useBuilderStationList();
   const playerStations = usePlayerStations();
+  const constructionPlans = useConstructionPlans();
   const { create, update, remove } = useBuilderStationMutations();
   const saving = create.isPending || update.isPending;
 
@@ -321,6 +324,22 @@ function StationBuilderContent() {
       }
       const snapByModule = new Map(modules.map((m) => [m.module_id, m.snap_points ?? 0]));
       const design = layoutToDesign(layout, `${stationName} (imported)`, stationId, snapByModule, nodeAlignment);
+      setImportDialogOpen(false);
+      guardDirty(() => loadDesign(design, { imported: true }));
+    } catch (err) {
+      showToast("Import failed", toErrorMessage(err));
+    }
+  }, [guardDirty, loadDesign, modules, nodeAlignment]);
+
+  const handleSelectToImportPlan = useCallback(async (planId: string, planName: string) => {
+    try {
+      const layout = await fetchConstructionPlanLayout(planId);
+      if (layout.length === 0) {
+        showToast("Nothing to import", "This construction plan has no modules.", "info");
+        return;
+      }
+      const snapByModule = new Map(modules.map((m) => [m.module_id, m.snap_points ?? 0]));
+      const design = layoutToDesign(layout, `${planName} (imported)`, planId, snapByModule, nodeAlignment);
       setImportDialogOpen(false);
       guardDirty(() => loadDesign(design, { imported: true }));
     } catch (err) {
@@ -558,11 +577,15 @@ function StationBuilderContent() {
     document.body.appendChild(dragEl);
     event.dataTransfer.setDragImage(dragEl, 64, 64);
     
-    setTimeout(() => {
+    // Clean up the drag image when the drag operation ends.
+    // Using dragend (instead of setTimeout(0)) keeps the element alive long
+    // enough for desktop WebViews (Tauri/Electron) to capture the drag image.
+    const cleanup = () => {
       if (document.body.contains(dragEl)) {
         document.body.removeChild(dragEl);
       }
-    }, 0);
+    };
+    event.currentTarget.addEventListener('dragend', cleanup, { once: true });
   };
 
   const onDragOver = useCallback((event: React.DragEvent) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }, []);
@@ -1061,13 +1084,16 @@ function StationBuilderContent() {
         })}
       />
 
-      {/* Import an existing in-game station */}
+      {/* Import an existing in-game station or construction plan */}
       <ImportDesignDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
         isLoading={playerStations.isLoading}
         stations={playerStations.data}
-        onSelect={handleSelectToImport}
+        onSelectStation={handleSelectToImport}
+        plansLoading={constructionPlans.isLoading}
+        plans={constructionPlans.data}
+        onSelectPlan={handleSelectToImportPlan}
       />
 
       {/* Name prompt for Save (new) / Save As */}

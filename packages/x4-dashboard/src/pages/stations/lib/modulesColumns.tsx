@@ -19,7 +19,7 @@ export const SIZE_ORDER: Record<string, number> = {
 export type SortKey =
   | "name" | "kind" | "size" | "dlc" | "makerrace"
   | "hull" | "storage_capacity" | "workforce_capacity"
-  | "blueprint_price_avg" | "build_time_sec" | "est_cost" | "production_rate"
+  | "blueprint_price_avg" | "blueprint_price_max" | "build_time_sec" | "est_cost" | "production_rate"
   | "produces_ware_name" | "consumes_ware_name" | "consumption_rate"
   | "dock_s" | "dock_m" | "dock_l" | "dock_xl"
   | "hangar_s" | "hangar_m" | "snap_points"
@@ -54,7 +54,7 @@ export const ALL_COLUMNS: ColumnMeta[] = [
   { key: "shd_l",     label: "Shd L",     sortKey: "shields_l",    groupId: "slots-shields", defaultVisible: false },
   { key: "shd_xl",    label: "Shd XL",    sortKey: "shields_xl",   groupId: "slots-shields", defaultVisible: false },
   { key: "licence",   label: "Licence",   sortKey: undefined,       groupId: "unlock", defaultVisible: true,  align: "left" },
-  { key: "price",     label: "Blueprint", sortKey: "blueprint_price_avg", groupId: "unlock", defaultVisible: true  },
+  { key: "price",     label: "Blueprint", sortKey: "blueprint_price_max", groupId: "unlock", defaultVisible: true  },
   // Build (optional — construction cost / time)
   { key: "build_time", label: "Build Time", sortKey: "build_time_sec", groupId: "build", defaultVisible: false },
   { key: "est_cost",  label: "Est. Cost",  sortKey: "est_cost",        groupId: "build", defaultVisible: false },

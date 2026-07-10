@@ -143,6 +143,9 @@ def _seed(conn: sqlite3.Connection) -> None:
         "INSERT INTO drop_list_wares (list_id, ware_id, min_amount, max_amount) "
         "VALUES ('ship_small_civilian', 'paintmod_neon', 1, 1)"
     )
+    conn.execute(
+        "INSERT INTO ware_owners (ware_id, faction_id) VALUES ('engine_arg_m_allround_01_mk1', 'argon')"
+    )
     conn.commit()
 
 
@@ -196,8 +199,8 @@ def test_equipment_list_inlines_metadata_and_stats(
 
     engine = by_id["engine_arg_m_allround_01_mk1"]
     assert engine["kind"] == "engine"
-    # faction_id is canonicalized from the ware-id race code (arg → argon) by equipment_meta.
-    assert engine["size"] == "m" and engine["mk"] == 1 and engine["faction_id"] == "argon"
+    # owner_factions is sourced from s.ware_owners, not inferred from the ware-id race code.
+    assert engine["size"] == "m" and engine["mk"] == 1 and engine["owner_factions"] == ["argon"]
     assert engine["has_production"] is True
     # Stats are inlined in the list response, not behind a detail fetch.
     assert engine["engine_stats"]["thrust_forward"] == 900

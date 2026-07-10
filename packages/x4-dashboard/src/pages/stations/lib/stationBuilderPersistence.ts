@@ -90,6 +90,14 @@ export type LiveStationLite = {
   module_count: number | null;
 };
 
+export type ConstructionPlanLite = {
+  plan_id: string;
+  name: string | null;
+  description: string | null;
+  source: "preset" | "custom";
+  module_count: number;
+};
+
 // --- Serialization ---------------------------------------------------------------
 
 // Structural minimums we read off a node/edge — avoids coupling to ModuleNodeData.
@@ -148,7 +156,7 @@ export function computeLockReason(
   licenceSet: Set<string>,
   anyLicenceSet: Set<string>,
 ): string | undefined {
-  const isFreeDefault = !m.blueprint_price_avg && m.is_obtainable;
+  const isFreeDefault = !m.blueprint_price_max && m.is_obtainable;
   const licenceLocked = isModuleLicenceLocked(m.makerrace, m.restriction_licence, licenceSet, anyLicenceSet);
   if (licenceLocked && !m.has_blueprint && !isFreeDefault) {
     return "Missing blueprint and required faction licence.";
@@ -183,6 +191,18 @@ export function usePlayerStations() {
 
 export function fetchStationLayout(stationId: string): Promise<StationLayoutEntry[]> {
   return apiGet<StationLayoutEntry[]>(`/api/v1/stations/${stationId}/layout`);
+}
+
+export function useConstructionPlans() {
+  return useQuery<ConstructionPlanLite[]>({
+    queryKey: ["construction-plans"],
+    queryFn: () => apiGet<ConstructionPlanLite[]>("/api/v1/construction-plans"),
+    staleTime: 60_000,
+  });
+}
+
+export function fetchConstructionPlanLayout(planId: string): Promise<StationLayoutEntry[]> {
+  return apiGet<StationLayoutEntry[]>(`/api/v1/construction-plans/${planId}/layout`);
 }
 
 // Import layout uses the connection graph, not the save's 3D coordinates: the builder is a
@@ -583,4 +603,3 @@ export function autoRouteHandles(
 
   return { nodes: nextNodes, edges: nextEdges };
 }
-

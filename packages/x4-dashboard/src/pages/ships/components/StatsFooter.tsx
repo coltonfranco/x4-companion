@@ -68,11 +68,11 @@ export function StatsFooter({ ship, cart, slots }: {
   const mass = ship.mass ?? 1;
   const acceleration = engines.length > 0 ? thrust / mass : 0;
 
-  const travelMult = engines.length > 0 ? engines.reduce((sum, e) => sum + (e.engine_stats?.travel_thrust ?? 0), 0) / engines.length : 0;
-  const boostMult = engines.length > 0 ? engines.reduce((sum, e) => sum + (e.engine_stats?.boost_thrust ?? 0), 0) / engines.length : 0;
+  const totalTravelThrust = engines.reduce((sum, e) => sum + (e.engine_stats?.thrust_forward ?? 0) * (e.engine_stats?.travel_thrust ?? 0), 0);
+  const totalBoostThrust = engines.reduce((sum, e) => sum + (e.engine_stats?.thrust_forward ?? 0) * (e.engine_stats?.boost_thrust ?? 0), 0);
 
-  const travelSpeed = speed * travelMult;
-  const boostSpeed = speed * boostMult;
+  const travelSpeed = drag && drag > 0 ? totalTravelThrust / drag : 0;
+  const boostSpeed = drag && drag > 0 ? totalBoostThrust / drag : 0;
 
   const shieldCap = shields.length > 0
     ? shields.reduce((s, sh) => s + (sh.shield_stats?.capacity ?? 0), 0)

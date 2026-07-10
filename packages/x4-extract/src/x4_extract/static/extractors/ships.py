@@ -636,166 +636,294 @@ def write(conn: sqlite3.Connection, result: ExtractResult) -> None:
 def update_derived_stats(conn: sqlite3.Connection) -> None:
     """Calculate min/max stats based on extracted ship equipment capacity.
 
-    Pre-computes per-size aggregates once and materializes them into a
-    single UPDATE — the old approach used ~40 correlated scalar subqueries
-    that SQLite re-ran for every row (5,000+ subqueries for 365 ships).
+    Computes per-ship maxima/minima from compatible equipment only.
+    Equipment with restrictive compat_tags that don't match a ship's
+    ship_id are excluded, matching the builder's filtering logic.
     """
+    conn.row_factory = sqlite3.Row
     sizes = ("s", "m", "l", "xl")
 
-    # Fetch per-size engine aggregates (one query per aggregate).
-    def _eng_agg(agg: str, expr: str) -> dict[str, float]:
-        rows = conn.execute(
-            f"SELECT size, {agg}({expr}) FROM equip_engines"
-            " WHERE class_id='engine' AND size IN ('s','m','l','xl')"
-            " GROUP BY size"
-        ).fetchall()
-        return {r[0]: (r[1] or 0.0) for r in rows}
+    def _is_compat(tags: str | None, ship_id: str) -> bool:
+        """Match frontend compat_tags logic: NULL = universal; any tag whose
+        underscore-segments all appear in the ship_id means compatible."""
+        if not tags:
+            return True
+        for tag in tags.split():
+            segs = [s for s in tag.split("_") if s]
+            if segs and all(s in ship_id for s in segs):
+                return True
+        return False
 
-    e_thrust_min = _eng_agg("MIN", "thrust_forward")
-    e_thrust_max = _eng_agg("MAX", "thrust_forward")
-    e_travel_min = _eng_agg("MIN", "thrust_forward * travel_thrust")
-    e_travel_max = _eng_agg("MAX", "thrust_forward * travel_thrust")
-    e_boost_min = _eng_agg("MIN", "thrust_forward * boost_thrust")
-    e_boost_max = _eng_agg("MAX", "thrust_forward * boost_thrust")
+    # ── Load ships ───────────────────────────────────────────────────────
+    ship_rows = conn.execute("""
+        SELECT ship_id, class_id, drag_forward, mass,
+               inertia_pitch, inertia_yaw, inertia_roll,
+               engines_s, engines_m, engines_l, engines_xl,
+               weapons_s, weapons_m, weapons_l, weapons_xl,
+               turrets_s, turrets_m, turrets_l, turrets_xl,
+               shields_s, shields_m, shields_l, shields_xl
+        FROM ships WHERE mass > 0 AND drag_forward > 0
+    """).fetchall()
 
-    # Fetch per-size thruster aggregates.
-    def _thr_agg(agg: str, col: str) -> dict[str, float]:
-        rows = conn.execute(
-            f"SELECT size, {agg}({col}) FROM equip_engines"
-            " WHERE class_id='thruster' AND size IN ('s','m','l','xl')"
-            " GROUP BY size"
-        ).fetchall()
-        return {r[0]: (r[1] or 0.0) for r in rows}
+    if not ship_rows:
+        return
 
-    t_pitch_min = _thr_agg("MIN", "thrust_pitch")
-    t_pitch_max = _thr_agg("MAX", "thrust_pitch")
-    t_yaw_min = _thr_agg("MIN", "thrust_yaw")
-    t_yaw_max = _thr_agg("MAX", "thrust_yaw")
-    t_roll_min = _thr_agg("MIN", "thrust_roll")
-    t_roll_max = _thr_agg("MAX", "thrust_roll")
+    # ── Load equipment ───────────────────────────────────────────────────
+    engine_rows = conn.execute("""
+        SELECT size, class_id, compat_tags,
+               thrust_forward, travel_thrust, boost_thrust,
+               thrust_pitch, thrust_yaw, thrust_roll
+        FROM equip_engines WHERE size IN ('s','m','l','xl')
+    """).fetchall()
 
-    # Fetch per-size shield aggregates.
-    def _shd_agg(agg: str, col: str) -> dict[str, float]:
-        rows = conn.execute(
-            f"SELECT size, {agg}({col}) FROM equip_shields"
-            " WHERE size IN ('s','m','l','xl') GROUP BY size"
-        ).fetchall()
-        return {r[0]: (r[1] or 0.0) for r in rows}
+    shield_rows = conn.execute("""
+        SELECT size, compat_tags, capacity, recharge_rate, recharge_delay
+        FROM equip_shields WHERE size IN ('s','m','l','xl')
+    """).fetchall()
 
-    s_cap_min = _shd_agg("MIN", "capacity")
-    s_cap_max = _shd_agg("MAX", "capacity")
-    s_rec_min = _shd_agg("MIN", "recharge_rate")
-    s_rec_max = _shd_agg("MAX", "recharge_rate")
-    s_del_min = _shd_agg("MIN", "recharge_delay")
-    s_del_max = _shd_agg("MAX", "recharge_delay")
+    weapon_rows = conn.execute("""
+        SELECT w.size, w.class_id, w.compat_tags,
+               b.damage * COALESCE(b.amount,1) * COALESCE(b.barrelamount,1)
+                 / COALESCE(b.reload_rate,1.0) AS dps,
+               b.speed * b.lifetime / 1000.0 AS range_val
+        FROM equip_weapons w
+        JOIN equip_bullets b ON w.default_bullet_id = b.bullet_id
+        WHERE w.size IN ('s','m','l','xl')
+    """).fetchall()
 
-    # Build the scalar expressions using pre-computed dicts.
-    def _sum4(d: dict[str, float]) -> str:
-        return " + ".join(f"COALESCE(engines_{s} * {d.get(s, 0.0)}, 0)" for s in sizes)
+    # ── Pre-group equipment by (size, class) ─────────────────────────────
+    eng_by_size = {s: [r for r in engine_rows if r["size"] == s and r["class_id"] == "engine"] for s in sizes}
+    thr_by_size = {s: [r for r in engine_rows if r["size"] == s and r["class_id"] == "thruster"] for s in sizes}
+    shd_by_size = {s: [r for r in shield_rows if r["size"] == s] for s in sizes}
+    wpn_by_size = {s: [r for r in weapon_rows if r["size"] == s and r["class_id"] != "turret"] for s in sizes}
+    tur_by_size = {s: [r for r in weapon_rows if r["size"] == s and r["class_id"] == "turret"] for s in sizes}
 
-    def _sum4_shd(d: dict[str, float]) -> str:
-        return " + ".join(f"COALESCE(shields_{s} * {d.get(s, 0.0)}, 0)" for s in sizes)
+    # ── Helper: best value among compatible equipment for a given size ───
+    def _best(by_size, sz, sid, key_fn, best_fn):
+        vals = [key_fn(r) for r in by_size[sz]
+                if _is_compat(r["compat_tags"], sid) and key_fn(r) is not None]
+        return best_fn(vals) if vals else 0.0
 
-    def _wep_agg(agg: str) -> dict[str, float]:
-        rows = conn.execute(
-            f"SELECT w.size, {agg}(b.damage * COALESCE(b.amount, 1) * COALESCE(b.barrelamount, 1) / COALESCE(b.reload_rate, 1.0))"
-            " FROM equip_weapons w JOIN equip_bullets b ON w.default_bullet_id = b.bullet_id"
-            " WHERE w.class_id IN ('weapon', 'missilelauncher') AND w.size IN ('s','m','l','xl')"
-            " GROUP BY w.size"
-        ).fetchall()
-        return {r[0]: (r[1] or 0.0) for r in rows}
+    def _compat_max(by_size, sz, sid, key_fn):
+        return _best(by_size, sz, sid, key_fn, max)
 
-    w_dps_max = _wep_agg("MAX")
+    def _compat_min(by_size, sz, sid, key_fn):
+        return _best(by_size, sz, sid, key_fn, min)
 
-    def _tur_agg(agg: str) -> dict[str, float]:
-        rows = conn.execute(
-            f"SELECT w.size, {agg}(b.damage * COALESCE(b.amount, 1) * COALESCE(b.barrelamount, 1) / COALESCE(b.reload_rate, 1.0))"
-            " FROM equip_weapons w JOIN equip_bullets b ON w.default_bullet_id = b.bullet_id"
-            " WHERE w.class_id = 'turret' AND w.size IN ('s','m','l','xl')"
-            " GROUP BY w.size"
-        ).fetchall()
-        return {r[0]: (r[1] or 0.0) for r in rows}
+    # ── Create temp tables ───────────────────────────────────────────────
+    for tbl in ("_ship_engine_best", "_ship_thruster_best", "_ship_shield_best",
+                "_ship_weapon_best", "_ship_radar"):
+        conn.execute(f"DROP TABLE IF EXISTS {tbl}")
 
-    t_dps_max = _tur_agg("MAX")
+    conn.execute("""
+        CREATE TEMP TABLE _ship_engine_best (
+            ship_id TEXT PRIMARY KEY,
+            thrust_s  REAL, thrust_m  REAL, thrust_l  REAL, thrust_xl  REAL,
+            travel_s  REAL, travel_m  REAL, travel_l  REAL, travel_xl  REAL,
+            boost_s   REAL, boost_m   REAL, boost_l   REAL, boost_xl   REAL,
+            min_thrust_s REAL, min_thrust_m REAL, min_thrust_l REAL, min_thrust_xl REAL,
+            min_travel_s REAL, min_travel_m REAL, min_travel_l REAL, min_travel_xl REAL,
+            min_boost_s  REAL, min_boost_m  REAL, min_boost_l  REAL, min_boost_xl  REAL
+        )
+    """)
+    conn.execute("""
+        CREATE TEMP TABLE _ship_thruster_best (
+            ship_id TEXT PRIMARY KEY,
+            pitch_min REAL, pitch_max REAL,
+            yaw_min   REAL, yaw_max   REAL,
+            roll_min  REAL, roll_max  REAL
+        )
+    """)
+    conn.execute("""
+        CREATE TEMP TABLE _ship_shield_best (
+            ship_id TEXT PRIMARY KEY,
+            cap_s  REAL, cap_m  REAL, cap_l  REAL, cap_xl  REAL,
+            rec_s  REAL, rec_m  REAL, rec_l  REAL, rec_xl  REAL,
+            cap_min_s REAL, cap_min_m REAL, cap_min_l REAL, cap_min_xl REAL,
+            rec_min_s REAL, rec_min_m REAL, rec_min_l REAL, rec_min_xl REAL,
+            delay_min  REAL, delay_max  REAL
+        )
+    """)
+    conn.execute("""
+        CREATE TEMP TABLE _ship_weapon_best (
+            ship_id TEXT PRIMARY KEY,
+            wpn_dps_s REAL, wpn_dps_m REAL, wpn_dps_l REAL, wpn_dps_xl REAL,
+            tur_dps_s REAL, tur_dps_m REAL, tur_dps_l REAL, tur_dps_xl REAL,
+            range_max REAL
+        )
+    """)
 
-    def _sum4_wep(d: dict[str, float]) -> str:
-        return " + ".join(f"COALESCE(weapons_{s} * {d.get(s, 0.0)}, 0)" for s in sizes)
+    # ── Per-ship computation ─────────────────────────────────────────────
+    eng_inserts: list[tuple] = []
+    thr_inserts: list[tuple] = []
+    shd_inserts: list[tuple] = []
+    wpn_inserts: list[tuple] = []
 
-    def _sum4_tur(d: dict[str, float]) -> str:
-        return " + ".join(f"COALESCE(turrets_{s} * {d.get(s, 0.0)}, 0)" for s in sizes)
+    thrust_key   = lambda r: r["thrust_forward"]
+    travel_key   = lambda r: (r["thrust_forward"] or 0) * (r["travel_thrust"] or 0)
+    boost_key    = lambda r: (r["thrust_forward"] or 0) * (r["boost_thrust"] or 0)
+    pitch_key    = lambda r: r["thrust_pitch"]
+    yaw_key      = lambda r: r["thrust_yaw"]
+    roll_key     = lambda r: r["thrust_roll"]
+    cap_key      = lambda r: r["capacity"]
+    rec_key      = lambda r: r["recharge_rate"]
+    dps_key      = lambda r: r["dps"]
+    range_key    = lambda r: r["range_val"]
 
-    # Thruster stats are per-ship-class (same size as the ship itself).
-    def _thr_expr(d: dict[str, float]) -> str:
-        parts = []
-        for s in sizes:
-            if d.get(s, 0.0):
-                parts.append(f"WHEN class_id = '{s}' THEN {d[s]}")
-        if not parts:
-            return "NULL"
-        return f"CASE {' '.join(parts)} ELSE NULL END"
+    for ship in ship_rows:
+        sid = ship["ship_id"]
+        cls = ship["class_id"]
 
-    # Shield delay uses ALL sizes together (any slot can be populated).
-    s_del_min_val = min(s_del_min.values()) if s_del_min else 0.0
-    s_del_max_val = max(s_del_max.values()) if s_del_max else 0.0
-    has_shields = " OR ".join(f"shields_{s} > 0" for s in sizes)
+        # ── Engines ──
+        ev: dict[str, float] = {}
+        for sz in sizes:
+            has = (ship[f"engines_{sz}"] or 0) > 0
+            ev[f"thrust_{sz}"]     = _compat_max(eng_by_size, sz, sid, thrust_key) if has else 0.0
+            ev[f"travel_{sz}"]     = _compat_max(eng_by_size, sz, sid, travel_key) if has else 0.0
+            ev[f"boost_{sz}"]      = _compat_max(eng_by_size, sz, sid, boost_key)  if has else 0.0
+            ev[f"min_thrust_{sz}"] = _compat_min(eng_by_size, sz, sid, thrust_key) if has else 0.0
+            ev[f"min_travel_{sz}"] = _compat_min(eng_by_size, sz, sid, travel_key) if has else 0.0
+            ev[f"min_boost_{sz}"]  = _compat_min(eng_by_size, sz, sid, boost_key)  if has else 0.0
+        eng_inserts.append((sid,) + tuple(ev[f"{k}_{sz}"]
+                                 for k in ("thrust","travel","boost",
+                                           "min_thrust","min_travel","min_boost")
+                                 for sz in sizes))
 
-    # Radar: materialize the per-ship max radar range.
-    conn.execute("DROP TABLE IF EXISTS _ship_radar")
-    conn.execute(
-        "CREATE TEMP TABLE _ship_radar AS"
-        " SELECT s.ship_id, COALESCE(MAX(e.radar_range), 40000) AS radar"
-        " FROM ships s"
-        " LEFT JOIN ship_software sw ON s.ship_id = sw.ship_id AND sw.is_default = 1"
-        " LEFT JOIN equip_software e ON sw.ware_id = e.software_id"
-        " GROUP BY s.ship_id"
+        # ── Thrusters (size = ship class) ──
+        if cls in sizes:
+            tp = (_compat_min(thr_by_size, cls, sid, pitch_key),
+                  _compat_max(thr_by_size, cls, sid, pitch_key),
+                  _compat_min(thr_by_size, cls, sid, yaw_key),
+                  _compat_max(thr_by_size, cls, sid, yaw_key),
+                  _compat_min(thr_by_size, cls, sid, roll_key),
+                  _compat_max(thr_by_size, cls, sid, roll_key))
+        else:
+            tp = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        thr_inserts.append((sid,) + tp)
+
+        # ── Shields ──
+        sv: dict[str, float] = {}
+        all_compat: list = []
+        for sz in sizes:
+            compat = [r for r in shd_by_size[sz] if _is_compat(r["compat_tags"], sid)]
+            has = (ship[f"shields_{sz}"] or 0) > 0
+            sv[f"cap_{sz}"]     = max((r["capacity"] or 0) for r in compat) if has and compat else 0.0
+            sv[f"rec_{sz}"]     = max((r["recharge_rate"] or 0) for r in compat) if has and compat else 0.0
+            sv[f"cap_min_{sz}"] = min((r["capacity"] or 0) for r in compat) if has and compat else 0.0
+            sv[f"rec_min_{sz}"] = min((r["recharge_rate"] or 0) for r in compat) if has and compat else 0.0
+            all_compat.extend(compat)
+        delays = [(r["recharge_delay"] or 0) for r in all_compat if r["recharge_delay"] is not None]
+        sv["delay_min"] = min(delays) if delays else 0.0
+        sv["delay_max"] = max(delays) if delays else 0.0
+        shd_inserts.append((sid,) + tuple(sv[f"{k}_{sz}"]
+                                 for k in ("cap","rec","cap_min","rec_min")
+                                 for sz in sizes) + (sv["delay_min"], sv["delay_max"]))
+
+        # ── Weapons & Turrets ──
+        wv: dict[str, float] = {}
+        for sz in sizes:
+            wv[f"wpn_dps_{sz}"] = _compat_max(wpn_by_size, sz, sid, dps_key) if (ship[f"weapons_{sz}"] or 0) > 0 else 0.0
+            wv[f"tur_dps_{sz}"] = _compat_max(tur_by_size, sz, sid, dps_key) if (ship[f"turrets_{sz}"] or 0) > 0 else 0.0
+
+        best_r = 0.0
+        for sz in sizes:
+            if (ship[f"weapons_{sz}"] or 0) > 0 or (ship[f"turrets_{sz}"] or 0) > 0:
+                for r in wpn_by_size[sz] + tur_by_size[sz]:
+                    if _is_compat(r["compat_tags"], sid) and r["range_val"] and r["range_val"] > best_r:
+                        best_r = r["range_val"]
+        wv["range_max"] = min(30.0, best_r)
+        wpn_inserts.append((sid,) + tuple(wv[f"wpn_dps_{sz}"] for sz in sizes)
+                           + tuple(wv[f"tur_dps_{sz}"] for sz in sizes)
+                           + (wv["range_max"],))
+
+    # ── Bulk-insert the per-ship rows ────────────────────────────────────
+    conn.executemany(
+        "INSERT INTO _ship_engine_best (ship_id,"
+        " thrust_s,thrust_m,thrust_l,thrust_xl,"
+        " travel_s,travel_m,travel_l,travel_xl,"
+        " boost_s,boost_m,boost_l,boost_xl,"
+        " min_thrust_s,min_thrust_m,min_thrust_l,min_thrust_xl,"
+        " min_travel_s,min_travel_m,min_travel_l,min_travel_xl,"
+        " min_boost_s,min_boost_m,min_boost_l,min_boost_xl"
+        ") VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?)",
+        eng_inserts,
+    )
+    conn.executemany(
+        "INSERT INTO _ship_thruster_best (ship_id,"
+        " pitch_min,pitch_max, yaw_min,yaw_max, roll_min,roll_max"
+        ") VALUES (?,?,?,?,?,?,?)",
+        thr_inserts,
+    )
+    conn.executemany(
+        "INSERT INTO _ship_shield_best (ship_id,"
+        " cap_s,cap_m,cap_l,cap_xl, rec_s,rec_m,rec_l,rec_xl,"
+        " cap_min_s,cap_min_m,cap_min_l,cap_min_xl,"
+        " rec_min_s,rec_min_m,rec_min_l,rec_min_xl,"
+        " delay_min,delay_max"
+        ") VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?)",
+        shd_inserts,
+    )
+    conn.executemany(
+        "INSERT INTO _ship_weapon_best (ship_id,"
+        " wpn_dps_s,wpn_dps_m,wpn_dps_l,wpn_dps_xl,"
+        " tur_dps_s,tur_dps_m,tur_dps_l,tur_dps_xl,"
+        " range_max"
+        ") VALUES (?,?,?,?,?, ?,?,?,?, ?)",
+        wpn_inserts,
     )
 
-    # ── Per-size best weapon range (bullet_speed x lifetime / 1000) ─────
-    def _range_agg() -> dict[str, float]:
-        rows = conn.execute(
-            "SELECT w.size, MAX(b.speed * b.lifetime / 1000.0)"
-            " FROM equip_weapons w"
-            " JOIN equip_bullets b ON w.default_bullet_id = b.bullet_id"
-            " WHERE w.class_id IN ('weapon', 'turret') AND w.size IN ('s','m','l','xl')"
-            " GROUP BY w.size"
-        ).fetchall()
-        return {r[0]: (r[1] or 0.0) for r in rows}
+    # ── Radar (unchanged logic) ──────────────────────────────────────────
+    conn.execute("""
+        CREATE TEMP TABLE _ship_radar AS
+        SELECT s.ship_id, COALESCE(MAX(e.radar_range), 40000) AS radar
+        FROM ships s
+        LEFT JOIN ship_software sw ON s.ship_id = sw.ship_id AND sw.is_default = 1
+        LEFT JOIN equip_software e ON sw.ware_id = e.software_id
+        GROUP BY s.ship_id
+    """)
 
-    r_best = _range_agg()
-    _range_parts = []
-    # Sort by range descending so the first matching size is the best one
-    for s, r in sorted(r_best.items(), key=lambda kv: -kv[1]):
-        _range_parts.append(f"WHEN (weapons_{s} > 0 OR turrets_{s} > 0) THEN {r}")
-    range_expr = f"CASE {' '.join(_range_parts)} ELSE 0 END" if _range_parts else "0"
-
-    # One UPDATE with all values computed inline from the pre-fetched dicts.
-    conn.execute(f"""
+    # ── Final UPDATE via JOIN to per-ship temp tables ────────────────────
+    conn.execute("""
         UPDATE ships SET
-          dps_max    = ({_sum4_wep(w_dps_max)}) + ({_sum4_tur(t_dps_max)}),
-          speed_min  = ({_sum4(e_thrust_min)}) / drag_forward,
-          speed_max  = ({_sum4(e_thrust_max)}) / drag_forward,
-          travel_min = ({_sum4(e_travel_min)}) / drag_forward,
-          travel_max = ({_sum4(e_travel_max)}) / drag_forward,
-          boost_min  = ({_sum4(e_boost_min)})  / drag_forward,
-          boost_max  = ({_sum4(e_boost_max)})  / drag_forward,
-          accel_max  = ({_sum4(e_thrust_max)}) / mass,
+          speed_min  = (COALESCE(eb.min_thrust_s,0)*engines_s + COALESCE(eb.min_thrust_m,0)*engines_m + COALESCE(eb.min_thrust_l,0)*engines_l + COALESCE(eb.min_thrust_xl,0)*engines_xl) / drag_forward,
+          speed_max  = (COALESCE(eb.thrust_s,0)*engines_s     + COALESCE(eb.thrust_m,0)*engines_m     + COALESCE(eb.thrust_l,0)*engines_l     + COALESCE(eb.thrust_xl,0)*engines_xl)     / drag_forward,
+          travel_min = (COALESCE(eb.min_travel_s,0)*engines_s + COALESCE(eb.min_travel_m,0)*engines_m + COALESCE(eb.min_travel_l,0)*engines_l + COALESCE(eb.min_travel_xl,0)*engines_xl) / drag_forward,
+          travel_max = (COALESCE(eb.travel_s,0)*engines_s     + COALESCE(eb.travel_m,0)*engines_m     + COALESCE(eb.travel_l,0)*engines_l     + COALESCE(eb.travel_xl,0)*engines_xl)     / drag_forward,
+          boost_min  = (COALESCE(eb.min_boost_s,0)*engines_s  + COALESCE(eb.min_boost_m,0)*engines_m  + COALESCE(eb.min_boost_l,0)*engines_l  + COALESCE(eb.min_boost_xl,0)*engines_xl)  / drag_forward,
+          boost_max  = (COALESCE(eb.boost_s,0)*engines_s      + COALESCE(eb.boost_m,0)*engines_m      + COALESCE(eb.boost_l,0)*engines_l      + COALESCE(eb.boost_xl,0)*engines_xl)      / drag_forward,
+          accel_max  = (COALESCE(eb.thrust_s,0)*engines_s     + COALESCE(eb.thrust_m,0)*engines_m     + COALESCE(eb.thrust_l,0)*engines_l     + COALESCE(eb.thrust_xl,0)*engines_xl)     / mass,
 
-          pitch_min = {_thr_expr(t_pitch_min)} / inertia_pitch,
-          pitch_max = {_thr_expr(t_pitch_max)} / inertia_pitch,
-          yaw_min   = {_thr_expr(t_yaw_min)}   / inertia_yaw,
-          yaw_max   = {_thr_expr(t_yaw_max)}   / inertia_yaw,
-          roll_min  = {_thr_expr(t_roll_min)}  / inertia_roll,
-          roll_max  = {_thr_expr(t_roll_max)}  / inertia_roll,
+          pitch_min = COALESCE(tb.pitch_min,0) / inertia_pitch,
+          pitch_max = COALESCE(tb.pitch_max,0) / inertia_pitch,
+          yaw_min   = COALESCE(tb.yaw_min,0)   / inertia_yaw,
+          yaw_max   = COALESCE(tb.yaw_max,0)   / inertia_yaw,
+          roll_min  = COALESCE(tb.roll_min,0)  / inertia_roll,
+          roll_max  = COALESCE(tb.roll_max,0)  / inertia_roll,
 
-          shield_capacity_min  = ({_sum4_shd(s_cap_min)}),
-          shield_capacity_max  = ({_sum4_shd(s_cap_max)}),
-          shield_recharge_min  = ({_sum4_shd(s_rec_min)}),
-          shield_recharge_max  = ({_sum4_shd(s_rec_max)}),
-          shield_delay_min = CASE WHEN {has_shields} THEN {s_del_min_val} END,
-          shield_delay_max = CASE WHEN {has_shields} THEN {s_del_max_val} END,
+          shield_capacity_min  = (COALESCE(sb.cap_min_s,0)*shields_s + COALESCE(sb.cap_min_m,0)*shields_m + COALESCE(sb.cap_min_l,0)*shields_l + COALESCE(sb.cap_min_xl,0)*shields_xl),
+          shield_capacity_max  = (COALESCE(sb.cap_s,0)*shields_s     + COALESCE(sb.cap_m,0)*shields_m     + COALESCE(sb.cap_l,0)*shields_l     + COALESCE(sb.cap_xl,0)*shields_xl),
+          shield_recharge_min  = (COALESCE(sb.rec_min_s,0)*shields_s + COALESCE(sb.rec_min_m,0)*shields_m + COALESCE(sb.rec_min_l,0)*shields_l + COALESCE(sb.rec_min_xl,0)*shields_xl),
+          shield_recharge_max  = (COALESCE(sb.rec_s,0)*shields_s     + COALESCE(sb.rec_m,0)*shields_m     + COALESCE(sb.rec_l,0)*shields_l     + COALESCE(sb.rec_xl,0)*shields_xl),
+          shield_delay_min = CASE WHEN (shields_s>0 OR shields_m>0 OR shields_l>0 OR shields_xl>0) THEN sb.delay_min END,
+          shield_delay_max = CASE WHEN (shields_s>0 OR shields_m>0 OR shields_l>0 OR shields_xl>0) THEN sb.delay_max END,
+
+          dps_max    = (COALESCE(wb.wpn_dps_s,0)*weapons_s + COALESCE(wb.wpn_dps_m,0)*weapons_m + COALESCE(wb.wpn_dps_l,0)*weapons_l + COALESCE(wb.wpn_dps_xl,0)*weapons_xl)
+                     + (COALESCE(wb.tur_dps_s,0)*turrets_s + COALESCE(wb.tur_dps_m,0)*turrets_m + COALESCE(wb.tur_dps_l,0)*turrets_l + COALESCE(wb.tur_dps_xl,0)*turrets_xl),
 
           radar_range = (SELECT radar FROM _ship_radar r WHERE r.ship_id = ships.ship_id),
-          range_max   = MIN(30, {range_expr})
-        WHERE mass > 0 AND drag_forward > 0
+          range_max   = wb.range_max
+        FROM _ship_engine_best eb,
+             _ship_thruster_best tb,
+             _ship_shield_best sb,
+             _ship_weapon_best wb
+        WHERE ships.ship_id = eb.ship_id
+          AND ships.ship_id = tb.ship_id
+          AND ships.ship_id = sb.ship_id
+          AND ships.ship_id = wb.ship_id
+          AND ships.mass > 0 AND ships.drag_forward > 0
     """)
-    conn.execute("DROP TABLE IF EXISTS _ship_radar")
+
+    # Cleanup
+    for tbl in ("_ship_engine_best", "_ship_thruster_best", "_ship_shield_best",
+                "_ship_weapon_best", "_ship_radar"):
+        conn.execute(f"DROP TABLE IF EXISTS {tbl}")

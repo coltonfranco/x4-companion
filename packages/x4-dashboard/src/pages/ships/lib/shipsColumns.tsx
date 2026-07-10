@@ -7,7 +7,8 @@ export type ShipSummary = {
   name: string;
   dlc: string | null;
   class_id: string;
-  faction_id: string | null;
+  owner_factions: string[];
+  primary_faction?: string | null;
   role: string | null;
   ship_type: string | null;
   hull: number | null;
@@ -54,6 +55,12 @@ export type ShipSummary = {
   engines_l: number;
   engines_xl: number;
   price_avg: number | null;
+  chassis_price_min: number | null;
+  chassis_price_avg: number | null;
+  chassis_price_max: number | null;
+  blueprint_price_min: number | null;
+  blueprint_price_avg: number | null;
+  blueprint_price_max: number | null;
   is_owned: boolean;
   restriction_licence: string | null;
   has_blueprint: boolean;
@@ -90,8 +97,9 @@ export const ALL_COLUMNS: ColumnMeta[] = [
   { key: "type",    label: "Type",    sortKey: "role",               groupId: "classification", defaultVisible: true,  align: "left" },
   { key: "class",   label: "Class",   sortKey: "class_id",           groupId: "classification", defaultVisible: true,  align: "left" },
   { key: "faction", label: "Faction", sortKey: "faction_id",         groupId: "classification", defaultVisible: true,  align: "left" },
-  { key: "licence", label: "Licence", sortKey: "restriction_licence", groupId: "classification", defaultVisible: true, align: "left" },
-  { key: "price",  label: "Blueprint",  sortKey: "price_avg", groupId: "classification", defaultVisible: true  },
+  { key: "licence", label: "Licence", sortKey: "restriction_licence", groupId: "acquisition", defaultVisible: true, align: "left" },
+  { key: "chassis", label: "Chassis", sortKey: "chassis_price_avg", groupId: "acquisition", defaultVisible: false },
+  { key: "price",  label: "Blueprint",  sortKey: "blueprint_price_max", groupId: "acquisition", defaultVisible: true  },
   // Flight
   { key: "speed",  label: "Speed",  sortKey: "speed_max",  groupId: "flight",  defaultVisible: true  },
   { key: "travel", label: "Travel", sortKey: "travel_max", groupId: "flight",  defaultVisible: true  },
@@ -146,6 +154,7 @@ export const STORAGE_KEY = "ships-table-columns";
 
 export const COLUMN_GROUPS: ColumnGroup[] = [
   { id: "classification", label: "Classification" },
+  { id: "acquisition",    label: "Acquisition" },
   { id: "flight",         label: "Flight" },
   { id: "defense",        label: "Defense" },
   { id: "logi",           label: "Logi" },
@@ -178,8 +187,8 @@ export function renderGroupHeaderContent(
       />
     );
   }
-  if (groupBy === "faction_id" && sampleShip.faction_id) {
-    const faction = factions.find((f) => f.faction_id === sampleShip.faction_id);
+  if (groupBy === "faction_id" && sampleShip.primary_faction) {
+    const faction = factions.find((f) => f.faction_id === sampleShip.primary_faction);
     if (faction) {
       return (
         <div className="flex items-center gap-2">
@@ -211,7 +220,7 @@ export type SortKey =
   | "speed_max" | "travel_max" | "boost_max" | "accel_max"
   | "hull" | "shield_capacity_max" | "shield_recharge_max"
   | "cargo_volume" | "dps_max" | "range_max" | "radar_range"
-  | "price_avg" | "role" | "ship_type"
+  | "chassis_price_avg" | "price_avg" | "blueprint_price_max" | "role" | "ship_type"
   | "people_capacity" | "missile_storage" | "drone_storage"
   | "countermeasure_storage" | "deployable_storage"
   | "dock_s" | "dock_m" | "dock_l" | "dock_xl"

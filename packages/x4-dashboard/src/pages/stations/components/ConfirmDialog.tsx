@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../../../components/ui/dialog";
 import { Button } from "../../../components/ui/button";
 
 export type ConfirmState = { title: string; desc: string; confirmLabel: string; destructive?: boolean; onConfirm: () => void };
@@ -17,8 +17,8 @@ export function ConfirmDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{confirmState?.title}</DialogTitle>
+          <DialogDescription>{confirmState?.desc}</DialogDescription>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">{confirmState?.desc}</p>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button

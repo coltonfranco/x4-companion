@@ -52,7 +52,6 @@ export default function ModulesPage() {
   const [groupBy, setGroupBy] = useState<GroupByKey>("none");
   const [availabilityFilter, setAvailabilityFilter] = useState<string>("all");
   const [obtainableOnly, setObtainableOnly] = useState(true);
-  const [ownedOnly, setOwnedOnly] = useState(false);
   const [selectedModule, setSelectedModule] = useState<ModuleSummary | null>(null);
   const [visibleColumns, setVisibleColumns] = useColumnVisibility(
     STORAGE_KEY,
@@ -108,7 +107,7 @@ export default function ModulesPage() {
 
   const isReadyToBuild = (m: ModuleSummary) => {
     const licenceLocked = isModuleLicenceLocked(m.makerrace, m.restriction_licence, licenceSet, anyLicenceSet);
-    const isFreeDefault = !m.blueprint_price_avg && m.is_obtainable;
+    const isFreeDefault = !m.blueprint_price_max && m.is_obtainable;
     return m.is_obtainable && m.est_cost != null && !licenceLocked && (m.has_blueprint || isFreeDefault);
   };
 
@@ -120,13 +119,12 @@ export default function ModulesPage() {
     if (selectedFactions.size > 0 && !selectedFactions.has(m.makerrace || "__none__"))
       return false;
     if (obtainableOnly && !m.is_obtainable) return false;
-    if (ownedOnly && !isReadyToBuild(m)) return false;
     if (availabilityFilter !== "all") {
       const licenceLocked = isModuleLicenceLocked(m.makerrace, m.restriction_licence, licenceSet, anyLicenceSet);
       if (availabilityFilter === "locked" && !licenceLocked) return false;
       if (availabilityFilter === "ready" && !isReadyToBuild(m)) return false;
-      if (availabilityFilter === "purchasable" && (licenceLocked || m.has_blueprint || !m.blueprint_price_avg)) return false;
-      if (availabilityFilter === "unavailable" && (licenceLocked || m.has_blueprint || m.blueprint_price_avg || m.is_obtainable)) return false;
+      if (availabilityFilter === "purchasable" && (licenceLocked || m.has_blueprint || !m.blueprint_price_max)) return false;
+      if (availabilityFilter === "unavailable" && (licenceLocked || m.has_blueprint || m.blueprint_price_max || m.is_obtainable)) return false;
     }
     if (m.is_obtainable && m.est_cost == null) return false; // sub-components: dock areas, PHQ asteroid, etc.
     return true;
@@ -152,7 +150,7 @@ export default function ModulesPage() {
     if (sortCol === sk) setSortDesc(!sortDesc);
     else {
       setSortCol(sk);
-      setSortDesc(sk === "blueprint_price_avg" || sk === "hull");
+      setSortDesc(sk === "blueprint_price_max" || sk === "hull");
     }
   };
 
@@ -173,8 +171,7 @@ export default function ModulesPage() {
     selectedSize !== "all" ||
     selectedFactions.size > 0 ||
     availabilityFilter !== "all" ||
-    !obtainableOnly ||
-    ownedOnly;
+    !obtainableOnly;
 
   // ── Row groups (when groupBy != "none") ──
   const rowGroups = useMemo((): RowGroup<ModuleSummary>[] | undefined => {
@@ -339,27 +336,27 @@ export default function ModulesPage() {
       {
         key: "price",
         label: "Blueprint",
-        sortKey: "blueprint_price_avg" as SortKey,
+        sortKey: "blueprint_price_max" as SortKey,
         groupId: "unlock",
         align: "right",
         render: (m) => {
           if (m.has_blueprint) {
             return (
               <span className="inline-flex items-center gap-1.5 text-xs">
-                <span className="text-emerald-400" title={m.blueprint_price_avg ? `Blueprint owned · ${m.blueprint_price_avg.toLocaleString()} Cr` : "Blueprint owned"}>✓</span>
+                <span className="text-emerald-400" title={m.blueprint_price_max ? `Blueprint owned · ${m.blueprint_price_max.toLocaleString()} Cr` : "Blueprint owned"}>✓</span>
               </span>
             );
           }
           const licenceLocked = isModuleLicenceLocked(m.makerrace, m.restriction_licence, licenceSet, anyLicenceSet);
-          if (m.blueprint_price_avg && !licenceLocked) {
+          if (m.blueprint_price_max && !licenceLocked) {
             return (
               <span className="inline-flex items-center gap-1.5 text-xs">
                 <span className="text-amber-400/80" title="Blueprint available for purchase">⊕</span>
-                <Currency value={m.blueprint_price_avg} />
+                <Currency value={m.blueprint_price_max} />
               </span>
             );
           }
-          const isFreeDefault = !m.blueprint_price_avg && !licenceLocked && m.is_obtainable;
+          const isFreeDefault = !m.blueprint_price_max && !licenceLocked && m.is_obtainable;
           if (isFreeDefault) {
             return (
               <span className="inline-flex items-center gap-1.5 text-xs">
@@ -367,11 +364,11 @@ export default function ModulesPage() {
               </span>
             );
           }
-          const reason = !m.blueprint_price_avg ? "Blueprint unobtainable" : "Blueprint locked behind licence";
+          const reason = !m.blueprint_price_max ? "Blueprint unobtainable" : "Blueprint locked behind licence";
           return (
             <span className="inline-flex items-center gap-1.5 text-xs">
               <span className="text-red-400/80" title={reason}>✗</span>
-              {m.blueprint_price_avg ? <Currency value={m.blueprint_price_avg} /> : <span className="text-muted-foreground">—</span>}
+              {m.blueprint_price_max ? <Currency value={m.blueprint_price_max} /> : <span className="text-muted-foreground">—</span>}
             </span>
           );
         },
@@ -475,7 +472,6 @@ export default function ModulesPage() {
         availableFactions={availableFactions} factionMap={factionMap}
         availabilityFilter={availabilityFilter} setAvailabilityFilter={setAvailabilityFilter}
         obtainableOnly={obtainableOnly} setObtainableOnly={setObtainableOnly}
-        ownedOnly={ownedOnly} setOwnedOnly={setOwnedOnly}
         hasFilters={hasFilters}
         onClear={() => {
           setSearch("");
@@ -484,7 +480,6 @@ export default function ModulesPage() {
           setSelectedFactions(new Set());
           setAvailabilityFilter("all");
           setObtainableOnly(true);
-          setOwnedOnly(false);
         }}
         columnOptions={columnOptions} visibleColumns={visibleColumns} setVisibleColumns={setVisibleColumns}
         groupBy={groupBy} setGroupBy={setGroupBy}

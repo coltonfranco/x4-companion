@@ -11,7 +11,7 @@ export type WeaponStats = {
   bullet_speed?: number | null; bullet_lifetime?: number | null; mk?: number | null;
 };
 
-export type ShipSummary = { ship_id: string; name: string; class_id: string; faction_id: string | null; role: string | null; icon_url: string | null; image_url: string | null; price_avg: number | null; };
+export type ShipSummary = { ship_id: string; name: string; class_id: string; owner_factions: string[]; primary_faction: string | null; role: string | null; icon_url: string | null; image_url: string | null; price_avg: number | null; };
 export type ShipDetail = ShipSummary & {
   ship_type: string | null;
   speed_max: number | null; travel_max: number | null; boost_max: number | null; accel_max: number | null;
@@ -33,7 +33,7 @@ export type EquipmentItem = {
   ware_id: string; name: string; kind: string; size: string | null; mk: number | null;
   compat_tags: string | null;
   compat_ship_name: string | null;
-  faction_id: string | null; price_min: number | null; price_avg: number | null; price_max: number | null;
+  owner_factions: string[]; price_min: number | null; price_avg: number | null; price_max: number | null;
   icon_url: string | null;
   restriction_licence: string | null;
   engine_stats: EngineStats | null; shield_stats: ShieldStats | null; weapon_stats: WeaponStats | null;
@@ -41,12 +41,20 @@ export type EquipmentItem = {
 
 export type SlotDef = { key: string; kind: string; size: string; index: number };
 
+export type LoadoutOptionItem = { kind: string; ware_id: string; quantity: number };
+export type LoadoutOption = {
+  loadout_id: string; name: string | null; description: string | null;
+  source: "preset" | "custom" | "approx"; items: LoadoutOptionItem[];
+};
+
 export type ClassMax = {
   hull: number; speed_max: number; travel_max: number; boost_max: number; accel_max: number;
   shield_capacity_max: number; shield_recharge_max: number; cargo_volume: number;
   dps_max: number; range_max: number; crew_max: number; missile_max: number;
 };
 
-export type SortOption = { id: string; label: string; eval: (e: EquipmentItem) => number | string; desc?: boolean; };
+export type EquipmentEvalContext = { ship: ShipDetail | null; slots: SlotDef[] };
+
+export type SortOption = { id: string; label: string; eval: (e: EquipmentItem, context?: EquipmentEvalContext) => number | string | null; desc?: boolean; };
 
 export type StatDisplay = { label: string; value: number; max: number; isLog: boolean; format: (n: number) => string; color?: string };

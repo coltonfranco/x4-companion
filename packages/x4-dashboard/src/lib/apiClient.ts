@@ -1007,6 +1007,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ships/{ship_id}/loadout-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ship Loadout Options
+         * @description Named loadouts available for this ship: the game's own factory presets (sourced
+         *     from `libraries/loadouts.xml`) and the player's saved custom loadouts (sourced from
+         *     the profile's `loadouts.xml`) — both keyed by ship macro, straight from game files.
+         */
+        get: operations["get_ship_loadout_options_api_v1_ships__ship_id__loadout_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/terraform/stats": {
         parameters: {
             query?: never;
@@ -1659,6 +1681,50 @@ export interface paths {
          *     station has no captured layout (e.g. ingested before this data existed); 404 if unknown.
          */
         get: operations["station_layout_api_v1_stations__station_id__layout_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/construction-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Construction Plans
+         * @description Construction plans available to import into the station builder: the player's
+         *     saved designs first, then the game's own (faction HQs/wharfs/shipyards, gamestart
+         *     stations) — straight from game files, same duality as `/ships/{id}/loadout-options`.
+         */
+        get: operations["list_construction_plans_api_v1_construction_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/construction-plans/{plan_id}/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Construction Plan Layout
+         * @description The placed-module graph of a construction plan, in the same shape as
+         *     `/stations/{id}/layout` so the builder's existing import logic (`layoutToDesign`)
+         *     works on it unchanged. No position data — the builder re-lays the graph out itself.
+         */
+        get: operations["construction_plan_layout_api_v1_construction_plans__plan_id__layout_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2379,6 +2445,22 @@ export interface components {
              */
             other_count: number;
         };
+        /** ConstructionPlanSummary */
+        ConstructionPlanSummary: {
+            /** Plan Id */
+            plan_id: string;
+            /** Name */
+            name: string | null;
+            /** Description */
+            description: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "preset" | "custom";
+            /** Module Count */
+            module_count: number;
+        };
         /** DeployableEntry */
         DeployableEntry: {
             /** Id */
@@ -2916,6 +2998,31 @@ export interface components {
             basename?: string | null;
             /** Nameindex */
             nameindex?: number | null;
+        };
+        /** LoadoutOption */
+        LoadoutOption: {
+            /** Loadout Id */
+            loadout_id: string;
+            /** Name */
+            name: string | null;
+            /** Description */
+            description: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "preset" | "custom";
+            /** Items */
+            items: components["schemas"]["LoadoutOptionItem"][];
+        };
+        /** LoadoutOptionItem */
+        LoadoutOptionItem: {
+            /** Kind */
+            kind: string;
+            /** Ware Id */
+            ware_id: string;
+            /** Quantity */
+            quantity: number;
         };
         /** LoadoutSlot */
         LoadoutSlot: {
@@ -4420,6 +4527,18 @@ export interface components {
             engines_xl: number;
             /** Price Avg */
             price_avg: number | null;
+            /** Chassis Price Min */
+            chassis_price_min?: number | null;
+            /** Chassis Price Avg */
+            chassis_price_avg?: number | null;
+            /** Chassis Price Max */
+            chassis_price_max?: number | null;
+            /** Blueprint Price Min */
+            blueprint_price_min?: number | null;
+            /** Blueprint Price Avg */
+            blueprint_price_avg?: number | null;
+            /** Blueprint Price Max */
+            blueprint_price_max?: number | null;
             /**
              * Is Owned
              * @default false
@@ -4730,6 +4849,18 @@ export interface components {
             engines_xl: number;
             /** Price Avg */
             price_avg: number | null;
+            /** Chassis Price Min */
+            chassis_price_min?: number | null;
+            /** Chassis Price Avg */
+            chassis_price_avg?: number | null;
+            /** Chassis Price Max */
+            chassis_price_max?: number | null;
+            /** Blueprint Price Min */
+            blueprint_price_min?: number | null;
+            /** Blueprint Price Avg */
+            blueprint_price_avg?: number | null;
+            /** Blueprint Price Max */
+            blueprint_price_max?: number | null;
             /**
              * Is Owned
              * @default false
@@ -6841,6 +6972,37 @@ export interface operations {
             };
         };
     };
+    get_ship_loadout_options_api_v1_ships__ship_id__loadout_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ship_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadoutOption"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_terraform_stats_api_v1_terraform_stats_get: {
         parameters: {
             query?: never;
@@ -7756,6 +7918,57 @@ export interface operations {
             header?: never;
             path: {
                 station_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StationLayoutEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_construction_plans_api_v1_construction_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConstructionPlanSummary"][];
+                };
+            };
+        };
+    };
+    construction_plan_layout_api_v1_construction_plans__plan_id__layout_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
             };
             cookie?: never;
         };

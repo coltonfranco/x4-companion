@@ -19,11 +19,14 @@ import { VISIBLE_FACTIONS_PATH, VISIBLE_FACTIONS_QUERY_KEY } from "../../lib/fac
 import { useKnownFactions } from "../../lib/useKnownFactions";
 import { useFactionMap } from "../../lib/useFactionMap";
 import { usePlayerLicences } from "../../lib/usePlayerLicences";
-import type { EquipmentItem, ShipDetail, ShipSummary } from "./lib/builderTypes";
-import { BASE_SORTS, CATEGORIES, CATEGORY_SORTS, dps, generateSlots, getCategoryStatus, playerHasLicence } from "./lib/builderHelpers";
+import type { EquipmentEvalContext, EquipmentItem, LoadoutOption, ShipDetail, ShipSummary } from "./lib/builderTypes";
+import { applyLoadoutToCart, BASE_SORTS, CATEGORIES, CATEGORY_SORTS, dps, generateSlots, getCategoryStatus, isCompatibleWithShip, isObtainable } from "./lib/builderHelpers";
+import { buildApproximatePresets } from "./lib/approximatePresets";
 import { ShipSelector } from "./components/ShipSelector";
+import { LoadoutSelector } from "./components/LoadoutSelector";
 import { CartPanel } from "./components/CartPanel";
 import { EquipmentCard } from "./components/EquipmentCard";
+import { EquipmentSortSelect } from "./components/EquipmentSortSelect";
 import { StatsFooter } from "./components/StatsFooter";
 import { RANGE_CAP } from "./lib/builderHelpers";
 
@@ -38,11 +41,14 @@ export default function BuilderPage() {
   const [selectedShipId, setSelectedShipId] = useState<string | undefined>(ship_id);
   const [activeCategory, setActiveCategory] = useState<string>("engine");
   const [cart, setCart] = useState<Record<string, EquipmentItem | null>>({});
+  const [selectedLoadoutId, setSelectedLoadoutId] = useState<string>("");
   const [factionFilter, setFactionFilter] = useState<string>("all");
   const [mkFilter, setMkFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sortFilter, setSortFilter] = useState<string>("");
   const [obtainableOnly, setObtainableOnly] = useState<boolean>(false);
+  const [buyableOnly, setBuyableOnly] = useState<boolean>(false);
+  const [buildableOnly, setBuildableOnly] = useState<boolean>(false);
 
   const { data: knownFactions = {} } = useKnownFactions();
 
@@ -61,11 +67,16 @@ export default function BuilderPage() {
   // Filter ships by known factions when fog of war is on
   const ships = useMemo(() => {
     if (!settings.fogOfWar) return allShips;
-    return allShips.filter(s => s.faction_id == null || knownFactions[s.faction_id] !== false);
+    return allShips.filter(s => s.owner_factions?.length === 0 || s.owner_factions?.some(fid => knownFactions[fid] !== false));
   }, [allShips, knownFactions, settings.fogOfWar]);
   const { data: shipDetail, isLoading: isShipLoading } = useQuery<ShipDetail>({
     queryKey: ["ship", selectedShipId],
     queryFn: () => apiGet<ShipDetail>(`/api/v1/ships/${selectedShipId}`),
+    enabled: !!selectedShipId,
+  });
+  const { data: loadoutOptions = [] } = useQuery<LoadoutOption[]>({
+    queryKey: ["ship", "loadout-options", selectedShipId],
+    queryFn: () => apiGet<LoadoutOption[]>(`/api/v1/ships/${selectedShipId}/loadout-options`),
     enabled: !!selectedShipId,
   });
   const { data: equipment = [] } = useQuery<EquipmentItem[]>({
@@ -101,16 +112,20 @@ export default function BuilderPage() {
 
   const factionMap = useFactionMap(factions);
   const slots = useMemo(() => shipDetail ? generateSlots(shipDetail) : [], [shipDetail]);
+  const equipmentEvalContext = useMemo<EquipmentEvalContext>(
+    () => ({ ship: shipDetail ?? null, slots }),
+    [shipDetail, slots],
+  );
 
-  const shortToFullFaction = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const f of factions) {
-      if (f.short_name) map.set(f.short_name.toLowerCase(), f.faction_id);
-      map.set(f.faction_id.substring(0, 3), f.faction_id);
-      map.set(f.faction_id, f.faction_id);
-    }
-    return map;
-  }, [factions]);
+  const approximatePresets = useMemo(
+    () => shipDetail ? buildApproximatePresets(shipDetail, slots, equipment, playerLicenceSet) : [],
+    [shipDetail, slots, equipment, playerLicenceSet],
+  );
+  const allLoadoutOptions = useMemo(
+    () => [...loadoutOptions, ...approximatePresets],
+    [loadoutOptions, approximatePresets],
+  );
+
 
   // ── Per-size maxima from all equipment (stable, ignores filters) ────────────
   const equipmentMaxima = useMemo(() => {
@@ -153,6 +168,7 @@ export default function BuilderPage() {
       const fresh: Record<string, EquipmentItem | null> = {};
       for (const s of generateSlots(shipDetail)) fresh[s.key] = null;
       setCart(fresh);
+      setSelectedLoadoutId("");
     }
   }, [shipDetail]);
 
@@ -162,9 +178,10 @@ export default function BuilderPage() {
     if (!shipDetail) return [];
     const sizes = new Set(slots.filter(s => s.kind === category.kind).map(s => s.size));
     const items = equipment.filter(e => e.kind === category.kind && e.size != null && sizes.has(e.size));
-    const set = new Set(items.map(i => i.faction_id ? (shortToFullFaction.get(i.faction_id) ?? i.faction_id) : null).filter(Boolean) as string[]);
+    const set = new Set<string>();
+    for (const i of items) { for (const fid of i.owner_factions) set.add(fid); }
     return Array.from(set).sort();
-  }, [equipment, category, shipDetail, slots, shortToFullFaction]);
+  }, [equipment, category, shipDetail, slots]);
 
   const availableMks = useMemo(() => {
     if (!shipDetail) return [];
@@ -197,21 +214,15 @@ export default function BuilderPage() {
     }
     // Exclusive equipment: only show if the current ship matches the compat tag
     if (shipDetail) {
-      items = items.filter(e => {
-        if (!e.compat_tags) return true; // universal — fits all ships of this size
-        return e.compat_tags.split(" ").some(tag => {
-          const segs = tag.split("_").filter(Boolean);
-          return segs.length > 0 && segs.every(s => shipDetail.ship_id.includes(s));
-        });
-      });
+      items = items.filter(e => isCompatibleWithShip(e, shipDetail.ship_id));
     }
 
     // Fog of war: hide equipment from unknown factions
     if (settings.fogOfWar) {
-      items = items.filter(e => e.faction_id == null || knownFactions[e.faction_id] !== false);
+      items = items.filter(e => e.owner_factions?.length === 0 || e.owner_factions?.some(fid => knownFactions[fid] !== false));
     }
     if (factionFilter !== "all") {
-      items = items.filter(e => (e.faction_id ? (shortToFullFaction.get(e.faction_id) ?? e.faction_id) : null) === factionFilter);
+      items = items.filter(e => e.owner_factions?.includes(factionFilter));
     }
     if (mkFilter !== "all") {
       items = items.filter(e => e.mk?.toString() === mkFilter);
@@ -221,11 +232,22 @@ export default function BuilderPage() {
     }
 
     if (obtainableOnly) {
+      const shipFid = shipDetail?.owner_factions?.[0];
+      items = items.filter(e => isObtainable(e, playerLicenceSet, shipFid));
+    }
+    if (buyableOnly) {
       items = items.filter(e => {
-        const resolvedFactionId = e.faction_id ? (shortToFullFaction.get(e.faction_id) ?? e.faction_id) : null;
-        const isGen = e.restriction_licence === 'generaluseequipment' || e.restriction_licence === 'generaluseship';
-        return !e.restriction_licence || isGen || playerHasLicence(playerLicenceSet, e.restriction_licence, shipDetail?.faction_id ?? resolvedFactionId);
+        if (e.price_avg == null) return false;
+        const restricted = e.restriction_licence && e.restriction_licence !== "generaluseequipment" && e.restriction_licence !== "generaluseship";
+        if (restricted) {
+          const shipFid = shipDetail?.owner_factions?.[0];
+          return isObtainable(e, playerLicenceSet, shipFid);
+        }
+        return true;
       });
+    }
+    if (buildableOnly) {
+      items = []; // equipment blueprints not tracked yet
     }
 
     const validSorts = [...(CATEGORY_SORTS[category.kind] || []), ...BASE_SORTS];
@@ -233,8 +255,8 @@ export default function BuilderPage() {
     const activeSort = validSorts.find(s => s.id === sortFilter) || validSorts.find(s => s.id === defaultSortId) || BASE_SORTS[0];
 
     items.sort((a, b) => {
-      const valA = activeSort.eval(a);
-      const valB = activeSort.eval(b);
+      const valA = activeSort.eval(a, equipmentEvalContext);
+      const valB = activeSort.eval(b, equipmentEvalContext);
       if (typeof valA === "string" && typeof valB === "string") {
         return activeSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
       }
@@ -244,7 +266,7 @@ export default function BuilderPage() {
     });
 
     return items;
-  }, [equipment, category, shipDetail, slots, factionFilter, mkFilter, typeFilter, sortFilter, shortToFullFaction, settings.fogOfWar, knownFactions, playerLicenceSet]);
+  }, [equipment, category, shipDetail, slots, factionFilter, mkFilter, typeFilter, sortFilter, obtainableOnly, buyableOnly, buildableOnly, settings.fogOfWar, knownFactions, playerLicenceSet, equipmentEvalContext]);
 
   const totalCost = useMemo(() => {
     let t = shipDetail?.price_avg ?? 0;
@@ -258,6 +280,12 @@ export default function BuilderPage() {
   const handleAdd = (k: string, i: EquipmentItem) => setCart(p => ({ ...p, [k]: i }));
   const handleRemove = (k: string) => setCart(p => ({ ...p, [k]: null }));
   const handleClearAll = () => setCart(p => { const f = { ...p }; for (const k of Object.keys(f)) f[k] = null; return f; });
+  const handleApplyLoadout = (loadoutId: string) => {
+    const option = allLoadoutOptions.find(o => o.loadout_id === loadoutId);
+    if (!option) return;
+    setSelectedLoadoutId(loadoutId);
+    setCart(applyLoadoutToCart(slots, equipment, option.items));
+  };
   const handleShipSelect = (id: string) => {
     setSelectedShipId(id);
     navigate({ to: "/ships/builder", search: { ship_id: id } });
@@ -266,9 +294,12 @@ export default function BuilderPage() {
     setTypeFilter("all");
     setSortFilter("");
     setObtainableOnly(false);
+    setSelectedLoadoutId("");
   };
 
-  const shipFaction = shipDetail?.faction_id ? factionMap.get(shipDetail.faction_id) : undefined;
+  const shipFaction = shipDetail?.primary_faction
+    ? factionMap.get(shipDetail.primary_faction)
+    : undefined;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -276,6 +307,7 @@ export default function BuilderPage() {
       <div className="flex items-center gap-4 px-4 py-2.5 border-b border-border bg-card/30 shrink-0">
         <h1 className="text-lg font-bold">Ship Builder</h1>
         <ShipSelector ships={ships} selectedId={selectedShipId} onSelect={handleShipSelect} />
+        <LoadoutSelector value={selectedLoadoutId} options={allLoadoutOptions} onChange={handleApplyLoadout} disabled={!shipDetail} />
         <div className="flex-1" />
       </div>
 
@@ -314,35 +346,31 @@ export default function BuilderPage() {
                 </Tabs>
 
                 <div className="flex items-center gap-3">
-                  {(factionFilter !== "all" || mkFilter !== "all" || typeFilter !== "all" || sortFilter !== "" || obtainableOnly) && (
+                  {(factionFilter !== "all" || mkFilter !== "all" || typeFilter !== "all" || sortFilter !== "" || obtainableOnly || buyableOnly || buildableOnly) && (
                     <ClearFiltersButton
-                      onClick={() => { setFactionFilter("all"); setMkFilter("all"); setTypeFilter("all"); setSortFilter(""); setObtainableOnly(false); }}
+                      onClick={() => { setFactionFilter("all"); setMkFilter("all"); setTypeFilter("all"); setSortFilter(""); setObtainableOnly(false); setBuyableOnly(false); setBuildableOnly(false); }}
                     />
                   )}
 
                   <div className="flex items-center gap-2 px-2 shrink-0">
                     <Switch id="obtainable-only" checked={obtainableOnly} onCheckedChange={setObtainableOnly} />
+                    <label htmlFor="obtainable-only" className="text-xs text-muted-foreground cursor-pointer">Obtainable</label>
+                    <Switch id="buyable-only" checked={buyableOnly} onCheckedChange={setBuyableOnly} />
+                    <label htmlFor="buyable-only" className="text-xs text-muted-foreground cursor-pointer">Buyable</label>
+                    <Switch id="buildable-only" checked={buildableOnly} onCheckedChange={setBuildableOnly} />
+                    <label htmlFor="buildable-only" className="text-xs text-muted-foreground cursor-pointer">Buildable</label>
                     <label htmlFor="obtainable-only" className="text-xs font-medium text-muted-foreground cursor-pointer select-none">
                       Obtainable Only
                     </label>
                   </div>
 
-                  <Select value={sortFilter || (["weapon", "turret"].includes(category.kind) ? "type_asc" : "price_asc")} onValueChange={setSortFilter}>
-                    <SelectTrigger className="w-[180px] h-9 text-xs border border-border hover:border-primary/50 transition-colors focus:border-primary">
-                      <div className="flex items-center gap-1.5 text-muted-foreground truncate">
-                        <span>Order by:</span>
-                        <span className="text-foreground font-medium truncate"><SelectValue /></span>
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CATEGORY_SORTS[category.kind]?.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-                      ))}
-                      {BASE_SORTS.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <EquipmentSortSelect
+                    value={sortFilter}
+                    onChange={setSortFilter}
+                    sortOptions={CATEGORY_SORTS[category.kind] ?? []}
+                    baseSorts={BASE_SORTS}
+                    defaultSortId={["weapon", "turret"].includes(category.kind) ? "type_asc" : "price_asc"}
+                  />
 
                   {["weapon", "turret"].includes(category.kind) && (
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -427,7 +455,7 @@ export default function BuilderPage() {
                             )}
                           </div>
                           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(max(200px, calc(12.5% - 12px)), 1fr))" }}>
-                            {subcatItems.map(item => <EquipmentCard key={item.ware_id} item={item} slots={slots} cart={cart} onAdd={handleAdd} onRemove={handleRemove} factionMap={factionMap} shortToFullFaction={shortToFullFaction} playerLicenceSet={playerLicenceSet} shipFactionId={shipDetail?.faction_id ?? null} maxima={equipmentMaxima[item.kind]?.[item.size?.toLowerCase() ?? '']} />)}
+                            {subcatItems.map(item => <EquipmentCard key={item.ware_id} item={item} slots={slots} cart={cart} onAdd={handleAdd} onRemove={handleRemove} factionMap={factionMap} playerLicenceSet={playerLicenceSet} shipFactionId={shipDetail?.owner_factions[0] ?? null} maxima={equipmentMaxima[item.kind]?.[item.size?.toLowerCase() ?? '']} evalContext={equipmentEvalContext} />)}
                           </div>
                         </div>
                       );
@@ -436,7 +464,7 @@ export default function BuilderPage() {
                 ) : (
                   <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(max(200px, calc(12.5% - 12px)), 1fr))" }}>
                     {compatibleEquipment.map(item => (
-                      <EquipmentCard key={item.ware_id} item={item} slots={slots} cart={cart} onAdd={handleAdd} onRemove={handleRemove} factionMap={factionMap} shortToFullFaction={shortToFullFaction} playerLicenceSet={playerLicenceSet} shipFactionId={shipDetail?.faction_id ?? null} maxima={equipmentMaxima[item.kind]?.[item.size?.toLowerCase() ?? '']} />
+                      <EquipmentCard key={item.ware_id} item={item} slots={slots} cart={cart} onAdd={handleAdd} onRemove={handleRemove} factionMap={factionMap} playerLicenceSet={playerLicenceSet} shipFactionId={shipDetail?.owner_factions[0] ?? null} maxima={equipmentMaxima[item.kind]?.[item.size?.toLowerCase() ?? '']} evalContext={equipmentEvalContext} />
                     ))}
                   </div>
                 )}

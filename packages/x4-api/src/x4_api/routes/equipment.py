@@ -20,7 +20,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from x4_api.deps import get_db
 from x4_api.domain.ware_class import (
     CATEGORY_SQL,
-    build_faction_map,
     equipment_kind,
     equipment_meta,
 )
@@ -98,7 +97,7 @@ class EquipmentItem(PublicModel):
     mk: int | None
     compat_tags: str | None  # space-separated restrictive tags (NULL = fits all ships of this size)
     compat_ship_name: str | None  # resolved ship name from compat_tags (NULL if not exclusive)
-    faction_id: str | None
+    owner_factions: list[str]
     price_min: int | None
     price_avg: int | None
     price_max: int | None
@@ -226,10 +225,10 @@ def _build_item(
     shields: dict[str, sqlite3.Row],
     weapons: dict[str, sqlite3.Row],
     bullets: dict[str, sqlite3.Row],
-    faction_map: dict[str, str],
+    owner_factions_map: dict[str, list[str]],
 ) -> EquipmentItem:
     kind = equipment_kind(row["group_id"], row["tags"])
-    faction, size, mk = equipment_meta(row["ware_id"], faction_map)
+    _, size, mk = equipment_meta(row["ware_id"])  # faction is resolved via ware_owners instead
     macro = f"{row['ware_id']}_macro"
 
     compat_tags = None
@@ -278,7 +277,7 @@ def _build_item(
         mk=mk,
         compat_tags=compat_tags,
         compat_ship_name=_resolve_compat_ship(conn, compat_tags) if compat_tags else None,
-        faction_id=faction,
+        owner_factions=owner_factions_map.get(row["ware_id"], []),
         price_min=row["price_min"],
         price_avg=row["price_avg"],
         price_max=row["price_max"],
@@ -301,7 +300,7 @@ def list_equipment(
     ),
     size: str | None = Query(None, description="xs, s, m, l, xl"),
     faction_id: str | None = Query(
-        None, description="Race/faction code parsed from the ware id, e.g. arg"
+        None, description="Faction id (e.g. holyorder, antigone). Filters to equipment owned by this faction."
     ),
     search: str | None = Query(None, description="Case-insensitive name substring"),
     limit: int = Query(2000, ge=1, le=2000),
@@ -313,17 +312,29 @@ def list_equipment(
         f"SELECT {_BASE_COLS} FROM s.wares WHERE ({CATEGORY_SQL}) = 'equipment' ORDER BY ware_id"
     ).fetchall()
     engines, shields, weapons, bullets = _load_stat_tables(conn)
-    faction_map = build_faction_map(conn)  # once per request, not per row
+
+    # Pre-load all faction ownership (from wares.xml <owner>) — replaces the
+    # old approach of parsing a race code from the ware id prefix.
+    owner_factions_map: dict[str, list[str]] = {}
+    for row in conn.execute(
+        "SELECT ware_id, faction_id FROM s.ware_owners ORDER BY ware_id, faction_id"
+    ):
+        owner_factions_map.setdefault(row[0], []).append(row[1])
+
+    # Filter set: which ware_ids belong to the requested faction.
+    owned_wares: set[str] = set()
+    if faction_id is not None:
+        owned_wares = {w for w, fs in owner_factions_map.items() if faction_id in fs}
 
     out: list[EquipmentItem] = []
     needle = search.lower() if search else None
     for r in rows:
-        item = _build_item(conn, r, engines, shields, weapons, bullets, faction_map)
+        item = _build_item(conn, r, engines, shields, weapons, bullets, owner_factions_map)
         if kind is not None and item.kind != kind:
             continue
         if size is not None and item.size != size:
             continue
-        if faction_id is not None and item.faction_id != faction_id:
+        if faction_id is not None and item.ware_id not in owned_wares:
             continue
         if needle is not None and needle not in item.name.lower():
             continue
@@ -344,4 +355,13 @@ def get_equipment(
     if row is None or row["category"] != "equipment":
         raise HTTPException(status_code=404, detail=f"Unknown equipment ware_id: {ware_id}")
     engines, shields, weapons, bullets = _load_stat_tables(conn)
-    return _build_item(conn, row, engines, shields, weapons, bullets, build_faction_map(conn))
+    owner_factions_map = {
+        ware_id: [
+            r["faction_id"]
+            for r in conn.execute(
+                "SELECT faction_id FROM s.ware_owners WHERE ware_id = :id ORDER BY faction_id",
+                {"id": ware_id},
+            )
+        ]
+    }
+    return _build_item(conn, row, engines, shields, weapons, bullets, owner_factions_map)

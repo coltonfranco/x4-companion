@@ -1,7 +1,12 @@
+import { useMemo } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Currency } from "../game/Currency";
 import { ProductionChain } from "../commerce/ProductionChain";
 import { EntityIcon } from "../game/EntityIcon";
-import { FactionBadge } from "../game/FactionBadge";
+import { MultiFactionBadge } from "../game/MultiFactionBadge";
+import { LicenceBadge } from "../game/LicenceBadge";
 import { EquipmentMkBadge, ShipClassBadge, ShipTypeBadge } from "../game/ShipBadges";
+import { usePlayerLicences } from "../../lib/usePlayerLicences";
 import type { FactionSummary } from "../../lib/types";
 import { fmtNum } from "../../lib/wareFormat";
 
@@ -45,7 +50,7 @@ export type Equipment = {
   mk: number | null;
   compat_tags: string | null;
   compat_ship_name: string | null;
-  faction_id: string | null;
+  owner_factions: string[];
   restriction_licence: string | null;
   price_min: number | null;
   price_avg: number | null;
@@ -126,14 +131,6 @@ function FullStats({ item }: { item: Equipment }) {
           </div>
         </div>
       )}
-      {item.has_production && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-            Build chain
-          </p>
-          <ProductionChain wareId={item.ware_id} />
-        </div>
-      )}
       {rows.length === 0 && !item.has_production && (
         <p className="text-xs italic text-muted-foreground">
           No detailed stats extracted for this part.
@@ -150,13 +147,29 @@ export function EquipmentDetailPanel({
   item: Equipment;
   factions: FactionSummary[];
 }) {
-  const faction = item.faction_id
-    ? factions.find((f) => f.faction_id === item.faction_id)
-    : undefined;
+  const factionMap = useMemo(
+    () => new Map(factions.map((f) => [f.faction_id, f])),
+    [factions],
+  );
+
+  const { data: playerLicences = [] } = usePlayerLicences();
+  const licenceSet = useMemo(
+    () => new Set(playerLicences.map((l) => `${l.faction_id}:${l.licence_type}`)),
+    [playerLicences],
+  );
+  const licenceTypeSet = useMemo(
+    () => new Set(playerLicences.map((l) => l.licence_type)),
+    [playerLicences],
+  );
+
+  const hasLicenceRestriction =
+    item.restriction_licence &&
+    item.restriction_licence !== "generaluseship" &&
+    item.restriction_licence !== "generaluseequipment";
 
   return (
-    <div className="p-6 space-y-5">
-      <div className="flex flex-col sm:flex-row gap-6">
+    <div className="flex flex-col h-full -mx-6 -my-6">
+      <div className="flex flex-col sm:flex-row gap-6 px-6 pt-6 pb-4">
         <div className="shrink-0 flex items-center justify-center w-32 h-32 bg-muted/10 rounded-xl p-2 border border-border/50 shadow-inner relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05)_0%,transparent_70%)]" />
           <EntityIcon
@@ -180,20 +193,76 @@ export function EquipmentDetailPanel({
             {item.size && (
               <ShipClassBadge class_id={item.size} className="px-2.5 py-0.5 text-xs tracking-wider" />
             )}
-            {faction && (
-              <FactionBadge
-                name={faction.name}
-                color_hex={faction.color_hex}
-                icon_url={faction.icon_url}
-                faction_id={faction.faction_id}
-              />
-            )}
+            <MultiFactionBadge ownerFactions={item.owner_factions ?? []} factionMap={factionMap} />
           </div>
         </div>
       </div>
-      <div className="pt-4 border-t border-border/50">
-        <FullStats item={item} />
-      </div>
+
+      <Tabs defaultValue="overview" className="flex-1 flex flex-col">
+        <div className="border-b border-border/40 pb-px mt-2 px-6">
+          <TabsList className="bg-transparent border-none p-0 h-auto space-x-6 w-full justify-start">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1 pb-3 pt-2 font-medium text-muted-foreground data-[state=active]:text-foreground transition-colors hover:text-foreground">Overview</TabsTrigger>
+            <TabsTrigger value="build" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1 pb-3 pt-2 font-medium text-muted-foreground data-[state=active]:text-foreground transition-colors hover:text-foreground">Build</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="overview" className="pt-5 px-6 pb-6 outline-none space-y-6 flex-1 overflow-auto">
+          <FullStats item={item} />
+        </TabsContent>
+
+        <TabsContent value="build" className="pt-5 px-6 pb-6 outline-none space-y-6 flex-1 overflow-auto">
+          <div className="rounded-lg border border-border/50 bg-muted/5 px-4 py-3">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">Blueprint Status</span>
+            <div className="space-y-2">
+              {item.price_avg != null ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-12">Cost</span>
+                  <span
+                    className="text-sm cursor-default"
+                    title={
+                      item.price_min != null && item.price_max != null
+                        ? `Range: ${item.price_min.toLocaleString()} – ${item.price_max.toLocaleString()} Cr`
+                        : undefined
+                    }
+                  >
+                    <Currency value={item.price_avg} />
+                  </span>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Not sold</div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-12">Licence</span>
+                {hasLicenceRestriction ? (
+                  <LicenceBadge
+                    licence={item.restriction_licence!}
+                    ownerFactions={item.owner_factions ?? []}
+                    factionMap={factionMap}
+                    licenceSet={licenceSet}
+                    licenceTypeSet={licenceTypeSet}
+                  />
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {item.has_production && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                Production chain
+              </p>
+              <ProductionChain wareId={item.ware_id} />
+            </div>
+          )}
+          {!item.has_production && (
+            <p className="text-xs italic text-muted-foreground">
+              No production data available.
+            </p>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { Crosshair, Gauge, Shield, Aperture, MoveVertical, Cpu, ShoppingCart } from "lucide-react";
 import { formatCompactNumber, getWeaponType } from "../../../lib/formatters";
-import type { EquipmentItem, ShipDetail, SlotDef, SortOption, StatDisplay } from "./builderTypes";
+import type { EquipmentEvalContext, EquipmentItem, LoadoutOptionItem, ShipDetail, SlotDef, SortOption, StatDisplay } from "./builderTypes";
 
 export const RANGE_CAP: Record<string, number> = { xs: 5, s: 10, m: 15, l: 20, xl: 20 };
 
@@ -57,10 +57,85 @@ export function generateSlots(ship: ShipDetail): SlotDef[] {
   return slots;
 }
 
+// ── Apply a preset/loadout ──────────────────────────────────────────────────────
+
+// Consumable slots (see generateSlots) are one-per-kind with no size distinction —
+// unlike every other category, `kind` and `size` are both the consumable's own name.
+const CONSUMABLE_KINDS = new Set(["missile", "countermeasure", "deployable", "drone"]);
+
+function slotPoolKey(kind: string, size: string): string {
+  return CONSUMABLE_KINDS.has(kind) ? kind : `${kind}-${size.toLowerCase()}`;
+}
+
+/** Build a fresh cart from a loadout's items, matching each by ware_id against the
+ * already-fetched equipment catalog and claiming one open ship slot of that kind/size
+ * per unit of quantity. Items that don't resolve to a known ware, or that have no
+ * matching (or no remaining) slot on this ship, are silently skipped — the loadout may
+ * reference equipment filtered out of the catalog, or a slot layout that doesn't match
+ * this exact ship variant. */
+export function applyLoadoutToCart(
+  slots: SlotDef[],
+  equipment: EquipmentItem[],
+  items: LoadoutOptionItem[],
+): Record<string, EquipmentItem | null> {
+  const byWareId = new Map(equipment.map(e => [e.ware_id, e]));
+
+  const pool = new Map<string, SlotDef[]>();
+  const cart: Record<string, EquipmentItem | null> = {};
+  for (const s of slots) {
+    cart[s.key] = null;
+    const key = slotPoolKey(s.kind, s.size);
+    if (!pool.has(key)) pool.set(key, []);
+    pool.get(key)!.push(s);
+  }
+
+  for (const item of items) {
+    const equip = byWareId.get(item.ware_id);
+    if (!equip) continue;
+    // "ammunition" is a grab-bag in the source data (missiles, countermeasures,
+    // deployables, drones/units) — the ware's own kind says which consumable slot it targets.
+    const kind = item.kind === "ammunition" ? equip.kind : item.kind;
+    const bucket = pool.get(slotPoolKey(kind, equip.size ?? ""));
+    if (!bucket) continue;
+    for (let i = 0; i < item.quantity && bucket.length > 0; i++) {
+      cart[bucket.shift()!.key] = equip;
+    }
+  }
+  return cart;
+}
+
 // ── Derived stats ──────────────────────────────────────────────────────────────
 
 export const dps = (w: EquipmentItem["weapon_stats"]): number | null =>
   w?.damage == null ? null : Math.round(w.damage * (w.bullet_amount ?? 1) * (w.reload_rate ?? 1));
+
+export function engineSlotCount(item: EquipmentItem, context?: EquipmentEvalContext): number {
+  if (!item.size) return 1;
+  const itemSize = item.size.toLowerCase();
+  const count = context?.slots.filter(s => s.kind === "engine" && s.size.toLowerCase() === itemSize).length ?? 0;
+  return count > 0 ? count : 1;
+}
+
+function engineSpeed(item: EquipmentItem, context: EquipmentEvalContext | undefined, multiplier: number): number | null {
+  const thrust = item.engine_stats?.thrust_forward;
+  const drag = context?.ship?.drag_forward;
+  if (item.kind !== "engine" || thrust == null || drag == null || drag <= 0) return null;
+  return (thrust * multiplier * engineSlotCount(item, context)) / drag;
+}
+
+export function engineTopSpeed(item: EquipmentItem, context?: EquipmentEvalContext): number | null {
+  return engineSpeed(item, context, 1);
+}
+
+export function engineTravelSpeed(item: EquipmentItem, context?: EquipmentEvalContext): number | null {
+  const multiplier = item.engine_stats?.travel_thrust;
+  return multiplier == null ? null : engineSpeed(item, context, multiplier);
+}
+
+export function engineBoostSpeed(item: EquipmentItem, context?: EquipmentEvalContext): number | null {
+  const multiplier = item.engine_stats?.boost_thrust;
+  return multiplier == null ? null : engineSpeed(item, context, multiplier);
+}
 
 export function fmtStat(n: number | null | undefined): string {
   if (n == null) return "—";
@@ -87,9 +162,12 @@ export const BASE_SORTS: SortOption[] = [
 
 export const CATEGORY_SORTS: Record<string, SortOption[]> = {
   engine: [
+    { id: "speed_desc", label: "Top Speed", eval: (e, context) => engineTopSpeed(e, context) ?? 0, desc: true },
+    { id: "travel_speed_desc", label: "Travel Speed", eval: (e, context) => engineTravelSpeed(e, context) ?? 0, desc: true },
+    { id: "boost_speed_desc", label: "Boost Speed", eval: (e, context) => engineBoostSpeed(e, context) ?? 0, desc: true },
     { id: "thrust_desc", label: "Thrust", eval: e => e.engine_stats?.thrust_forward ?? 0, desc: true },
-    { id: "travel_desc", label: "Travel Thrust", eval: e => e.engine_stats?.travel_thrust ?? 0, desc: true },
-    { id: "boost_desc", label: "Boost Thrust", eval: e => e.engine_stats?.boost_thrust ?? 0, desc: true },
+    { id: "travel_desc", label: "Travel Multiplier", eval: e => e.engine_stats?.travel_thrust ?? 0, desc: true },
+    { id: "boost_desc", label: "Boost Multiplier", eval: e => e.engine_stats?.boost_thrust ?? 0, desc: true },
   ],
   thruster: [
     { id: "strafe_desc", label: "Strafe Thrust", eval: e => e.engine_stats?.thrust_strafe ?? 0, desc: true },
@@ -110,7 +188,7 @@ export const CATEGORY_SORTS: Record<string, SortOption[]> = {
   ],
 };
 
-export function getEquipmentStats(item: EquipmentItem, maxima?: Record<string, number>): { bars: StatDisplay[], texts: string[] } {
+export function getEquipmentStats(item: EquipmentItem, maxima?: Record<string, number>, context?: EquipmentEvalContext): { bars: StatDisplay[], texts: string[] } {
   const size = item.size?.toLowerCase() || 's';
   const bars: StatDisplay[] = [];
   const texts: string[] = [];
@@ -120,6 +198,12 @@ export function getEquipmentStats(item: EquipmentItem, maxima?: Record<string, n
     if (e.thrust_forward) bars.push({ label: "Thrust", value: e.thrust_forward, max: maxima?.thrust ?? THRUST_MAX[size] ?? 6000, isLog: false, format: n => fmtStat(n) + " N" });
     if (e.travel_thrust) bars.push({ label: "Travel", value: e.travel_thrust, max: maxima?.travel ?? TRAVEL_MAX[size] ?? 25, isLog: false, format: n => `${n.toFixed(1)}×`, color: "#3b82f6" });
     if (e.boost_thrust) bars.push({ label: "Boost", value: e.boost_thrust, max: maxima?.boost ?? BOOST_MAX[size] ?? 10, isLog: false, format: n => `${n.toFixed(1)}×`, color: "#f97316" });
+    const topSpeed = engineTopSpeed(item, context);
+    const travelSpeed = engineTravelSpeed(item, context);
+    const boostSpeed = engineBoostSpeed(item, context);
+    if (topSpeed != null) texts.push(`Top ${fmtStat(topSpeed)} m/s`);
+    if (travelSpeed != null) texts.push(`Travel ${fmtStat(travelSpeed)} m/s`);
+    if (boostSpeed != null) texts.push(`Boost ${fmtStat(boostSpeed)} m/s`);
   }
   else if (item.kind === "thruster" && item.engine_stats) {
     const e = item.engine_stats;
@@ -184,4 +268,25 @@ export function playerHasLicence(licenceSet: Set<string>, licenceType: string, f
     if (key.endsWith(`:${licenceType}`)) return true;
   }
   return false;
+}
+
+/** Exclusive equipment only fits ships whose id matches every underscore-segment of one
+ * of its compat_tags; a NULL compat_tags is universal (fits every ship of this size). */
+export function isCompatibleWithShip(item: EquipmentItem, shipId: string): boolean {
+  if (!item.compat_tags) return true;
+  return item.compat_tags.split(" ").some(tag => {
+    const segs = tag.split("_").filter(Boolean);
+    return segs.length > 0 && segs.every(s => shipId.includes(s));
+  });
+}
+
+/** Whether the player can legally buy this item right now: no restriction, a "general use"
+ * restriction (no real licence gate), or an owned licence for the given faction. */
+export function isObtainable(
+  item: EquipmentItem,
+  licenceSet: Set<string>,
+  factionId?: string | null,
+): boolean {
+  const isGen = item.restriction_licence === "generaluseequipment" || item.restriction_licence === "generaluseship";
+  return !item.restriction_licence || isGen || playerHasLicence(licenceSet, item.restriction_licence, factionId);
 }

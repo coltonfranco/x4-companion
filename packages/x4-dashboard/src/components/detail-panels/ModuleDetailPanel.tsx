@@ -213,8 +213,8 @@ function UnlockGuide({ d, faction, licenceLocked }: {
             <div>
               <p className="text-sm font-semibold text-amber-400/80">Blueprint Available</p>
               <p className="text-xs text-muted-foreground">
-                {d.blueprint_price_avg != null
-                  ? <>Purchase for <Currency value={d.blueprint_price_avg} /></>
+                {d.blueprint_price_max != null
+                  ? <>Purchase for <Currency value={d.blueprint_price_max} /></>
                   : "No cost — default blueprint"}
               </p>
             </div>
@@ -238,7 +238,7 @@ function UnlockGuide({ d, faction, licenceLocked }: {
               )}
               <span className="text-xs text-muted-foreground">representative</span>
             </div>
-          ) : d.blueprint_price_avg != null ? (
+          ) : d.blueprint_price_max != null ? (
             <p className="text-xs text-muted-foreground">
               Available from any faction representative with the required licence.
             </p>
@@ -262,7 +262,7 @@ function UnlockGuide({ d, faction, licenceLocked }: {
                 </span>
               )}
             </div>
-          ) : d.blueprint_price_avg != null ? (
+          ) : d.blueprint_price_max != null ? (
             <p className="text-xs text-muted-foreground pt-1 border-t border-border/30">
               No faction licence required — purchase directly from the representative.
             </p>
@@ -328,21 +328,21 @@ export function ModuleDetailPanel({ moduleId, summary, factions, licenceSet, any
                 <span className="text-emerald-400">✓</span>
                 <span className="text-xs text-muted-foreground uppercase tracking-wider">Blueprint</span>
                 <span className="text-xs text-emerald-400 font-medium">Owned</span>
-                {d.blueprint_price_avg && <span className="text-xs text-muted-foreground">· <Currency value={d.blueprint_price_avg} /></span>}
+                {d.blueprint_price_max && <span className="text-xs text-muted-foreground">· <Currency value={d.blueprint_price_max} /></span>}
               </div>
-            ) : d.blueprint_price_avg ? (
+            ) : d.blueprint_price_max ? (
               licenceLocked ? (
                 <div className="flex items-center gap-2">
                   <span className="text-red-400/80">✗</span>
                   <span className="text-xs text-muted-foreground uppercase tracking-wider">Blueprint</span>
-                  <Currency value={d.blueprint_price_avg} />
+                  <Currency value={d.blueprint_price_max} />
                   <span className="text-xs text-red-400/80">· Locked behind licence</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="text-amber-400/80">⊕</span>
                   <span className="text-xs text-muted-foreground uppercase tracking-wider">Blueprint</span>
-                  <Currency value={d.blueprint_price_avg} />
+                  <Currency value={d.blueprint_price_max} />
                   <span className="text-xs text-amber-400/80">· Available for purchase</span>
                 </div>
               )

@@ -22,6 +22,7 @@ export function SaveAsDialog({
           <DialogTitle>{nameDialog?.asNew ? "Save as new design" : "Save station design"}</DialogTitle>
         </DialogHeader>
         <form
+          className="mt-4"
           onSubmit={(e) => {
             e.preventDefault();
             const name = (nameDialog?.draft ?? "").trim();

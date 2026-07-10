@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Info, Wrench } from "lucide-react";
 import { EntityIcon } from "../game/EntityIcon";
-import { FactionBadge } from "../game/FactionBadge";
+import { MultiFactionBadge } from "../game/MultiFactionBadge";
+import { LicenceBadge } from "../game/LicenceBadge";
 import { ShipClassBadge, ShipTypeBadge } from "../game/ShipBadges";
 import { ShipImage } from "../game/ShipImage";
 import { DropListContent, buildDropGroups } from "../data-display/DropListContent";
@@ -88,13 +90,19 @@ export function ShipDetailPanel({ shipId, factions }: { shipId: string; factions
   if (!data) return null;
 
   const slotSizes = ["s", "m", "l", "xl"] as const;
-  const faction = data.faction_id ? factions.find((f: FactionSummary) => f.faction_id === data.faction_id) : undefined;
+  const factionMap = useMemo(
+    () => new Map(factions.map((f) => [f.faction_id, f])),
+    [factions],
+  );
 
-  const licenceSet = new Set(playerLicences.map((l) => `${l.faction_id}:${l.licence_type}`));
-  const licenceTypeSet = new Set(playerLicences.map((l) => l.licence_type));
-  const lic = data.restriction_licence;
-  const hasRestriction = lic && lic !== "generaluseship" && lic !== "generaluseequipment";
-  const hasLicence = !hasRestriction || licenceTypeSet.has(lic) || (data.faction_id && licenceSet.has(`${data.faction_id}:${lic}`));
+  const licenceSet = useMemo(
+    () => new Set(playerLicences.map((l) => `${l.faction_id}:${l.licence_type}`)),
+    [playerLicences],
+  );
+  const licenceTypeSet = useMemo(
+    () => new Set(playerLicences.map((l) => l.licence_type)),
+    [playerLicences],
+  );
 
   const maxHull = classMax?.hull;
   const maxSpeed = classMax?.speed_max;
@@ -122,11 +130,11 @@ export function ShipDetailPanel({ shipId, factions }: { shipId: string; factions
             <div className="flex items-center gap-2 mt-3 flex-wrap">
               <ShipClassBadge class_id={data.class_id} className="text-sm px-2.5 py-0.5" />
               <ShipTypeBadge role={data.role} subtype={data.ship_type} className="text-sm" />
-              {faction && <FactionBadge name={faction.name} color_hex={faction.color_hex} icon_url={faction.icon_url} faction_id={faction.faction_id} size="md" className="text-sm" />}
-              {data.price_avg != null && (
+              <MultiFactionBadge ownerFactions={data.owner_factions ?? []} factionMap={factionMap} />
+              {data.chassis_price_avg != null && (
                 <span className="text-sm ml-2 flex items-center gap-1.5 text-muted-foreground">
                   <span>Base Chassis:</span>
-                  <Currency value={data.price_avg} />
+                  <Currency value={data.chassis_price_avg} />
                 </span>
               )}
             </div>
@@ -254,23 +262,32 @@ export function ShipDetailPanel({ shipId, factions }: { shipId: string; factions
                 <div className="flex items-center gap-2">
                   <span className="text-emerald-400">✓</span>
                   <span className="text-sm text-muted-foreground">Blueprint Owned</span>
+                  {data.blueprint_price_max != null && (
+                    <span className="text-xs text-muted-foreground">
+                      · <Currency value={data.blueprint_price_max} />
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {hasRestriction ? (
+                  {data.blueprint_price_max != null && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-16">Cost:</span>
+                      <Currency value={data.blueprint_price_max} />
+                    </div>
+                  )}
+                  {data.restriction_licence &&
+                   data.restriction_licence !== "generaluseship" &&
+                   data.restriction_licence !== "generaluseequipment" ? (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground w-16">Licence:</span>
-                      <span
-                        className={cn(
-                          "text-xs px-2 py-0.5 rounded border inline-flex",
-                          hasLicence
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : "bg-red-500/10 text-red-400 border-red-500/20"
-                        )}
-                        title={hasLicence ? "Licence owned" : "Licence locked"}
-                      >
-                        {formatLicence(lic)}
-                      </span>
+                      <LicenceBadge
+                        licence={data.restriction_licence}
+                        ownerFactions={data.owner_factions ?? []}
+                        factionMap={factionMap}
+                        licenceSet={licenceSet}
+                        licenceTypeSet={licenceTypeSet}
+                      />
                     </div>
                   ) : (
                     <span className="text-sm text-muted-foreground">No licence required</span>

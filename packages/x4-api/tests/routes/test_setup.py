@@ -150,7 +150,10 @@ def test_persisted_config_is_lowest_priority_source(
 def test_wipe_game_data_clears_derived_keeps_user_content(
     data_dir: Path, settings: Settings
 ) -> None:
-    """The reset wipe removes game-derived DBs/dirs but preserves user-authored content."""
+    """The reset wipe removes game-derived DBs/dirs but preserves user-authored content
+    and the icon cache (kept on purpose — see wipe_game_data's docstring: icons use
+    per-file MD5 change detection, so deleting the directory would force a full
+    re-extract instead of the incremental one the cache exists for)."""
     from x4_api.services.init_job import wipe_game_data
 
     # Game-derived data (must be removed).
@@ -160,10 +163,10 @@ def test_wipe_game_data_clears_derived_keeps_user_content(
     (data_dir / "active_save.txt").write_text("save_001")
     (data_dir / "dynamic").mkdir()
     (data_dir / "dynamic" / "save_001.db").write_bytes(b"dyn")
+
+    # Icon cache + user-authored content (must survive).
     (data_dir / "icons").mkdir()
     (data_dir / "icons" / "energycells.png").write_bytes(b"png")
-
-    # User-authored content (must survive).
     (data_dir / "appdata.db").write_bytes(b"designs")
     (data_dir / "refresh_config.json").write_text("{}")
 
@@ -174,7 +177,7 @@ def test_wipe_game_data_clears_derived_keeps_user_content(
         assert not (data_dir / f"{name}-wal").exists()
     assert not (data_dir / "active_save.txt").exists()
     assert not (data_dir / "dynamic").exists()
-    assert not (data_dir / "icons").exists()
 
+    assert (data_dir / "icons" / "energycells.png").read_bytes() == b"png"
     assert (data_dir / "appdata.db").read_bytes() == b"designs"
     assert (data_dir / "refresh_config.json").exists()

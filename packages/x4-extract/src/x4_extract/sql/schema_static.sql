@@ -751,6 +751,27 @@ CREATE TABLE IF NOT EXISTS loadout_equipment (
 CREATE INDEX IF NOT EXISTS idx_loadout_equipment_loadout ON loadout_equipment(loadout_id);
 CREATE INDEX IF NOT EXISTS idx_loadout_equipment_macro   ON loadout_equipment(macro);
 
+-- Named station construction plans (faction HQs/wharfs/shipyards, gamestart stations).
+-- Same shape reused by the player's own saved plans — see player_construction_plans.
+CREATE TABLE IF NOT EXISTS construction_plans (
+    plan_id     TEXT PRIMARY KEY,
+    name        TEXT,
+    description TEXT
+);
+
+-- One row per placed module. `predecessor_index` references another entry's
+-- `entry_index` within the same plan (NULL for the root module). No position/slot
+-- columns — the dashboard builder re-lays the graph out itself (see the extractor's
+-- module docstring), it only needs identity + parent link.
+CREATE TABLE IF NOT EXISTS construction_plan_entries (
+    entry_id          TEXT PRIMARY KEY,
+    plan_id           TEXT NOT NULL REFERENCES construction_plans(plan_id),
+    entry_index       INTEGER NOT NULL,
+    predecessor_index INTEGER,
+    macro             TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_construction_plan_entries_plan ON construction_plan_entries(plan_id);
+
 -- NPC and player-buildable station type definitions (class="station" macros)
 CREATE TABLE IF NOT EXISTS station_types (
     station_id     TEXT PRIMARY KEY,

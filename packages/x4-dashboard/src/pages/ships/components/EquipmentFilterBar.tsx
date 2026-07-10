@@ -3,13 +3,8 @@ import { ClearFiltersButton } from "../../../components/ui/clear-filters-button"
 import { FactionCombobox } from "../../../components/game/FactionCombobox";
 import { EquipmentMkBadge } from "../../../components/game/ShipBadges";
 import { Switch } from "../../../components/ui/switch";
-
-export interface SortOption {
-  id: string;
-  label: string;
-  desc?: boolean;
-  eval?: (item: any) => any;
-}
+import type { SortOption } from "../lib/builderTypes";
+import { EquipmentSortSelect } from "./EquipmentSortSelect";
 
 export interface EquipmentFilterBarProps {
   categoryKind: string;
@@ -30,6 +25,10 @@ export interface EquipmentFilterBarProps {
   showObtainableOnly?: boolean;
   obtainableOnly?: boolean;
   setObtainableOnly?: (val: boolean) => void;
+  buyableOnly?: boolean;
+  setBuyableOnly?: (val: boolean) => void;
+  buildableOnly?: boolean;
+  setBuildableOnly?: (val: boolean) => void;
 
   showSort?: boolean;
   sortFilter?: string;
@@ -45,29 +44,23 @@ export function EquipmentFilterBar({
   availableMks, mkFilter, setMkFilter,
   availableTypes, typeFilter, setTypeFilter,
   showObtainableOnly, obtainableOnly, setObtainableOnly,
+  buyableOnly, setBuyableOnly,
+  buildableOnly, setBuildableOnly,
   showSort, sortFilter, setSortFilter, sortOptions, baseSorts, defaultSortId
 }: EquipmentFilterBarProps) {
-  const hasFilters = factionFilter !== "all" || mkFilter !== "all" || typeFilter !== "all" || (showSort && sortFilter !== "") || (showObtainableOnly && !obtainableOnly);
+  const hasFilters = factionFilter !== "all" || mkFilter !== "all" || typeFilter !== "all" || (showSort && sortFilter !== "") || (showObtainableOnly && !obtainableOnly) || !!buyableOnly || !!buildableOnly;
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       {showSort && setSortFilter && sortOptions && baseSorts && (
-        <Select value={sortFilter || defaultSortId} onValueChange={setSortFilter}>
-          <SelectTrigger className="w-[180px] h-7 text-xs rounded-[4px]">
-            <div className="flex items-center gap-1.5 text-muted-foreground truncate">
-              <span>Order by:</span>
-              <span className="text-foreground font-medium truncate"><SelectValue /></span>
-            </div>
-          </SelectTrigger>
-          <SelectContent>
-            {sortOptions.map(s => (
-              <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-            ))}
-            {baseSorts.map(s => (
-              <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <EquipmentSortSelect
+          value={sortFilter ?? ""}
+          onChange={setSortFilter}
+          sortOptions={sortOptions}
+          baseSorts={baseSorts}
+          defaultSortId={defaultSortId ?? baseSorts[0]?.id ?? ""}
+          className="w-[180px] h-7 text-xs rounded-[4px]"
+        />
       )}
 
       {["weapon", "turret"].includes(categoryKind) && (
@@ -112,6 +105,18 @@ export function EquipmentFilterBar({
           <span className="text-xs text-muted-foreground whitespace-nowrap">Obtainable</span>
         </label>
       )}
+      {setBuyableOnly && (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <Switch id="equipment-buyable-only" checked={!!buyableOnly} onCheckedChange={setBuyableOnly} />
+          <span className="text-xs text-muted-foreground whitespace-nowrap">Buyable</span>
+        </label>
+      )}
+      {setBuildableOnly && (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <Switch id="equipment-buildable-only" checked={!!buildableOnly} onCheckedChange={setBuildableOnly} />
+          <span className="text-xs text-muted-foreground whitespace-nowrap">Buildable</span>
+        </label>
+      )}
       
       {hasFilters && (
         <ClearFiltersButton
@@ -119,6 +124,8 @@ export function EquipmentFilterBar({
             setFactionFilter("all"); setMkFilter("all"); setTypeFilter("all"); 
             if (setSortFilter) setSortFilter(""); 
             if (setObtainableOnly) setObtainableOnly(true);
+            if (setBuyableOnly) setBuyableOnly(false);
+            if (setBuildableOnly) setBuildableOnly(false);
           }}
         />
       )}

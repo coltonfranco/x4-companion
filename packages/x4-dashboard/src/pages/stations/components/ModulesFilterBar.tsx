@@ -28,7 +28,6 @@ export function ModulesFilterBar({
   selectedFactions, setSelectedFactions, availableFactions, factionMap,
   availabilityFilter, setAvailabilityFilter,
   obtainableOnly, setObtainableOnly,
-  ownedOnly, setOwnedOnly,
   hasFilters, onClear,
   columnOptions, visibleColumns, setVisibleColumns,
   groupBy, setGroupBy,
@@ -40,7 +39,6 @@ export function ModulesFilterBar({
   availableFactions: string[]; factionMap: Map<string, FactionSummary>;
   availabilityFilter: string; setAvailabilityFilter: (v: string) => void;
   obtainableOnly: boolean; setObtainableOnly: (v: boolean) => void;
-  ownedOnly: boolean; setOwnedOnly: (v: boolean) => void;
   hasFilters: boolean; onClear: () => void;
   columnOptions: { value: string; label: string; group: string }[];
   visibleColumns: Set<string>; setVisibleColumns: (v: Set<string>) => void;
@@ -112,10 +110,7 @@ export function ModulesFilterBar({
         <Switch id="obtainable-only" checked={obtainableOnly} onCheckedChange={setObtainableOnly} />
         <span className="text-xs text-muted-foreground whitespace-nowrap">Obtainable</span>
       </label>
-      <label className="flex items-center gap-2 cursor-pointer">
-        <Switch id="module-owned-only" checked={ownedOnly} onCheckedChange={setOwnedOnly} />
-        <span className="text-xs text-muted-foreground whitespace-nowrap">Owned</span>
-      </label>
+
       {hasFilters && <ClearFiltersButton onClick={onClear} />}
       {/* Right: column visibility + group-by */}
       <div className="ml-auto flex items-center gap-3">

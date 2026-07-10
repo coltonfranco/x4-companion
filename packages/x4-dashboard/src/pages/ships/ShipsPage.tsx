@@ -6,6 +6,8 @@ import { useSettings } from "../../lib/settingsStore";
 import { Info, Wrench } from "lucide-react";
 import { EntityIcon } from "../../components/game/EntityIcon";
 import { FactionBadge } from "../../components/game/FactionBadge";
+import { MultiFactionBadge, pickPrimary } from "../../components/game/MultiFactionBadge";
+import { LicenceBadge } from "../../components/game/LicenceBadge";
 import { StatBar } from "../../components/data-display/StatBar";
 import { Currency } from "../../components/game/Currency";
 import { classShort, formatLicence, formatDlc } from "../../lib/formatters";
@@ -55,6 +57,8 @@ export default function ShipsPage() {
   const [selectedSubTypes, setSelectedSubTypes] = useState<Set<string>>(new Set());
   const [ownedOnly, setOwnedOnly] = useState(false);
   const [obtainableOnly, setObtainableOnly] = useState(true);
+  const [buyableOnly, setBuyableOnly] = useState(false);
+  const [buildableOnly, setBuildableOnly] = useState(false);
   const [selectedShip, setSelectedShip] = useState<ShipSummary | null>(null);
   const [sortCol, setSortCol] = useState<SortKey>("name");
   const [sortDesc, setSortDesc] = useState(false);
@@ -97,14 +101,14 @@ export default function ShipsPage() {
   const globalLicences = useGlobalLicences(ships);
 
   const filtered = ships.filter((s) => {
-    if (settings.fogOfWar && s.faction_id && knownFactions[s.faction_id] === false)
+    if (settings.fogOfWar && s.owner_factions?.length > 0 && s.owner_factions.every((fid) => knownFactions[fid] === false))
       return false;
     if (search && !s.name.toLowerCase().includes(search.toLowerCase()))
       return false;
     if (selectedClass && classShort(s.class_id) !== selectedClass) return false;
     if (
       selectedFactions.size > 0 &&
-      (!s.faction_id || !selectedFactions.has(s.faction_id))
+      (!s.owner_factions?.length || !s.owner_factions.some((fid) => selectedFactions.has(fid)))
     )
       return false;
     if (selectedTypes.size > 0 && (!s.role || !selectedTypes.has(s.role)))
@@ -119,6 +123,18 @@ export default function ShipsPage() {
     if (selectedDlcs.size > 0 && !selectedDlcs.has(dlcKey)) return false;
     if (ownedOnly && !s.is_owned) return false;
     if (obtainableOnly && !s.is_obtainable) return false;
+    if (buyableOnly) {
+      if (s.chassis_price_avg == null) return false;
+      const lic = s.restriction_licence;
+      const restricted = lic && lic !== "generaluseship" && lic !== "generaluseequipment";
+      if (restricted) {
+        const hasLic = globalLicences.has(lic)
+          ? licenceTypeSet.has(lic)
+          : s.owner_factions?.some((fid) => licenceSet.has(`${fid}:${lic}`));
+        if (!hasLic) return false;
+      }
+    }
+    if (buildableOnly && !s.has_blueprint) return false;
     return true;
   });
 
@@ -139,9 +155,20 @@ export default function ShipsPage() {
   const classMaxRange  = isLinear ? Math.max(...classShips.map((s) => s.range_max ?? 0), 1) : 0;
   const classMaxRadar  = isLinear ? Math.max(...classShips.map((s) => s.radar_range ?? 0), 1) : 0;
 
-  const sorted = [...filtered].sort((a, b) => {
-    const aVal = a[sortCol];
-    const bVal = b[sortCol];
+  // Resolve primary_faction client-side for sort / group-by (component owns this logic).
+  const withPrimary = useMemo(
+    () =>
+      filtered.map((s) => ({
+        ...s,
+        primary_faction: pickPrimary(s.owner_factions, factionMap),
+      })),
+    [filtered, factionMap],
+  );
+
+  const sorted = [...withPrimary].sort((a, b) => {
+    // "faction_id" sort resolves via primary_faction (the ship's design faction).
+    const aVal = sortCol === "faction_id" ? a.primary_faction ?? null : a[sortCol];
+    const bVal = sortCol === "faction_id" ? b.primary_faction ?? null : b[sortCol];
     if (aVal === null && bVal !== null) return sortDesc ? 1 : -1;
     if (aVal !== null && bVal === null) return sortDesc ? -1 : 1;
     if (aVal === null && bVal === null) return 0;
@@ -174,7 +201,9 @@ export default function ShipsPage() {
     selectedTypes.size > 0 ||
     (selectedTypes.size > 0 && selectedSubTypes.size > 0) ||
     ownedOnly ||
-    !obtainableOnly;
+    !obtainableOnly ||
+    buyableOnly ||
+    buildableOnly;
 
   // ── DataTable columns (memoized — render fns close over stat scaling values) ──
 
@@ -258,85 +287,76 @@ export default function ShipsPage() {
         sortKey: "faction_id",
         groupId: "classification",
         align: "left",
-        render: (ship) => {
-          const faction = ship.faction_id
-            ? factionMap.get(ship.faction_id)
-            : undefined;
-          return faction ? (
-            <FactionBadge
-              name={faction.name}
-              color_hex={faction.color_hex}
-              icon_url={faction.icon_url}
-              faction_id={faction.faction_id}
-            />
-          ) : (
-            <span className="text-muted-foreground text-xs">—</span>
-          );
-        },
+        render: (ship) => (
+          <MultiFactionBadge
+            ownerFactions={ship.owner_factions}
+            factionMap={factionMap}
+          />
+        ),
       },
       {
         key: "licence",
         label: "Licence",
         sortKey: "restriction_licence",
-        groupId: "classification",
+        groupId: "acquisition",
         align: "left",
         render: (ship) => {
           const lic = ship.restriction_licence;
-          const hasRestriction =
-            lic && lic !== "generaluseship" && lic !== "generaluseequipment";
-          if (!hasRestriction)
+          if (!lic || lic === "generaluseship" || lic === "generaluseequipment")
             return <span className="text-muted-foreground text-xs">—</span>;
-          const hasLicence = globalLicences.has(lic)
-            ? licenceTypeSet.has(lic)
-            : ship.faction_id
-            ? licenceSet.has(`${ship.faction_id}:${lic}`)
-            : false;
           return (
-            <span
-              className={cn(
-                "text-xs cursor-default",
-                hasLicence ? "text-emerald-400" : "text-red-400/80"
-              )}
-              title={
-                hasLicence
-                  ? `Licence owned (${formatLicence(lic)})`
-                  : `Licence locked (requires ${formatLicence(lic)})`
-              }
-            >
-              {formatLicence(lic)}
-            </span>
+            <LicenceBadge
+              licence={lic}
+              ownerFactions={ship.owner_factions ?? []}
+              factionMap={factionMap}
+              licenceSet={licenceSet}
+              licenceTypeSet={licenceTypeSet}
+              globalLicences={globalLicences}
+            />
           );
         },
       },
       {
+        key: "chassis",
+        label: "Chassis",
+        sortKey: "chassis_price_avg",
+        groupId: "acquisition",
+        align: "right",
+        render: (ship) => (
+          <span className="text-xs tabular-nums">
+            {ship.chassis_price_avg != null ? <Currency value={ship.chassis_price_avg} /> : <span className="text-muted-foreground">—</span>}
+          </span>
+        ),
+      },
+      {
         key: "price",
         label: "Blueprint",
-        sortKey: "price_avg",
-        groupId: "classification",
+        sortKey: "blueprint_price_max",
+        groupId: "acquisition",
         align: "right",
         render: (ship) => {
           if (ship.has_blueprint) {
             return (
               <span className="inline-flex items-center gap-1.5 text-xs">
-                <span className="text-emerald-400" title={ship.price_avg ? `Blueprint owned · ${ship.price_avg.toLocaleString()} Cr` : "Blueprint owned"}>✓</span>
+                <span className="text-emerald-400" title={ship.blueprint_price_max ? `Blueprint owned · ${ship.blueprint_price_max.toLocaleString()} Cr` : "Blueprint owned"}>✓</span>
               </span>
             );
           }
           const lic = ship.restriction_licence;
           const hasRestriction = lic && lic !== "generaluseship" && lic !== "generaluseequipment";
-          const hasLicence = !hasRestriction || (globalLicences.has(lic) ? licenceTypeSet.has(lic) : ship.faction_id ? licenceSet.has(`${ship.faction_id}:${lic}`) : false);
+          const hasLicence = !hasRestriction || (globalLicences.has(lic) ? licenceTypeSet.has(lic) : ship.owner_factions?.length > 0 ? ship.owner_factions.some((fid) => licenceSet.has(`${fid}:${lic}`)) : false);
           const licenceLocked = !hasLicence;
 
-          if (ship.price_avg && !licenceLocked) {
+          if (ship.blueprint_price_max && !licenceLocked) {
             return (
               <span className="inline-flex items-center gap-1.5 text-xs">
                 <span className="text-amber-400/80" title="Blueprint available for purchase">⊕</span>
-                <Currency value={ship.price_avg} />
+                <Currency value={ship.blueprint_price_max} />
               </span>
             );
           }
 
-          const isFreeDefault = !ship.price_avg && !licenceLocked && ship.is_obtainable;
+          const isFreeDefault = !ship.blueprint_price_max && !licenceLocked && ship.is_obtainable;
           if (isFreeDefault) {
             return (
               <span className="inline-flex items-center gap-1.5 text-xs">
@@ -344,11 +364,11 @@ export default function ShipsPage() {
               </span>
             );
           }
-          const reason = !ship.price_avg ? "Blueprint unobtainable" : "Blueprint locked behind licence";
+          const reason = !ship.blueprint_price_max ? "Blueprint unobtainable" : "Blueprint locked behind licence";
           return (
             <span className="inline-flex items-center gap-1.5 text-xs">
               <span className="text-red-400/80" title={reason}>✗</span>
-              {ship.price_avg ? <Currency value={ship.price_avg} /> : <span className="text-muted-foreground">—</span>}
+              {ship.blueprint_price_max ? <Currency value={ship.blueprint_price_max} /> : <span className="text-muted-foreground">—</span>}
             </span>
           );
         },
@@ -603,10 +623,12 @@ export default function ShipsPage() {
         return ship.ship_type
           ? ship.ship_type.charAt(0).toUpperCase() + ship.ship_type.slice(1)
           : "Unknown";
-      if (groupBy === "faction_id")
-        return ship.faction_id
-          ? factionMap.get(ship.faction_id)?.name || ship.faction_id
+      if (groupBy === "faction_id") {
+        const fid = ship.primary_faction;
+        return fid
+          ? factionMap.get(fid)?.name || fid
           : "No Faction";
+      }
       return "";
     },
     [groupBy, factionMap]
@@ -660,6 +682,8 @@ export default function ShipsPage() {
         selectedDlcs={selectedDlcs} setSelectedDlcs={setSelectedDlcs}
         ownedOnly={ownedOnly} setOwnedOnly={setOwnedOnly}
         obtainableOnly={obtainableOnly} setObtainableOnly={setObtainableOnly}
+        buyableOnly={buyableOnly} setBuyableOnly={setBuyableOnly}
+        buildableOnly={buildableOnly} setBuildableOnly={setBuildableOnly}
         hasFilters={!!hasFilters}
         onClear={() => {
           setSearch("");
@@ -670,6 +694,8 @@ export default function ShipsPage() {
           setSelectedSubTypes(new Set());
           setOwnedOnly(false);
           setObtainableOnly(true);
+          setBuyableOnly(false);
+          setBuildableOnly(false);
         }}
         visibleColumns={visibleColumns} setVisibleColumns={setVisibleColumns}
         groupBy={groupBy} setGroupBy={setGroupBy}

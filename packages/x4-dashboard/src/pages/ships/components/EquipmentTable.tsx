@@ -3,7 +3,8 @@ import { getMkGradientClass, formatLicence } from "../../../lib/formatters";
 import { cn } from "../../../lib/utils";
 import { useSort } from "../../../lib/useSort";
 import { Currency } from "../../../components/game/Currency";
-import { FactionBadge } from "../../../components/game/FactionBadge";
+import { MultiFactionBadge } from "../../../components/game/MultiFactionBadge";
+import { LicenceBadge } from "../../../components/game/LicenceBadge";
 import { EquipmentMkBadge, ShipClassBadge } from "../../../components/game/ShipBadges";
 import { StatBar } from "../../../components/data-display/StatBar";
 import { EntityIcon } from "../../../components/game/EntityIcon";
@@ -14,6 +15,7 @@ import { useFactionMap } from "../../../lib/useFactionMap";
 import { usePlayerLicences } from "../../../lib/usePlayerLicences";
 import type { Equipment } from "../../../components/detail-panels/EquipmentDetailPanel";
 import type { Category } from "../lib/equipmentCategories";
+import type { EquipmentItem, SortOption } from "../lib/builderTypes";
 
 export function EquipmentTable({
   category,
@@ -24,6 +26,9 @@ export function EquipmentTable({
   perSizeMaxima,
   isLinear,
   globalLicences,
+  initialSortId,
+  initialSortDir,
+  sortOptions,
 }: {
   category: Category;
   items: Equipment[];
@@ -33,6 +38,9 @@ export function EquipmentTable({
   perSizeMaxima: Record<string, Record<string, number>>;
   isLinear: boolean;
   globalLicences: Set<string>;
+  initialSortId?: string;
+  initialSortDir?: "asc" | "desc";
+  sortOptions?: SortOption[];
 }) {
   const metrics = category.metrics;
 
@@ -48,13 +56,6 @@ export function EquipmentTable({
   );
 
   const factionMap = useFactionMap(factions);
-  const shortFactionMap = useMemo(() => {
-    const m = new Map(factionMap);
-    for (const f of factions) {
-      if (f.short_name) m.set(f.short_name.toLowerCase(), f);
-    }
-    return m;
-  }, [factions, factionMap]);
 
   const accessors = useMemo(() => {
     const acc: Record<string, (e: Equipment) => number | string | null> = {
@@ -63,13 +64,16 @@ export function EquipmentTable({
       price: (e) => e.price_avg,
     };
     for (const m of metrics) acc[m.key] = m.get;
+    for (const option of sortOptions ?? []) {
+      acc[option.id] = (e) => option.eval(e as EquipmentItem) as number | string | null;
+    }
     return acc;
-  }, [metrics]);
+  }, [metrics, sortOptions]);
 
   const primaryKey = metrics.find((m) => m.primary)?.key ?? "name";
   const { sorted, key, dir, toggle } = useSort(items, accessors, {
-    key: primaryKey,
-    dir: primaryKey === "name" ? "asc" : "desc",
+    key: initialSortId ?? primaryKey,
+    dir: initialSortDir ?? (primaryKey === "name" ? "asc" : "desc"),
   });
 
   const columns = useMemo<ColumnDef<Equipment>[]>(
@@ -123,24 +127,12 @@ export function EquipmentTable({
         label: "Faction",
         align: "left",
         className: "w-40",
-        render: (e) => {
-          const faction = e.faction_id
-            ? (shortFactionMap.get(e.faction_id.toLowerCase()) ??
-               factionMap.get(e.faction_id))
-            : undefined;
-          return faction ? (
-            <FactionBadge
-              name={faction.name}
-              color_hex={faction.color_hex}
-              icon_url={faction.icon_url}
-              faction_id={faction.faction_id}
-            />
-          ) : (
-            <span className="text-xs uppercase text-muted-foreground">
-              {e.faction_id ?? "—"}
-            </span>
-          );
-        },
+        render: (e) => (
+          <MultiFactionBadge
+            ownerFactions={(e as any).owner_factions ?? []}
+            factionMap={factionMap}
+          />
+        ),
       },
       {
         key: "licence",
@@ -149,28 +141,17 @@ export function EquipmentTable({
         className: "w-36",
         render: (e) => {
           const lic = e.restriction_licence;
-          if (!lic || lic === "generaluseship" || lic === "generaluseequipment") {
-            return <span className="text-muted-foreground">—</span>;
-          }
-          const hasLicence = globalLicences.has(lic)
-            ? licenceTypeSet.has(lic)
-            : e.faction_id
-            ? licenceSet.has(`${e.faction_id}:${lic}`)
-            : false;
+          if (!lic || lic === "generaluseship" || lic === "generaluseequipment")
+            return <span className="text-muted-foreground text-xs">—</span>;
           return (
-            <span
-              className={cn(
-                "cursor-default text-xs",
-                hasLicence ? "text-success" : "text-destructive"
-              )}
-              title={
-                hasLicence
-                  ? `You have the ${formatLicence(lic)} licence.`
-                  : `Requires ${formatLicence(lic)} licence — you do not have it.`
-              }
-            >
-              {formatLicence(lic)}
-            </span>
+            <LicenceBadge
+              licence={lic}
+              ownerFactions={(e as any).owner_factions ?? []}
+              factionMap={factionMap}
+              licenceSet={licenceSet}
+              licenceTypeSet={licenceTypeSet}
+              globalLicences={globalLicences}
+            />
           );
         },
       },
@@ -222,7 +203,6 @@ export function EquipmentTable({
       globalMaxima,
       perSizeMaxima,
       factionMap,
-      shortFactionMap,
       licenceSet,
       licenceTypeSet,
       globalLicences,

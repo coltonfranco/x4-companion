@@ -30,6 +30,7 @@ class FactionSummary(PublicModel):
     icon_active: str | None = None
     icon_inactive: str | None = None
     icon_banner: str | None = None
+    tags: str | None = None
     icon_url: str | None = None
 
 
@@ -114,7 +115,7 @@ def list_factions(
         is_hidden_select("f"),
         ", CASE WHEN f.faction_id = 'player' THEN NULL ELSE f.short_name END AS short_name",
         ", f.prefix_name, f.space_name, f.home_space_name,",
-        "f.police_faction, f.primary_race, ",
+        "f.police_faction, f.primary_race, f.tags,",
         "CASE WHEN f.faction_id = 'player' AND p.logo_index IS NOT NULL "
         "     THEN 'playerlogo_' || printf('%02d', p.logo_index) "
         "     ELSE f.icon_active "

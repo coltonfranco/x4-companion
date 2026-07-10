@@ -13,6 +13,7 @@ from x4_api.schemas import PublicModel
 router = APIRouter()
 
 ICON_BASE = "/static/icons"
+SHIP_BLUEPRINT_PRICE_MULTIPLIER = 10
 
 
 class ShipSummary(PublicModel):
@@ -21,7 +22,7 @@ class ShipSummary(PublicModel):
     dlc: str | None
     class_id: str | None
     ship_type: str | None
-    faction_id: str | None
+    owner_factions: list[str]
     role: str | None
     hull: int | None
     shield_capacity_max: float | None
@@ -67,6 +68,12 @@ class ShipSummary(PublicModel):
     engines_l: int = 0
     engines_xl: int = 0
     price_avg: int | None
+    chassis_price_min: int | None = None
+    chassis_price_avg: int | None = None
+    chassis_price_max: int | None = None
+    blueprint_price_min: int | None = None
+    blueprint_price_avg: int | None = None
+    blueprint_price_max: int | None = None
     is_owned: bool = False
     restriction_licence: str | None = None
     has_blueprint: bool = False
@@ -162,7 +169,8 @@ _DOCK_STORAGE_COLS = (
 )
 
 _DETAIL_COLS = (
-    "s.ship_id, s.name, s.description, s.basename, s.variation, s.dlc, s.class_id, s.ship_type, s.role, s.faction_id, "
+    "s.ship_id, s.name, s.description, s.basename, s.variation, s.dlc, s.class_id, s.ship_type, s.role, "
+    "COALESCE((SELECT GROUP_CONCAT(wo.faction_id) FROM s.ware_owners wo WHERE wo.ware_id = REPLACE(s.ship_id, '_macro', '')), '') AS owner_factions_str, "
     "s.hull, s.cargo_volume, s.dps_max, s.speed_min, s.speed_max, s.icon_path, "
     "secrecy_level, "
     "travel_min, travel_max, travel_stability, boost_min, boost_max, "
@@ -188,7 +196,13 @@ _DETAIL_COLS = (
     "turrets_s, turrets_m, turrets_l, turrets_xl, "
     "shields_s, shields_m, shields_l, shields_xl, "
     "engines_s, engines_m, engines_l, engines_xl, "
-    "w.price_avg, w.restriction_licence, "
+    "w.price_avg, "
+    "w.price_min AS chassis_price_min, w.price_avg AS chassis_price_avg, "
+    "w.price_max AS chassis_price_max, "
+    f"w.price_min * {SHIP_BLUEPRINT_PRICE_MULTIPLIER} AS blueprint_price_min, "
+    f"w.price_avg * {SHIP_BLUEPRINT_PRICE_MULTIPLIER} AS blueprint_price_avg, "
+    f"w.price_max * {SHIP_BLUEPRINT_PRICE_MULTIPLIER} AS blueprint_price_max, "
+    "w.restriction_licence, "
     "EXISTS(SELECT 1 FROM player_blueprints pb WHERE pb.ware_id = w.ware_id) AS has_blueprint, "
     "EXISTS(SELECT 1 FROM ships dyn WHERE dyn.macro = s.ship_id AND dyn.is_player_owned = 1) AS is_owned, "
     "(s.can_be_captured IS NULL AND s.class_id != 'xs') AS is_obtainable"
@@ -206,7 +220,9 @@ def list_ships(
 ) -> list[ShipSummary]:
     """List all ships in the game catalog."""
     sql = [
-        "SELECT s.ship_id, s.name, s.dlc, s.class_id, s.ship_type, s.role, s.faction_id, s.hull, s.shield_capacity_max, s.cargo_volume, s.dps_max, s.speed_min, s.speed_max, s.travel_max, s.boost_max, s.accel_max, s.shield_recharge_max, s.radar_range, s.range_max, s.people_capacity, s.missile_storage, s.drone_storage, s.countermeasure_storage, s.deployable_storage, s.dock_s, s.dock_m, s.dock_l, s.dock_xl, s.storage_s, s.storage_m, s.storage_l, s.storage_xl, s.weapons_s, s.weapons_m, s.weapons_l, s.weapons_xl, s.turrets_s, s.turrets_m, s.turrets_l, s.turrets_xl, s.shields_s, s.shields_m, s.shields_l, s.shields_xl, s.engines_s, s.engines_m, s.engines_l, s.engines_xl, s.icon_path, w.price_avg, w.restriction_licence, s.can_be_captured,",
+        f"SELECT s.ship_id, s.name, s.dlc, s.class_id, s.ship_type, s.role,"
+        f" COALESCE((SELECT GROUP_CONCAT(wo.faction_id) FROM s.ware_owners wo WHERE wo.ware_id = REPLACE(s.ship_id, '_macro', '')), '') AS owner_factions_str,"
+        f" s.hull, s.shield_capacity_max, s.cargo_volume, s.dps_max, s.speed_min, s.speed_max, s.travel_max, s.boost_max, s.accel_max, s.shield_recharge_max, s.radar_range, s.range_max, s.people_capacity, s.missile_storage, s.drone_storage, s.countermeasure_storage, s.deployable_storage, s.dock_s, s.dock_m, s.dock_l, s.dock_xl, s.storage_s, s.storage_m, s.storage_l, s.storage_xl, s.weapons_s, s.weapons_m, s.weapons_l, s.weapons_xl, s.turrets_s, s.turrets_m, s.turrets_l, s.turrets_xl, s.shields_s, s.shields_m, s.shields_l, s.shields_xl, s.engines_s, s.engines_m, s.engines_l, s.engines_xl, s.icon_path, w.price_avg, w.price_min AS chassis_price_min, w.price_avg AS chassis_price_avg, w.price_max AS chassis_price_max, w.price_min * {SHIP_BLUEPRINT_PRICE_MULTIPLIER} AS blueprint_price_min, w.price_avg * {SHIP_BLUEPRINT_PRICE_MULTIPLIER} AS blueprint_price_avg, w.price_max * {SHIP_BLUEPRINT_PRICE_MULTIPLIER} AS blueprint_price_max, w.restriction_licence, s.can_be_captured,",
         "EXISTS(SELECT 1 FROM player_blueprints pb WHERE pb.ware_id = w.ware_id) AS has_blueprint,",
         "EXISTS(SELECT 1 FROM ships dyn WHERE dyn.macro = s.ship_id AND dyn.is_player_owned = 1) AS is_owned,",
         "(s.can_be_captured IS NULL AND s.class_id != 'xs') AS is_obtainable",
@@ -219,7 +235,11 @@ def list_ships(
         sql.append("AND s.class_id = :class_id")
         params["class_id"] = class_id
     if faction_id is not None:
-        sql.append("AND s.faction_id = :faction_id")
+        sql.append(
+            "AND EXISTS (SELECT 1 FROM s.ware_owners wo"
+            " WHERE wo.ware_id = REPLACE(s.ship_id, '_macro', '')"
+            " AND wo.faction_id = :faction_id)"
+        )
         params["faction_id"] = faction_id
     if is_obtainable:
         sql.append("AND s.can_be_captured IS NULL AND s.class_id != 'xs'")
@@ -230,6 +250,7 @@ def list_ships(
     for r in rows:
         d = dict(r)
         icon_path = d.pop("icon_path")
+        owner_str = d.pop("owner_factions_str")
         for col in _DOCK_STORAGE_COLS:
             d[col] = d[col] or 0
         d["icon_url"] = get_icon_url(icon_path)
@@ -238,6 +259,7 @@ def list_ships(
         d["has_blueprint"] = bool(d["has_blueprint"])
         d["is_obtainable"] = bool(d["is_obtainable"])
         d["can_be_captured"] = d["can_be_captured"] is None or bool(d["can_be_captured"])
+        d["owner_factions"] = owner_str.split(",") if owner_str else []
         result.append(ShipSummary(**d))
     return result
 
@@ -308,13 +330,15 @@ def get_ship(
     r = dict(row)
     r["icon_url"] = get_icon_url(r.pop("icon_path"))
     r["image_url"] = get_icon_url(f"ship_{r['ship_id']}")
+    owner_str = r.pop("owner_factions_str")
+    r["owner_factions"] = owner_str.split(",") if owner_str else []
     r["is_owned"] = bool(r["is_owned"])
     r["has_blueprint"] = bool(r["has_blueprint"])
     r["is_obtainable"] = bool(r["is_obtainable"])
     r["can_be_captured"] = r["can_be_captured"] is None or bool(r["can_be_captured"])
     r["software"] = [ShipSoftware(**dict(s)) for s in sw_rows]
     r["drop_list_id"] = _resolve_drop_list(
-        conn, r["ship_id"], r["class_id"], r["faction_id"], r["role"]
+        conn, r["ship_id"], r["class_id"], r["role"]
     )
     return ShipDetail(**r)
 
@@ -326,16 +350,18 @@ def _resolve_drop_list(
     conn: sqlite3.Connection,
     ship_id: str,
     class_id: str | None,
-    faction_id: str | None,
     role: str | None,
 ) -> str | None:
     size = _SIZE.get(class_id or "")
     if not size:
         return None
 
-    if faction_id == "xenon":
+    # Derive race from ship_id prefix (e.g. ship_xen_... → xenon).
+    race = ship_id.removeprefix("ship_").split("_")[0] if "_" in ship_id else ""
+
+    if race == "xen":
         candidate = f"ship_{size}_xenon"
-    elif faction_id == "khaak":
+    elif race == "kha":
         candidate = f"ship_{size}_khaak"
     elif ship_id.startswith("ship_pir_") and size == "small":
         candidate = "ship_small_pirate"

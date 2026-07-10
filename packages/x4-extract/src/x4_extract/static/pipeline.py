@@ -16,6 +16,7 @@ from x4_extract.db import apply_schema
 from x4_extract.static.extractors import (
     assignments,
     behaviours,
+    construction_plans,
     diplomacy,
     drops,
     equip_mods,
@@ -293,6 +294,16 @@ def run(settings: ExtractSettings, on_progress: Callable[[str, float], None] | N
                 loadouts.extract,
                 lambda r: loadouts.write(conn, _localize_result(r)),
                 lambda r: f"{len(r.loadouts)} loadouts",
+            )
+
+            construction_plans_xml = get_raw_file("libraries/constructionplans.xml")
+            run_step(
+                _progress_log,
+                "construction plans",
+                construction_plans_xml,
+                construction_plans.extract,
+                lambda r: construction_plans.write(conn, _localize_result(r)),
+                lambda r: f"{len(r.plans)} plans",
             )
 
             t0 = time.monotonic()

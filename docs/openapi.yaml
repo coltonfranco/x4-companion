@@ -1405,8 +1405,8 @@ paths:
         zones (e.g. `tempzone`) share that macro across every physically distinct
         instance in
 
-        the galaxy — joining by macro alone would collapse unrelated zones onto one
-        static (or
+        the galaxy — joining by macro alone would collapse unrelated zones onto
+        one static (or
 
         absent) centre. Ordinary named zones never carry a dynamic position, so this
         only
@@ -1848,6 +1848,44 @@ paths:
                 items:
                   $ref: '#/components/schemas/LoadoutSlot'
                 title: Response Get Ship Loadout Api V1 Ships  Ship Id  Loadout Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/ships/{ship_id}/loadout-options:
+    get:
+      tags:
+      - loadouts
+      summary: Get Ship Loadout Options
+      description: 'Named loadouts available for this ship: the game''s own factory
+        presets (sourced
+
+        from `libraries/loadouts.xml`) and the player''s saved custom loadouts (sourced
+        from
+
+        the profile''s `loadouts.xml`) — both keyed by ship macro, straight from
+        game files.'
+      operationId: get_ship_loadout_options_api_v1_ships__ship_id__loadout_options_get
+      parameters:
+      - name: ship_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ship Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LoadoutOption'
+                title: Response Get Ship Loadout Options Api V1 Ships  Ship Id  Loadout
+                  Options Get
         '422':
           description: Validation Error
           content:
@@ -2847,6 +2885,66 @@ paths:
                   $ref: '#/components/schemas/StationLayoutEntry'
                 title: Response Station Layout Api V1 Stations  Station Id  Layout
                   Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/construction-plans:
+    get:
+      tags:
+      - construction-plans
+      summary: List Construction Plans
+      description: 'Construction plans available to import into the station builder:
+        the player''s
+
+        saved designs first, then the game''s own (faction HQs/wharfs/shipyards, gamestart
+
+        stations) — straight from game files, same duality as `/ships/{id}/loadout-options`.'
+      operationId: list_construction_plans_api_v1_construction_plans_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ConstructionPlanSummary'
+                type: array
+                title: Response List Construction Plans Api V1 Construction Plans
+                  Get
+  /api/v1/construction-plans/{plan_id}/layout:
+    get:
+      tags:
+      - construction-plans
+      summary: Construction Plan Layout
+      description: 'The placed-module graph of a construction plan, in the same shape
+        as
+
+        `/stations/{id}/layout` so the builder''s existing import logic (`layoutToDesign`)
+
+        works on it unchanged. No position data — the builder re-lays the graph
+        out itself.'
+      operationId: construction_plan_layout_api_v1_construction_plans__plan_id__layout_get
+      parameters:
+      - name: plan_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Plan Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StationLayoutEntry'
+                title: Response Construction Plan Layout Api V1 Construction Plans  Plan
+                  Id  Layout Get
         '422':
           description: Validation Error
           content:
@@ -4469,6 +4567,39 @@ components:
       - factions
       - fighter_count
       title: ConflictSide
+    ConstructionPlanSummary:
+      properties:
+        plan_id:
+          type: string
+          title: Plan Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        source:
+          type: string
+          enum:
+          - preset
+          - custom
+          title: Source
+        module_count:
+          type: integer
+          title: Module Count
+      additionalProperties: false
+      type: object
+      required:
+      - plan_id
+      - name
+      - description
+      - source
+      - module_count
+      title: ConstructionPlanSummary
     DeployableEntry:
       properties:
         id:
@@ -5791,6 +5922,59 @@ components:
       - is_under_construction
       - known_to_player
       title: LiveStation
+    LoadoutOption:
+      properties:
+        loadout_id:
+          type: string
+          title: Loadout Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        source:
+          type: string
+          enum:
+          - preset
+          - custom
+          title: Source
+        items:
+          items:
+            $ref: '#/components/schemas/LoadoutOptionItem'
+          type: array
+          title: Items
+      additionalProperties: false
+      type: object
+      required:
+      - loadout_id
+      - name
+      - description
+      - source
+      - items
+      title: LoadoutOption
+    LoadoutOptionItem:
+      properties:
+        kind:
+          type: string
+          title: Kind
+        ware_id:
+          type: string
+          title: Ware Id
+        quantity:
+          type: integer
+          title: Quantity
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - ware_id
+      - quantity
+      title: LoadoutOptionItem
     LoadoutSlot:
       properties:
         ship_id:
@@ -8927,6 +9111,36 @@ components:
           - type: integer
           - type: 'null'
           title: Price Avg
+        chassis_price_min:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Chassis Price Min
+        chassis_price_avg:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Chassis Price Avg
+        chassis_price_max:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Chassis Price Max
+        blueprint_price_min:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Blueprint Price Min
+        blueprint_price_avg:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Blueprint Price Avg
+        blueprint_price_max:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Blueprint Price Max
         is_owned:
           type: boolean
           title: Is Owned
@@ -9525,6 +9739,36 @@ components:
           - type: integer
           - type: 'null'
           title: Price Avg
+        chassis_price_min:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Chassis Price Min
+        chassis_price_avg:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Chassis Price Avg
+        chassis_price_max:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Chassis Price Max
+        blueprint_price_min:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Blueprint Price Min
+        blueprint_price_avg:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Blueprint Price Avg
+        blueprint_price_max:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Blueprint Price Max
         is_owned:
           type: boolean
           title: Is Owned

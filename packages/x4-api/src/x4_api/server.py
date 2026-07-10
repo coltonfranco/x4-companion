@@ -21,6 +21,7 @@ from x4_api import __version__
 from x4_api.config import settings
 from x4_api.routes import (
     builder,
+    construction_plans,
     deployables,
     diplomacy,
     drops,
@@ -127,6 +128,7 @@ def app() -> FastAPI:
     fast.include_router(refresh.router, prefix="/api/v1", tags=["refresh"])
     fast.include_router(player.router, prefix="/api/v1", tags=["player"])
     fast.include_router(stations.router, prefix="/api/v1", tags=["stations"])
+    fast.include_router(construction_plans.router, prefix="/api/v1", tags=["construction-plans"])
     fast.include_router(fleet.router, prefix="/api/v1", tags=["fleet"])
     fast.include_router(roles.router, prefix="/api/v1", tags=["roles"])
     fast.include_router(routes.router, prefix="/api/v1", tags=["routes"])

@@ -26,7 +26,7 @@ export function LoadDesignDialog({
         <DialogHeader>
           <DialogTitle>Load station design</DialogTitle>
         </DialogHeader>
-        <div className="max-h-[60vh] overflow-y-auto -mx-2 px-2">
+        <div className="max-h-[60vh] overflow-y-auto -mx-2 px-2 mt-4">
           {isLoading ? (
             <div className="text-sm text-muted-foreground p-4 text-center">Loading…</div>
           ) : (designs?.length ?? 0) === 0 ? (

@@ -11,6 +11,7 @@ import {
   computeRankings,
   METRICS,
   PLAYER_FACTION_ID,
+  breakdownKey,
   useFactionRankBaseline,
   type FactionStrength,
   type MetricKey,
@@ -138,7 +139,7 @@ function StandingRow({
   const isPlayer = faction.faction_id === PLAYER_FACTION_ID;
   const name = isPlayer ? (info?.name ?? "Your Empire") : faction.name;
   const color = faction.color_hex ?? "#888888";
-  const score = faction[metric.key];
+  const leaderRatio = faction[breakdownKey(metric.key)].leader_ratio;
   const isTop = rank === 1 && !pinned;
 
   return (
@@ -159,7 +160,7 @@ function StandingRow({
       {!pinned && (
         <div
           className="absolute inset-y-0 left-0 pointer-events-none"
-          style={{ width: `${Math.min(100, score)}%`, backgroundColor: metric.color, opacity: isTop ? 0.22 : 0.12 }}
+          style={{ width: `${Math.min(100, leaderRatio)}%`, backgroundColor: metric.color, opacity: isTop ? 0.22 : 0.12 }}
         />
       )}
 
@@ -219,7 +220,7 @@ function StandingRow({
         className={cn("relative z-10 tabular-nums shrink-0 text-right", isTop ? "text-lg font-bold w-10" : "text-sm w-8")}
         style={isTop ? { color: metric.color } : undefined}
       >
-        {score.toFixed(0)}
+        {leaderRatio.toFixed(0)}
       </span>
       </div>
     </FactionStrengthTooltip>

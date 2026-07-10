@@ -117,14 +117,13 @@ export default function EmpireOverviewPage() {
     () =>
       rankings.map((r) => {
         const found = findRank(r.ranked, PLAYER_FACTION_ID);
-        const me = strength.find((f) => f.faction_id === PLAYER_FACTION_ID);
+        const me = found?.faction;
         return {
           key: r.key,
           label: r.label,
           color: r.color,
           rank: found?.rank ?? null,
           total: found?.total ?? r.ranked.length,
-          score: me?.[r.key] ?? 0,
           leaderRatio: me ? me[breakdownKey(r.key)].leader_ratio : 0,
           faction: me ?? null,
         };
@@ -472,9 +471,9 @@ export default function EmpireOverviewPage() {
 
                                   <div className="flex items-center justify-between mt-1">
                                     <span className="text-xs text-muted-foreground tabular-nums">
-                                      Score {c.score.toFixed(0)}/100
+                                      Leader
                                     </span>
-                                    <span className="text-xs text-muted-foreground tabular-nums">{c.leaderRatio.toFixed(0)}% of leader</span>
+                                    <span className="text-xs text-muted-foreground tabular-nums">{c.leaderRatio.toFixed(0)}%</span>
                                   </div>
                                 </div>
                               </FactionStrengthTooltip>

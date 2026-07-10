@@ -9,6 +9,7 @@ export type FactionSummary = {
   icon_url?: string | null;
   short_name?: string | null;
   primary_race?: string | null;
+  tags?: string | null;
 };
 
 export type FactionLicence = {

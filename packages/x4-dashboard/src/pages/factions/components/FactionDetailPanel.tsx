@@ -78,7 +78,7 @@ export function FactionDetailPanel({ factionId, onClose, hasSave }: { factionId:
   const rankings = useMemo(() => computeRankings(strengthData), [strengthData]);
 
   const ranks = useMemo(() => {
-    const result = {} as Record<MetricKey, { rank: number; total: number } | null>;
+    const result = {} as Record<MetricKey, ReturnType<typeof findRank>>;
     for (const m of rankings) {
       result[m.key] = findRank(m.ranked, factionId);
     }
@@ -190,12 +190,12 @@ export function FactionDetailPanel({ factionId, onClose, hasSave }: { factionId:
                   <div className="grid grid-cols-4 gap-3">
                     {METRICS.map((m) => {
                       const rank = ranks[m.key];
-                      const score = strengthEntry[m.key];
-                      const leaderRatio = strengthEntry[breakdownKey(m.key)].leader_ratio;
+                      const rankedStrengthEntry = rank?.faction ?? strengthEntry;
+                      const leaderRatio = rankedStrengthEntry[breakdownKey(m.key)].leader_ratio;
                       return (
                         <FactionStrengthTooltip
                           key={m.key}
-                          faction={strengthEntry}
+                          faction={rankedStrengthEntry}
                           metric={m}
                           rank={rank}
                           subjectLabel={faction.name}
@@ -224,8 +224,8 @@ export function FactionDetailPanel({ factionId, onClose, hasSave }: { factionId:
                               />
                             </div>
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <span className="tabular-nums">Score {score.toFixed(0)}/100</span>
-                              <span className="tabular-nums">{leaderRatio.toFixed(0)}% of leader</span>
+                              <span className="uppercase tracking-wide text-[10px]">Leader</span>
+                              <span className="tabular-nums">{leaderRatio.toFixed(0)}%</span>
                             </div>
                           </div>
                         </FactionStrengthTooltip>
